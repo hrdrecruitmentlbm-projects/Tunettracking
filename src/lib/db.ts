@@ -195,3 +195,82 @@ export async function createTask(
 
   return task as Task;
 }
+
+// ===== USER CRUD =====
+
+export interface CreateUserInput {
+  name: string;
+  role: "admin" | "noc" | "foc";
+  phone: string;
+  pin: string;
+  telegram_id?: string;
+}
+
+export async function createUser(input: CreateUserInput): Promise<User | null> {
+  const { data, error } = await supabase
+    .from("users")
+    .insert({
+      name: input.name,
+      role: input.role,
+      phone: input.phone,
+      pin: input.pin,
+      telegram_id: input.telegram_id || null,
+      is_active: true,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Error creating user:", error);
+    return null;
+  }
+  return data as User;
+}
+
+export async function updateUser(
+  id: string,
+  input: Partial<CreateUserInput>
+): Promise<User | null> {
+  const updateData: Record<string, unknown> = {};
+  if (input.name !== undefined) updateData.name = input.name;
+  if (input.role !== undefined) updateData.role = input.role;
+  if (input.phone !== undefined) updateData.phone = input.phone;
+  if (input.pin !== undefined) updateData.pin = input.pin;
+  if (input.telegram_id !== undefined) updateData.telegram_id = input.telegram_id || null;
+
+  const { data, error } = await supabase
+    .from("users")
+    .update(updateData)
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Error updating user:", error);
+    return null;
+  }
+  return data as User;
+}
+
+export async function deactivateUser(id: string): Promise<boolean> {
+  const { error } = await supabase
+    .from("users")
+    .update({ is_active: false })
+    .eq("id", id);
+
+  if (error) {
+    console.error("Error deactivating user:", error);
+    return false;
+  }
+  return true;
+}
+
+export async function deleteUser(id: string): Promise<boolean> {
+  const { error } = await supabase.from("users").delete().eq("id", id);
+
+  if (error) {
+    console.error("Error deleting user:", error);
+    return false;
+  }
+  return true;
+}

@@ -82,7 +82,7 @@ export default function LoginPage() {
             </Button>
           </form>
           <div className="mt-6 text-center text-xs text-tunet-text-muted">
-            <p>Demo PINs: 1234 (Admin, NOC, FOC)</p>
+            <p>Contact your admin for PIN access</p>
           </div>
         </CardContent>
       </Card>

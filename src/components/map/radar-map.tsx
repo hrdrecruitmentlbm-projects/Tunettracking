@@ -90,7 +90,7 @@ export function RadarMap({ height = "100%" }: RadarMapProps) {
     };
   }, []);
 
-  const center: [number, number] = [-6.9175, 107.6191];
+  const center: [number, number] = [-7.4833, 109.2333];
 
   const getMarkerColor = (location: Location) => {
     const hasActiveTask = tasks.some(
