@@ -1,11 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sendMessage, TelegramUpdate } from "@/lib/telegram";
-import { findUserByTelegramUsername, upsertLocation, fetchTasks, createNotification } from "@/lib/db";
+import { findUserByTelegramUsername, findUserByTelegramChatId, upsertLocation, fetchTasks, createNotification } from "@/lib/db";
 import { cacheTelegramChat } from "@/lib/telegram-cache";
 
 export async function POST(request: NextRequest) {
   try {
     const update: TelegramUpdate = await request.json();
+
+    // Handle edited_message (live location updates) BEFORE the early-return on missing message
+    const editedMessage = update.edited_message;
+    if (editedMessage?.location) {
+      const chatId = editedMessage.chat.id;
+      const user = await findUserByTelegramChatId(chatId);
+      if (user) {
+        await upsertLocation(
+          user.id,
+          editedMessage.location.latitude,
+          editedMessage.location.longitude
+        );
+      }
+      return NextResponse.json({ ok: true });
+    }
+
     const message = update.message;
 
     if (!message) {

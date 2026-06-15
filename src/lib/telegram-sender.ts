@@ -1,7 +1,6 @@
 import { supabase } from "@/lib/supabase";
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
 const STATUS_LABEL: Record<string, string> = {
   todo: "Belum dimulai",
@@ -11,6 +10,13 @@ const STATUS_LABEL: Record<string, string> = {
   done: "Selesai",
 };
 
+const PRIORITY_LABEL: Record<string, { emoji: string; label: string }> = {
+  urgent: { emoji: "🔴", label: "Urgent" },
+  high: { emoji: "🟠", label: "Tinggi" },
+  medium: { emoji: "🟡", label: "Sedang" },
+  low: { emoji: "⚪", label: "Rendah" },
+};
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, "&amp;")
@@ -18,8 +24,23 @@ function escapeHtml(s: string): string {
     .replace(/>/g, "&gt;");
 }
 
+function formatDeadline(deadline: string | null | undefined): string {
+  if (!deadline) return "Tidak Ada";
+  const d = new Date(deadline);
+  if (isNaN(d.getTime())) return "Tidak Ada";
+  const formatted = d.toLocaleString("id-ID", {
+    timeZone: "Asia/Jakarta",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  return `${formatted} WIB`;
+}
+
 export type SendResult =
-  | { ok: true; skipped?: "already_claimed" | "no_chat_id" | "no_metadata" }
+  | { ok: true; skipped?: "already_claimed" | "no_chat_id" | "no_metadata" | "no_change" }
   | { ok: false; error: string; detail?: string };
 
 export async function sendTelegramNotification(
@@ -73,11 +94,22 @@ export async function sendTelegramNotification(
   const taskId = metadata.task_id;
   const title = metadata?.title ?? "Tugas";
   const location = metadata?.location_name ?? "—";
+  const description = metadata?.description ?? "";
+  const priorityRaw = metadata?.priority ?? "medium";
+  const priorityInfo = PRIORITY_LABEL[priorityRaw] ?? PRIORITY_LABEL.medium;
   const statusRaw = metadata?.status ?? "todo";
   const statusLabel = STATUS_LABEL[statusRaw] ?? statusRaw;
+  const deadlineText = formatDeadline(metadata?.deadline);
 
   const isReassignment = notif.type === "status_update";
   const isCompleted = notif.type === "completed";
+
+  // Guard: skip reassignment notification if assignee didn't actually change
+  if (isReassignment && metadata?.previous_assignee && metadata?.new_assignee) {
+    if (metadata.previous_assignee === metadata.new_assignee) {
+      return { ok: true, skipped: "no_change" };
+    }
+  }
 
   let text: string;
   if (isCompleted) {
@@ -89,19 +121,23 @@ export async function sendTelegramNotification(
       `<b>Penanggung jawab telah diganti</b>\n\n` +
       `Tugas "${escapeHtml(title)}" di ${escapeHtml(location)} telah dialihkan ke teknisi lain.`;
   } else {
-    text =
-      `<b>Tugas baru telah ditambahkan</b>\n\n` +
-      `Kamu telah ditugaskan untuk "${escapeHtml(title)}" bertempat di "${escapeHtml(location)}"\n` +
-      `Status : ${escapeHtml(statusLabel)}`;
+    const lines: string[] = [
+      `<b>📋 Tugas baru telah ditambahkan</b>`,
+      ``,
+      `<b>Judul:</b> ${escapeHtml(title)}`,
+      `<b>Lokasi:</b> ${escapeHtml(location)}`,
+      `<b>Prioritas:</b> ${priorityInfo.emoji} ${priorityInfo.label}`,
+      `<b>Status:</b> ${escapeHtml(statusLabel)}`,
+      `<b>Deadline:</b> ${deadlineText}`,
+    ];
+    if (description.trim()) {
+      lines.push(``, `<b>Deskripsi:</b>`, escapeHtml(description));
+    }
+    text = lines.join("\n");
   }
 
-  const reply_markup = taskId
-    ? {
-        inline_keyboard: isReassignment || isCompleted
-          ? [[{ text: "📋 Lihat Tugas", url: `${APP_URL}/dashboard/foc` }]]
-          : [[{ text: "📋 Lihat Tugas", url: `${APP_URL}/dashboard/foc` }]],
-      }
-    : undefined;
+  // No buttons on any notification type (message is fully detailed; location is in the second message)
+  const reply_markup: Record<string, unknown> | undefined = undefined;
 
   const tgRes = await fetch(
     `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
@@ -138,7 +174,10 @@ export async function sendTelegramNotification(
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           chat_id: chatId,
-          text: "📍 Bagikan lokasi Anda untuk update status tugas",
+          text:
+            `<b>📍 Bagikan lokasi Anda</b>\n\n` +
+            `Untuk update posisi satu kali, ketuk tombol di bawah.\n` +
+            `Untuk live tracking, tap 📎 → Location → Share Live Location.`,
           reply_markup: {
             keyboard: [[{ text: "📍 Perbarui Lokasi", request_location: true }]],
             resize_keyboard: true,

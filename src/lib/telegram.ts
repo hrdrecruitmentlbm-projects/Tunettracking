@@ -32,6 +32,7 @@ export interface TelegramMessage {
 export interface TelegramUpdate {
   update_id: number;
   message?: TelegramMessage;
+  edited_message?: TelegramMessage;
 }
 
 export async function sendMessage(chatId: number | string, text: string): Promise<boolean> {

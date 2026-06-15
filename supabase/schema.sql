@@ -209,7 +209,13 @@ INSERT INTO tags (name, color) VALUES
   ('Upgrade', '#10B981');
 
 -- Enable realtime for locations
-ALTER PUBLICATION supabase_realtime ADD TABLE locations;
+DO $$ BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE locations;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Enable realtime for tasks
-ALTER PUBLICATION supabase_realtime ADD TABLE tasks;
+DO $$ BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE tasks;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;

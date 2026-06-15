@@ -506,6 +506,24 @@ export async function findUserByTelegramId(
   return null;
 }
 
+export async function findUserByTelegramChatId(
+  chatId: number
+): Promise<User | null> {
+  const { data, error } = await supabase
+    .from("users")
+    .select("*")
+    .eq("telegram_chat_id", chatId)
+    .eq("is_active", true)
+    .limit(1);
+
+  if (error) {
+    console.error("Error finding user by telegram_chat_id:", error);
+    return null;
+  }
+  if (!data || data.length === 0) return null;
+  return data[0] as User;
+}
+
 // ===== ANALYTICS =====
 
 export interface CompletionTrendPoint {

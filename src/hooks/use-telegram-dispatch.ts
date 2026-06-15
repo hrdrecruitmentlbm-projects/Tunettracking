@@ -32,7 +32,12 @@ export function useTelegramDispatch(userId: string | undefined) {
         const all = await fetchNotifications(userId);
         if (cancelled) return;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const pending = (all as any[]).filter((n) => !n.telegram_sent_at);
+        const pending = (all as any[]).filter((n) => {
+          if (n.telegram_sent_at) return false;
+          // Skip stale notifications older than 5 minutes on initial load
+          const age = Date.now() - new Date(n.created_at).getTime();
+          return age < 5 * 60 * 1000;
+        });
         for (const n of pending) {
           await dispatch(n.id);
         }

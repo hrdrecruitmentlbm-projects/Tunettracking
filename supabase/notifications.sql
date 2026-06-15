@@ -15,7 +15,10 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS telegram_chat_id BIGINT;
 ALTER TABLE notifications DISABLE ROW LEVEL SECURITY;
 
 -- B) Enable realtime for notifications
-ALTER PUBLICATION supabase_realtime ADD TABLE notifications;
+DO $$ BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE notifications;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- C) Atomic claim RPC (prevents duplicate sends from multiple browser tabs)
 CREATE OR REPLACE FUNCTION claim_notification(p_notification_id UUID)
@@ -85,14 +88,18 @@ FOR EACH ROW
 EXECUTE FUNCTION notify_task_assigned();
 
 -- E) Trigger: handle reassignment (new FOC + old FOC)
+--    GUARD: Only fire when assigned_to actually changes between two non-NULL values.
+--    Status-only updates (e.g. "Start Work") must NOT trigger this.
 CREATE OR REPLACE FUNCTION notify_task_reassigned()
 RETURNS TRIGGER AS $$
 DECLARE
   v_priority_name TEXT;
 BEGIN
+  -- Bail if assigned_to did not change (status-only update, deadline change, etc.)
   IF NEW.assigned_to IS NOT DISTINCT FROM OLD.assigned_to THEN
     RETURN NEW;
   END IF;
+  -- Bail if either side is NULL (initial assignment or un-assignment)
   IF NEW.assigned_to IS NULL OR OLD.assigned_to IS NULL THEN
     RETURN NEW;
   END IF;
