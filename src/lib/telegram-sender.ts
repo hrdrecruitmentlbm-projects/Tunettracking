@@ -97,16 +97,9 @@ export async function sendTelegramNotification(
 
   const reply_markup = taskId
     ? {
-        inline_keyboard: isReassignment
+        inline_keyboard: isReassignment || isCompleted
           ? [[{ text: "📋 Lihat Tugas", url: `${APP_URL}/dashboard/foc` }]]
-          : [
-              [
-                { text: "📋 Lihat Tugas", url: `${APP_URL}/dashboard/foc` },
-                ...(isCompleted
-                  ? []
-                  : [{ text: "📍 Perbarui Lokasi", request_location: true }]),
-              ],
-            ],
+          : [[{ text: "📋 Lihat Tugas", url: `${APP_URL}/dashboard/foc` }]],
       }
     : undefined;
 
@@ -134,6 +127,26 @@ export async function sendTelegramNotification(
       .eq("id", notificationId);
 
     return { ok: false, error: "Telegram API error", detail: errBody };
+  }
+
+  // For new task assignments, send a second message with a location-sharing keyboard
+  if (!isReassignment && !isCompleted && taskId) {
+    await fetch(
+      `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: "📍 Bagikan lokasi Anda untuk update status tugas",
+          reply_markup: {
+            keyboard: [[{ text: "📍 Perbarui Lokasi", request_location: true }]],
+            resize_keyboard: true,
+            one_time_keyboard: true,
+          },
+        }),
+      }
+    );
   }
 
   return { ok: true };
