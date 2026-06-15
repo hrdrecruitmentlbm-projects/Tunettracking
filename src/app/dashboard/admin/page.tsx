@@ -81,8 +81,8 @@ export default function AdminDashboard() {
       <div className="min-h-screen bg-tunet-bg">
         <div className="h-16 border-b border-tunet-border flex items-center px-6">
           <div>
-            <h1 className="text-lg font-semibold text-tunet-text">Admin Dashboard</h1>
-            <p className="text-xs text-tunet-text-muted">Overview of Tunet operations</p>
+            <h1 className="text-lg font-semibold text-tunet-text">{COPY.pages.admin.title}</h1>
+            <p className="text-xs text-tunet-text-muted">{COPY.pages.admin.subtitle}</p>
           </div>
         </div>
 
@@ -91,7 +91,7 @@ export default function AdminDashboard() {
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-tunet-text-muted">Total Team</p>
+                  <p className="text-sm text-tunet-text-muted">{COPY.pages.admin.totalTeam}</p>
                   <p className="text-2xl font-bold text-tunet-text">{totalUsers}</p>
                 </div>
                 <div className="w-10 h-10 rounded-lg bg-tunet-green/20 flex items-center justify-center">
@@ -113,10 +113,10 @@ export default function AdminDashboard() {
             <CardContent className="p-4">
               <div className="flex items-center justify-between mb-3">
                 <div>
-                  <p className="text-sm text-tunet-text-muted">Total Tasks</p>
+                  <p className="text-sm text-tunet-text-muted">{COPY.pages.admin.totalTasks}</p>
                   <div className="flex items-baseline gap-2">
                     <p className="text-2xl font-bold text-tunet-text">{totalTasks}</p>
-                    <span className="text-xs text-tunet-text-muted">{completionPct}% done</span>
+                    <span className="text-xs text-tunet-text-muted">{completionPct}% {COPY.pages.noc.completed.toLowerCase()}</span>
                   </div>
                 </div>
                 <div className="w-10 h-10 rounded-lg bg-status-assigned/20 flex items-center justify-center">
@@ -146,7 +146,7 @@ export default function AdminDashboard() {
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-tunet-text-muted">Active Tasks</p>
+                  <p className="text-sm text-tunet-text-muted">{COPY.pages.admin.activeTasks}</p>
                   <p className="text-2xl font-bold text-status-progress">{activeTasks}</p>
                 </div>
                 <div className="w-10 h-10 rounded-lg bg-status-progress/20 flex items-center justify-center">
@@ -160,7 +160,7 @@ export default function AdminDashboard() {
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-tunet-text-muted">Overdue</p>
+                  <p className="text-sm text-tunet-text-muted">{COPY.pages.admin.overdue}</p>
                   <p className="text-2xl font-bold text-status-overdue">{overdueTasks}</p>
                 </div>
                 <div className="w-10 h-10 rounded-lg bg-status-overdue/20 flex items-center justify-center">
@@ -174,7 +174,7 @@ export default function AdminDashboard() {
         <div className="px-6 pb-6">
           <Card className="bg-tunet-surface border-tunet-border">
             <CardHeader>
-              <CardTitle className="text-tunet-text">Team Members</CardTitle>
+              <CardTitle className="text-tunet-text">{COPY.pages.admin.teamMembers}</CardTitle>
             </CardHeader>
             <CardContent>
               {users.length === 0 ? (
@@ -189,16 +189,16 @@ export default function AdminDashboard() {
                     <thead>
                       <tr className="border-b border-tunet-border">
                         <th className="text-left py-3 px-4 text-xs font-medium text-tunet-text-muted">
-                          Name
+                          {COPY.pages.team.colName}
                         </th>
                         <th className="text-left py-3 px-4 text-xs font-medium text-tunet-text-muted">
-                          Role
+                          {COPY.pages.team.colRole}
                         </th>
                         <th className="text-left py-3 px-4 text-xs font-medium text-tunet-text-muted">
-                          Phone
+                          {COPY.pages.team.colPhone}
                         </th>
                         <th className="text-left py-3 px-4 text-xs font-medium text-tunet-text-muted">
-                          Status
+                          {COPY.pages.team.colStatus}
                         </th>
                       </tr>
                     </thead>
@@ -237,7 +237,7 @@ export default function AdminDashboard() {
                                   : "bg-status-overdue/20 text-status-overdue"
                               }`}
                             >
-                              {user.is_active ? "Active" : "Inactive"}
+                              {user.is_active ? COPY.pages.team.active : COPY.pages.team.inactive}
                             </Badge>
                           </td>
                         </tr>

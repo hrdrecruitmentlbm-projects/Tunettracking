@@ -13,10 +13,17 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { fetchUsers, fetchTags, createTask, getCurrentUser, CreateTaskInput } from "@/lib/db";
+import {
+  fetchUsers,
+  fetchTags,
+  createTask,
+  getCurrentUser,
+  CreateTaskInput,
+} from "@/lib/db";
 import { User, Tag, Task, PRIORITY_CONFIG } from "@/types";
 import { toast } from "sonner";
 import { MapPin, Calendar, Tag as TagIcon } from "lucide-react";
+import { COPY } from "@/lib/copy";
 
 interface TaskFormProps {
   open: boolean;
@@ -63,7 +70,7 @@ export function TaskForm({ open, onOpenChange, onTaskCreated }: TaskFormProps) {
 
   const handleSessionExpired = () => {
     localStorage.removeItem("tunetops-user");
-    toast.error("Session expired. Please log in again.");
+    toast.error("Sesi berakhir. Silakan masuk lagi.");
     router.push("/");
   };
 
@@ -71,7 +78,7 @@ export function TaskForm({ open, onOpenChange, onTaskCreated }: TaskFormProps) {
     e.preventDefault();
 
     if (!title.trim() || !description.trim() || !locationName.trim()) {
-      toast.error("Please fill in all required fields");
+      toast.error(COPY.taskForm.requiredFieldsMissing);
       return;
     }
 
@@ -105,17 +112,12 @@ export function TaskForm({ open, onOpenChange, onTaskCreated }: TaskFormProps) {
     const { task, error } = await createTask(input, currentUser);
 
     if (task) {
-      const assignee = focUsers.find((u) => u.id === task.assigned_to);
-      toast.success(
-        assignee
-          ? `Task created! ${assignee.name} has been notified via Telegram.`
-          : "Task created successfully!"
-      );
+      toast.success(COPY.taskForm.created);
       resetForm();
       onOpenChange(false);
       onTaskCreated(task);
     } else {
-      toast.error(`Failed to create task: ${error ?? "Unknown error"}`);
+      toast.error(COPY.taskForm.failed);
     }
 
     setSubmitting(false);
@@ -128,23 +130,22 @@ export function TaskForm({ open, onOpenChange, onTaskCreated }: TaskFormProps) {
   };
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
+      <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="bg-tunet-surface border-tunet-border w-full sm:max-w-md">
         <SheetHeader>
-          <SheetTitle className="text-tunet-text">Create New Task</SheetTitle>
+          <SheetTitle className="text-tunet-text">{COPY.taskForm.createTitle}</SheetTitle>
           <SheetDescription className="text-tunet-text-muted">
-            Fill in the details to create a new task
+            {COPY.taskForm.createSubtitle}
           </SheetDescription>
         </SheetHeader>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4 px-4 pb-4 flex-1 overflow-y-auto">
-          {/* Title */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-tunet-text">
-              Title <span className="text-red-400">*</span>
+              {COPY.taskForm.title} <span className="text-red-400">*</span>
             </label>
             <Input
-              placeholder="e.g. Tower Repair - Jl. Merdeka"
+              placeholder={COPY.taskForm.titlePlaceholder}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               className="bg-tunet-bg border-tunet-border text-tunet-text"
@@ -152,13 +153,12 @@ export function TaskForm({ open, onOpenChange, onTaskCreated }: TaskFormProps) {
             />
           </div>
 
-          {/* Description */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-tunet-text">
-              Description <span className="text-red-400">*</span>
+              {COPY.taskForm.description} <span className="text-red-400">*</span>
             </label>
             <textarea
-              placeholder="Describe the task..."
+              placeholder={COPY.taskForm.descPlaceholder}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
@@ -167,9 +167,8 @@ export function TaskForm({ open, onOpenChange, onTaskCreated }: TaskFormProps) {
             />
           </div>
 
-          {/* Priority */}
           <div className="space-y-2">
-            <label className="text-sm font-medium text-tunet-text">Priority</label>
+            <label className="text-sm font-medium text-tunet-text">{COPY.taskForm.priority}</label>
             <div className="flex gap-2">
               {(Object.entries(PRIORITY_CONFIG) as [string, { label: string; color: string; dot: string }][]).map(
                 ([key, config]) => (
@@ -191,15 +190,14 @@ export function TaskForm({ open, onOpenChange, onTaskCreated }: TaskFormProps) {
             </div>
           </div>
 
-          {/* Assign to */}
           <div className="space-y-2">
-            <label className="text-sm font-medium text-tunet-text">Assign to</label>
+            <label className="text-sm font-medium text-tunet-text">{COPY.taskForm.assignTo}</label>
             <select
               value={assignedTo}
               onChange={(e) => setAssignedTo(e.target.value)}
               className="w-full rounded-md border border-tunet-border bg-tunet-bg px-3 py-2 text-sm text-tunet-text focus:outline-none focus:ring-2 focus:ring-tunet-green/50"
             >
-              <option value="">Unassigned</option>
+              <option value="">{COPY.taskCard.unassigned}</option>
               {focUsers.map((user) => (
                 <option key={user.id} value={user.id}>
                   {user.name}
@@ -208,14 +206,13 @@ export function TaskForm({ open, onOpenChange, onTaskCreated }: TaskFormProps) {
             </select>
           </div>
 
-          {/* Location */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-tunet-text">
               <MapPin className="w-3.5 h-3.5 inline mr-1" />
-              Location <span className="text-red-400">*</span>
+              {COPY.taskForm.location} <span className="text-red-400">*</span>
             </label>
             <Input
-              placeholder="e.g. Jl. Merdeka No. 45, Kota Bandung"
+              placeholder={COPY.taskForm.locationPlaceholder}
               value={locationName}
               onChange={(e) => setLocationName(e.target.value)}
               className="bg-tunet-bg border-tunet-border text-tunet-text"
@@ -223,7 +220,7 @@ export function TaskForm({ open, onOpenChange, onTaskCreated }: TaskFormProps) {
             />
             <div className="flex gap-2">
               <Input
-                placeholder="Latitude"
+                placeholder={COPY.taskForm.latitude}
                 value={locationLat}
                 onChange={(e) => setLocationLat(e.target.value)}
                 className="bg-tunet-bg border-tunet-border text-tunet-text"
@@ -231,7 +228,7 @@ export function TaskForm({ open, onOpenChange, onTaskCreated }: TaskFormProps) {
                 step="any"
               />
               <Input
-                placeholder="Longitude"
+                placeholder={COPY.taskForm.longitude}
                 value={locationLng}
                 onChange={(e) => setLocationLng(e.target.value)}
                 className="bg-tunet-bg border-tunet-border text-tunet-text"
@@ -241,11 +238,10 @@ export function TaskForm({ open, onOpenChange, onTaskCreated }: TaskFormProps) {
             </div>
           </div>
 
-          {/* Deadline */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-tunet-text">
               <Calendar className="w-3.5 h-3.5 inline mr-1" />
-              Deadline
+              {COPY.taskForm.deadline}
             </label>
             <Input
               type="datetime-local"
@@ -255,12 +251,11 @@ export function TaskForm({ open, onOpenChange, onTaskCreated }: TaskFormProps) {
             />
           </div>
 
-          {/* Tags */}
           {tags.length > 0 && (
             <div className="space-y-2">
               <label className="text-sm font-medium text-tunet-text">
                 <TagIcon className="w-3.5 h-3.5 inline mr-1" />
-                Tags
+                {COPY.taskForm.tags}
               </label>
               <div className="flex flex-wrap gap-2">
                 {tags.map((tag) => (
@@ -300,14 +295,14 @@ export function TaskForm({ open, onOpenChange, onTaskCreated }: TaskFormProps) {
               />
             }
           >
-            Cancel
+            {COPY.taskForm.cancel}
           </SheetClose>
           <Button
             onClick={handleSubmit}
             disabled={submitting || !title.trim() || !description.trim() || !locationName.trim()}
             className="bg-tunet-green hover:bg-tunet-green-dark text-white"
           >
-            {submitting ? "Creating..." : "Create Task"}
+            {submitting ? COPY.taskForm.creating : COPY.taskForm.create}
           </Button>
         </SheetFooter>
       </SheetContent>

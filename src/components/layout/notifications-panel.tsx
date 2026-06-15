@@ -122,9 +122,9 @@ export function NotificationsPanel({ userId, onCountChange }: NotificationsPanel
       else earlier.push(n);
     }
     return [
-      { label: "Hari ini", items: today },
-      { label: "Kemarin", items: yesterday },
-      { label: "Sebelumnya", items: earlier },
+      { label: COPY.notifications.groups.today, items: today },
+      { label: COPY.notifications.groups.yesterday, items: yesterday },
+      { label: COPY.notifications.groups.earlier, items: earlier },
     ].filter((g) => g.items.length > 0);
   }, [notifications]);
 
@@ -135,7 +135,7 @@ export function NotificationsPanel({ userId, onCountChange }: NotificationsPanel
         className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-tunet-text-muted hover:bg-tunet-surface-hover cursor-pointer relative w-full"
       >
         <Bell className="w-5 h-5 flex-shrink-0" />
-        <span className="text-sm">Notifications</span>
+        <span className="text-sm">{COPY.notifications.title}</span>
         {unreadCount > 0 && (
           <span className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 bg-tunet-green text-white text-xs rounded-full flex items-center justify-center">
             {unreadCount > 9 ? "9+" : unreadCount}
@@ -149,14 +149,14 @@ export function NotificationsPanel({ userId, onCountChange }: NotificationsPanel
           <div className="absolute left-full top-0 ml-2 w-80 bg-tunet-surface border border-tunet-border rounded-lg shadow-lg z-50 max-h-[70vh] flex flex-col">
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-tunet-border">
-              <h3 className="text-sm font-medium text-tunet-text">Notifications</h3>
+              <h3 className="text-sm font-medium text-tunet-text">{COPY.notifications.title}</h3>
               {unreadCount > 0 && (
                 <button
                   onClick={handleMarkAllRead}
                   className="flex items-center gap-1 text-xs text-tunet-green hover:text-tunet-green/80"
                 >
                   <CheckCheck className="w-3.5 h-3.5" />
-                  Mark all read
+                  {COPY.notifications.markAllRead}
                 </button>
               )}
             </div>

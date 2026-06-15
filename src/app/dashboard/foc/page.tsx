@@ -82,9 +82,9 @@ export default function FOCDashboard() {
       if (previous) {
         setTasks((prev) => prev.map((t) => (t.id === taskId ? previous : t)));
       }
-      toast.error("Gagal memperbarui status tugas");
+      toast.error(COPY.toasts.taskStatusUpdateFailed);
     } else {
-      toast.success("Status tugas diperbarui!");
+      toast.success(COPY.toasts.taskStatusUpdated);
     }
   };
 
@@ -98,7 +98,7 @@ export default function FOCDashboard() {
 
     return new Promise<void>((resolve) => {
       if (!("geolocation" in navigator)) {
-        toast.error("Geolocation tidak didukung");
+        toast.error(COPY.toasts.geolocationUnsupported);
         resolve();
         return;
       }
@@ -130,7 +130,7 @@ export default function FOCDashboard() {
   const handleManualUpdate = async () => {
     setUpdatingLocation(true);
     await sendLocationToServer();
-    toast.success("Lokasi diperbarui!");
+    toast.success(COPY.toasts.locationUpdated);
     setUpdatingLocation(false);
   };
 
@@ -143,17 +143,17 @@ export default function FOCDashboard() {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
-      toast.info("Berbagi lokasi dinonaktifkan");
+      toast.info(COPY.toasts.locationSharingDisabled);
     } else {
       if (!("geolocation" in navigator)) {
-        toast.error("Geolocation tidak didukung");
+        toast.error(COPY.toasts.geolocationUnsupported);
         return;
       }
 
-      toast.info("Mengambil lokasi Anda...");
+      toast.info(COPY.toasts.gettingLocation);
       await sendLocationToServer();
       setLocationEnabled(true);
-      toast.success("Berbagi lokasi diaktifkan!");
+      toast.success(COPY.toasts.locationSharingEnabled);
 
       intervalRef.current = setInterval(async () => {
         await sendLocationToServer();
@@ -174,12 +174,12 @@ export default function FOCDashboard() {
       <div className="min-h-screen bg-tunet-bg">
         <div className="h-16 border-b border-tunet-border flex items-center justify-between px-4">
           <div>
-            <h1 className="text-lg font-semibold text-tunet-text">My Tasks</h1>
-            <p className="text-xs text-tunet-text-muted">Field Operations Center</p>
+            <h1 className="text-lg font-semibold text-tunet-text">{COPY.pages.foc.title}</h1>
+            <p className="text-xs text-tunet-text-muted">{COPY.pages.foc.subtitle}</p>
           </div>
           <div className="flex items-center gap-3">
             <Badge variant="outline" className="text-tunet-green border-tunet-green">
-              {pendingTasks.length} pending
+              {COPY.pages.foc.pending(pendingTasks.length)}
             </Badge>
           </div>
         </div>
@@ -191,7 +191,7 @@ export default function FOCDashboard() {
                 <TabsList>
                   <TabsTrigger value="location">
                     <MapPin className="w-3.5 h-3.5 mr-1.5" />
-                    Location
+                    Lokasi
                   </TabsTrigger>
                   <TabsTrigger value="telegram">
                     <Send className="w-3.5 h-3.5 mr-1.5" />
@@ -216,11 +216,11 @@ export default function FOCDashboard() {
                         )}
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-tunet-text">Share My Location</p>
+                        <p className="text-sm font-medium text-tunet-text">Bagikan Lokasi Saya</p>
                         <p className="text-xs text-tunet-text-muted">
                           {locationEnabled
-                            ? "Updates every 2 minutes. NOC can see your position."
-                            : "Enable to let NOC track your position"}
+                            ? "Pembaruan setiap 2 menit. NOC dapat melihat posisi Anda."
+                            : "Aktifkan agar NOC dapat melacak posisi Anda"}
                         </p>
                       </div>
                     </div>
@@ -233,7 +233,7 @@ export default function FOCDashboard() {
                           : "bg-tunet-green hover:bg-tunet-green-dark text-white"
                       }
                     >
-                      {locationEnabled ? "Disable" : "Enable"}
+                      {locationEnabled ? "Nonaktifkan" : "Aktifkan"}
                     </Button>
                   </div>
 
@@ -248,7 +248,7 @@ export default function FOCDashboard() {
                       {lastUpdated && (
                         <div className="flex items-center gap-2 text-xs text-tunet-text-muted">
                           <RefreshCw className="w-3.5 h-3.5" />
-                          <span>Last updated: {lastUpdated.toLocaleTimeString()}</span>
+                          <span>Terakhir diperbarui: {lastUpdated.toLocaleTimeString()}</span>
                         </div>
                       )}
                       <Button
@@ -261,12 +261,12 @@ export default function FOCDashboard() {
                         {updatingLocation ? (
                           <>
                             <RefreshCw className="w-3.5 h-3.5 mr-2 animate-spin" />
-                            Updating...
+                            Memperbarui...
                           </>
                         ) : (
                           <>
                             <Navigation className="w-3.5 h-3.5 mr-2" />
-                            Update My Location Now
+                            Perbarui Lokasi Saya Sekarang
                           </>
                         )}
                       </Button>
@@ -287,11 +287,11 @@ export default function FOCDashboard() {
                         <Send className="w-5 h-5" />
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-tunet-text">Telegram Bot</p>
+                        <p className="text-sm font-medium text-tunet-text">Bot Telegram</p>
                         <p className="text-xs text-tunet-text-muted">
                           {telegramUsername
-                            ? `Linked: ${telegramUsername}`
-                            : "Not linked. Ask admin to set your Telegram username."}
+                            ? `Terhubung: ${telegramUsername}`
+                            : "Belum terhubung. Minta admin untuk mengatur nama pengguna Telegram Anda."}
                         </p>
                       </div>
                     </div>
@@ -303,14 +303,14 @@ export default function FOCDashboard() {
                         className="inline-flex items-center justify-center px-3 py-2 text-sm rounded-md bg-tunet-green/20 text-tunet-green hover:bg-tunet-green/30"
                       >
                         <Send className="w-3.5 h-3.5 mr-1.5" />
-                        Open Bot
+                        Buka Bot
                       </a>
                     ) : (
                       <Badge
                         variant="secondary"
                         className="text-xs bg-tunet-surface text-tunet-text-muted border border-tunet-border"
                       >
-                        Belum diatur
+                        {COPY.statusBadge.notSet}
                       </Badge>
                     )}
                   </div>
@@ -318,12 +318,12 @@ export default function FOCDashboard() {
                   {telegramUsername && (
                     <div className="pt-3 border-t border-tunet-border">
                       <p className="text-xs text-tunet-text-muted mb-2">
-                        Share location via Telegram — works even when browser is closed
+                        📍 Bagikan lokasi melalui Telegram — berfungsi bahkan saat browser ditutup
                       </p>
                       <ol className="text-xs text-tunet-text-muted space-y-1 list-decimal list-inside">
-                        <li>Open the bot and send /start</li>
-                        <li>Tap 📎 → Location → Share</li>
-                        <li>Your marker appears on the radar map</li>
+                        <li>Buka bot dan kirim /start</li>
+                        <li>Ketuk 📎 → Lokasi → Bagikan</li>
+                        <li>Marker Anda muncul di peta radar</li>
                       </ol>
                     </div>
                   )}
@@ -337,9 +337,9 @@ export default function FOCDashboard() {
           {pendingTasks.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm font-medium text-tunet-text">Active Tasks</h2>
+                <h2 className="text-sm font-medium text-tunet-text">{COPY.pages.foc.activeTasks}</h2>
                 <span className="text-xs text-tunet-text-muted">
-                  {pendingTasks.length} {pendingTasks.length === 1 ? "task" : "tasks"}
+                  {COPY.pages.foc.taskCountOne(pendingTasks.length)}
                 </span>
               </div>
               <div className="space-y-3">
@@ -349,7 +349,21 @@ export default function FOCDashboard() {
                     task={task}
                     onStatusChange={handleStatusChange}
                     onClick={handleTaskClick}
-                    canChangeStatus={false}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {completedTasks.length > 0 && (
+            <div>
+              <h2 className="text-sm font-medium text-tunet-text-muted mb-3">{COPY.pages.foc.completed}</h2>
+              <div className="space-y-3 opacity-60">
+                {completedTasks.map((task) => (
+                  <TaskCard
+                    key={task.id}
+                    task={task}
+                    onClick={handleTaskClick}
                   />
                 ))}
               </div>

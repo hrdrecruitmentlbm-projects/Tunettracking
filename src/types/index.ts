@@ -11,6 +11,7 @@ export interface User {
   role: UserRole;
   phone?: string;
   telegram_id?: string;
+  telegram_chat_id?: number;
   is_active: boolean;
   created_at: string;
 }
@@ -62,16 +63,16 @@ export interface Notification {
 }
 
 export const STATUS_CONFIG: Record<TaskStatus, { label: string; color: string }> = {
-  todo: { label: "To Do", color: "#6B7280" },
-  assigned: { label: "Assigned", color: "#3B82F6" },
-  in_progress: { label: "In Progress", color: "#F59E0B" },
-  review: { label: "Review", color: "#8B5CF6" },
-  done: { label: "Done", color: "#10B981" },
+  todo: { label: "Belum Dikerjakan", color: "#6B7280" },
+  assigned: { label: "Sudah Ditugaskan", color: "#3B82F6" },
+  in_progress: { label: "Sedang Berjalan", color: "#F59E0B" },
+  review: { label: "Sedang dalam Tinjauan", color: "#8B5CF6" },
+  done: { label: "Selesai", color: "#10B981" },
 };
 
 export const PRIORITY_CONFIG: Record<TaskPriority, { label: string; color: string; dot: string }> = {
-  critical: { label: "Critical", color: "bg-priority-critical", dot: "bg-priority-critical" },
-  high: { label: "High", color: "bg-priority-high", dot: "bg-priority-high" },
-  medium: { label: "Medium", color: "bg-priority-medium", dot: "bg-priority-medium" },
-  low: { label: "Low", color: "bg-priority-low", dot: "bg-priority-low" },
+  low: { label: "Rendah", color: "bg-priority-low", dot: "bg-priority-low" },
+  medium: { label: "Sedang", color: "bg-priority-medium", dot: "bg-priority-medium" },
+  high: { label: "Tinggi", color: "bg-priority-high", dot: "bg-priority-high" },
+  critical: { label: "Urgent", color: "bg-priority-critical", dot: "bg-priority-critical" },
 };

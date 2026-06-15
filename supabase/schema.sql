@@ -247,10 +247,10 @@ INSERT INTO priorities (name, color, level, sla_hours) VALUES
 
 -- Insert default tags
 INSERT INTO tags (name, color) VALUES
-  ('Repair', '#EF4444'),
-  ('Installation', '#3B82F6'),
-  ('Maintenance', '#F59E0B'),
-  ('Inspection', '#8B5CF6'),
+  ('Perbaikan', '#EF4444'),
+  ('Instalasi', '#3B82F6'),
+  ('Pemeliharaan', '#F59E0B'),
+  ('Pemeriksaan', '#8B5CF6'),
   ('Upgrade', '#10B981');
 
 -- Enable realtime for locations

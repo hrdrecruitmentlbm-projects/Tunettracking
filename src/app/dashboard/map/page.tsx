@@ -153,13 +153,46 @@ export default function MapPage() {
           <button
             onClick={() => router.push(dashboardPath)}
             className="p-2 rounded-lg hover:bg-tunet-surface-hover text-tunet-text-muted transition-colors"
-            aria-label="Back"
+            aria-label={COPY.pages.map.back}
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <h1 className="text-lg font-semibold text-tunet-text">Radar Map</h1>
-            <p className="text-xs text-tunet-text-muted">Real-time FOC & NOC locations</p>
+            <h1 className="text-lg font-semibold text-tunet-text">{COPY.pages.map.title}</h1>
+            <p className="text-xs text-tunet-text-muted">{COPY.pages.map.subtitle}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-4 flex-wrap">
+          <label className="flex items-center gap-1.5 text-xs text-tunet-text-muted cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showRoles.includes("foc")}
+              onChange={() => toggleRole("foc")}
+              className="rounded accent-tunet-green"
+            />
+            {COPY.pages.map.roleFoc}
+          </label>
+          <label className="flex items-center gap-1.5 text-xs text-tunet-text-muted cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showRoles.includes("noc")}
+              onChange={() => toggleRole("noc")}
+              className="rounded accent-tunet-green"
+            />
+            {COPY.pages.map.roleNoc}
+          </label>
+          <div className="w-px h-4 bg-tunet-border" />
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full bg-tunet-green" />
+            <span className="text-xs text-tunet-text-muted">{COPY.pages.map.legendActive}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full bg-status-progress" />
+            <span className="text-xs text-tunet-text-muted">{COPY.pages.map.legendIdle}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full bg-status-overdue" />
+            <span className="text-xs text-tunet-text-muted">{COPY.pages.map.legendOverdue}</span>
           </div>
         </div>
         <div className="flex items-center gap-4 flex-wrap">
@@ -234,13 +267,13 @@ export default function MapPage() {
           <div className="p-4 border-b border-tunet-border space-y-3">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-medium text-tunet-text">
-                FOC ({filteredFoc.length})
+                {COPY.pages.map.focCount(filteredFoc.length)}
               </h2>
             </div>
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-tunet-text-muted" />
               <Input
-                placeholder="Cari anggota..."
+                placeholder={COPY.pages.map.searchPlaceholder}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-8 h-8 text-xs bg-tunet-bg border-tunet-border text-tunet-text"
@@ -277,7 +310,7 @@ export default function MapPage() {
                           <p className="text-xs text-tunet-text-muted">
                             {location
                               ? getRelativeTime(location.updated_at)
-                              : "Belum pernah"}
+                              : COPY.pages.map.neverReported}
                           </p>
                         </div>
                         {location && <Wifi className="w-3.5 h-3.5 text-tunet-green flex-shrink-0" />}
@@ -291,7 +324,7 @@ export default function MapPage() {
 
           <div className="p-4 flex-1">
             <h2 className="text-sm font-medium text-tunet-text-muted mb-3">
-              NOC ({nocUsers.length})
+              {COPY.pages.map.nocCount(nocUsers.length)}
             </h2>
             {nocUsers.length === 0 ? (
               <EmptyState
@@ -307,7 +340,7 @@ export default function MapPage() {
                     <div className="w-2 h-2 rounded-full bg-status-assigned" />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-tunet-text-muted truncate">{user.name}</p>
-                      <p className="text-xs text-tunet-text-muted">In Office</p>
+                      <p className="text-xs text-tunet-text-muted">{COPY.pages.map.inOffice}</p>
                     </div>
                   </div>
                 ))}

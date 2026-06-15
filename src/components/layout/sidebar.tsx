@@ -16,6 +16,7 @@ import {
   ChevronLeft,
   Wifi,
 } from "lucide-react";
+import { COPY } from "@/lib/copy";
 
 interface SidebarProps {
   user: User;
@@ -23,22 +24,22 @@ interface SidebarProps {
 
 const NAV_ITEMS = {
   admin: [
-    { href: "/dashboard/admin", label: "Dashboard", icon: LayoutDashboard },
-    { href: "/dashboard/map", label: "Radar Map", icon: Map },
-    { href: "/dashboard/tasks", label: "Task Board", icon: CheckSquare },
-    { href: "/dashboard/admin/users", label: "Team", icon: Users },
-    { href: "/dashboard/settings", label: "Settings", icon: Settings },
+    { href: "/dashboard/admin", labelKey: "dashboard" as const, icon: LayoutDashboard },
+    { href: "/dashboard/map", labelKey: "radarMap" as const, icon: Map },
+    { href: "/dashboard/tasks", labelKey: "taskBoard" as const, icon: CheckSquare },
+    { href: "/dashboard/admin/users", labelKey: "team" as const, icon: Users },
+    { href: "/dashboard/settings", labelKey: "settings" as const, icon: Settings },
   ],
   noc: [
-    { href: "/dashboard/noc", label: "Dashboard", icon: LayoutDashboard },
-    { href: "/dashboard/map", label: "Radar Map", icon: Map },
-    { href: "/dashboard/tasks", label: "Task Board", icon: CheckSquare },
-    { href: "/dashboard/settings", label: "Settings", icon: Settings },
+    { href: "/dashboard/noc", labelKey: "dashboard" as const, icon: LayoutDashboard },
+    { href: "/dashboard/map", labelKey: "radarMap" as const, icon: Map },
+    { href: "/dashboard/tasks", labelKey: "taskBoard" as const, icon: CheckSquare },
+    { href: "/dashboard/settings", labelKey: "settings" as const, icon: Settings },
   ],
   foc: [
-    { href: "/dashboard/foc", label: "My Tasks", icon: CheckSquare },
-    { href: "/dashboard/map", label: "Map", icon: Map },
-    { href: "/dashboard/settings", label: "Settings", icon: Settings },
+    { href: "/dashboard/foc", labelKey: "myTasks" as const, icon: CheckSquare },
+    { href: "/dashboard/map", labelKey: "map" as const, icon: Map },
+    { href: "/dashboard/settings", labelKey: "settings" as const, icon: Settings },
   ],
 };
 
@@ -94,7 +95,7 @@ export function Sidebar({ user }: SidebarProps) {
               )}
             >
               <item.icon className="w-5 h-5 flex-shrink-0" />
-              {!collapsed && <span className="text-sm">{item.label}</span>}
+              {!collapsed && <span className="text-sm">{COPY.nav[item.labelKey]}</span>}
             </Link>
           );
         })}

@@ -1,7 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sendMessage, TelegramUpdate } from "@/lib/telegram";
-import { findUserByTelegramUsername, findUserByTelegramChatId, recordLocationUpdate, fetchTasks, createNotification } from "@/lib/db";
-import { cacheTelegramChat } from "@/lib/telegram-cache";
+import {
+  findUserByPin,
+  bindTelegramChat,
+  findUserByTelegramUsername,
+  findUserByTelegramChatId,
+  upsertLocation,
+  fetchTasks,
+  createNotification,
+} from "@/lib/db";
+import { User, STATUS_CONFIG, TaskStatus } from "@/types";
+import { cacheTelegramChat, cacheUserChat } from "@/lib/telegram-cache";
+import { COPY } from "@/lib/copy";
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,11 +23,10 @@ export async function POST(request: NextRequest) {
       const chatId = editedMessage.chat.id;
       const user = await findUserByTelegramChatId(chatId);
       if (user) {
-        await recordLocationUpdate(
+        await upsertLocation(
           user.id,
           editedMessage.location.latitude,
-          editedMessage.location.longitude,
-          "telegram_live"
+          editedMessage.location.longitude
         );
       }
       return NextResponse.json({ ok: true });
@@ -31,59 +40,108 @@ export async function POST(request: NextRequest) {
 
     const chatId = message.chat.id;
     const username = message.from.username;
-    const text = message.text || "";
+    const text = (message.text || "").trim();
     const location = message.location;
 
-    // Cache the chat_id for this username so we can send notifications later
+    // Opportunistic username cache (DB is the source of truth, this is a hot-path accelerator)
     if (username) {
       cacheTelegramChat(username, chatId);
     }
 
-    // Handle /start command
+    // ============================================================
+    // STEP 1: Identify the sender.
+    //
+    //   a) message.text is a 4-digit PIN -> findUserByPin
+    //   b) from.username set            -> findUserByTelegramUsername
+    //   c) chat.id already in DB        -> findUserByTelegramChatId
+    //
+    // If a candidate is found, persist the binding to DB and update the
+    // in-memory cache. The DB write makes the link survive server restarts.
+    // ============================================================
+    let user: User | null = null;
+    let bindHappened = false;
+    const isPinAttempt = /^\d{4}$/.test(text);
+
+    if (isPinAttempt) {
+      const matched = await findUserByPin(text);
+      if (matched) {
+        if (matched.telegram_chat_id !== chatId) {
+          const ok = await bindTelegramChat(matched.id, chatId, username);
+          if (ok) bindHappened = true;
+        }
+        cacheUserChat(matched.id, chatId);
+        user = matched;
+      }
+    }
+
+    if (!user && username) {
+      const matched = await findUserByTelegramUsername(`@${username}`);
+      if (matched) {
+        if (matched.telegram_chat_id !== chatId) {
+          const ok = await bindTelegramChat(matched.id, chatId, undefined);
+          if (ok) bindHappened = true;
+        }
+        cacheUserChat(matched.id, chatId);
+        user = matched;
+      }
+    }
+
+    if (!user) {
+      user = await findUserByTelegramChatId(chatId);
+    }
+
+    // ============================================================
+    // STEP 2: Handle unlinked senders
+    // ============================================================
+    if (!user) {
+      if (isPinAttempt) {
+        await sendMessage(chatId, COPY.telegram.pinNotRecognized);
+      } else {
+        await sendMessage(chatId, COPY.telegram.welcomeWithPin);
+      }
+      return NextResponse.json({ ok: true });
+    }
+
+    // ============================================================
+    // STEP 3: Confirm a fresh PIN-based binding
+    // ============================================================
+    if (isPinAttempt && bindHappened) {
+      await sendMessage(chatId, COPY.telegram.linked(user.name));
+      return NextResponse.json({ ok: true });
+    }
+
+    // If they re-sent a PIN but we didn't rebind (already linked to this chat), acknowledge it
+    if (isPinAttempt && !bindHappened) {
+      await sendMessage(chatId, COPY.telegram.alreadyLinked(user.name));
+      return NextResponse.json({ ok: true });
+    }
+
+    // ============================================================
+    // STEP 4: Handle commands and content for an identified user
+    // ============================================================
+
     if (text === "/start") {
-      const welcomeMsg = username
-        ? `👋 Welcome to TunetOps!\n\nI found your username: @${username}\n\nTo start sharing your location with the team:\n1. Tap 📎 (attach)\n2. Select Location\n3. Share your current location\n\nYou'll appear on the radar map in real-time!`
-        : `👋 Welcome to TunetOps!\n\nPlease set a Telegram username in your Telegram settings, then send /start again.`;
-
-      await sendMessage(chatId, welcomeMsg);
+      await sendMessage(chatId, COPY.telegram.alreadyLinked(user.name));
       return NextResponse.json({ ok: true });
     }
 
-    // Handle /help command
     if (text === "/help") {
-      const helpMsg = `🤖 <b>TunetOps Bot Commands</b>\n\n/start - Welcome message\n/help - Show this help\n/tasks - Show your assigned tasks\n\n📍 To share your location:\nTap 📎 → Location → Share\n\nYour location will appear on the radar map in real-time.`;
-
-      await sendMessage(chatId, helpMsg);
+      await sendMessage(chatId, COPY.telegram.help);
       return NextResponse.json({ ok: true });
     }
 
-    // Handle /tasks command
     if (text === "/tasks") {
-      if (!username) {
-        await sendMessage(chatId, "❌ Please set a Telegram username first.");
-        return NextResponse.json({ ok: true });
-      }
-
-      const user = await findUserByTelegramUsername(`@${username}`);
-      if (!user) {
-        await sendMessage(
-          chatId,
-          `❌ No TunetOps account found for @${username}.\n\nAsk your admin to add your Telegram username to your staff profile.`
-        );
-        return NextResponse.json({ ok: true });
-      }
-
       const tasks = await fetchTasks();
       const myTasks = tasks.filter((t) => t.assigned_to === user.id);
       const activeTasks = myTasks.filter((t) => t.status !== "done");
 
       if (activeTasks.length === 0) {
-        await sendMessage(chatId, "✅ No active tasks. You're all caught up!");
+        await sendMessage(chatId, COPY.telegram.noActiveTasks);
         return NextResponse.json({ ok: true });
       }
 
-      let taskMsg = `📋 <b>Your Active Tasks (${activeTasks.length})</b>\n\n`;
-      activeTasks.slice(0, 5).forEach((task, idx) => {
+      let taskMsg = COPY.telegram.activeTasksHeader(activeTasks.length);
+      activeTasks.slice(0, 5).forEach((task) => {
         const emoji =
           task.priority === "critical"
             ? "🔴"
@@ -93,65 +151,45 @@ export async function POST(request: NextRequest) {
             ? "🟡"
             : "⚪";
         taskMsg += `${emoji} <b>${task.title}</b>\n`;
-        taskMsg += `   📍 ${task.location_name}\n`;
+        taskMsg += `   ${COPY.telegram.tasksLocation} ${task.location_name}\n`;
         if (task.deadline) {
-          taskMsg += `   ⏰ ${new Date(task.deadline).toLocaleString()}\n`;
+          taskMsg += `   ${COPY.telegram.tasksDeadline} ${new Date(task.deadline).toLocaleString()}\n`;
         }
-        taskMsg += `   Status: ${task.status}\n\n`;
+        const statusLabel = STATUS_CONFIG[task.status as TaskStatus]?.label || task.status;
+        taskMsg += `   ${COPY.telegram.statusLabel(statusLabel)}\n\n`;
       });
 
       await sendMessage(chatId, taskMsg);
       return NextResponse.json({ ok: true });
     }
 
-    // Handle location sharing
     if (location) {
-      if (!username) {
-        await sendMessage(chatId, "❌ Please set a Telegram username first.");
-        return NextResponse.json({ ok: true });
-      }
-
-      const user = await findUserByTelegramUsername(`@${username}`);
-      if (!user) {
-        await sendMessage(
-          chatId,
-          `❌ No TunetOps account found for @${username}.\n\nAsk your admin to add your Telegram username to your staff profile.`
-        );
-        return NextResponse.json({ ok: true });
-      }
-
-      const result = await recordLocationUpdate(
+      const success = await upsertLocation(
         user.id,
         location.latitude,
-        location.longitude,
-        "telegram_request"
+        location.longitude
       );
 
-      if (result.ok) {
+      if (success) {
         await sendMessage(
           chatId,
-          `✅ Location shared!\n\n📍 ${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}\n\nNOC can now see you on the radar map.`
+          COPY.telegram.locationSendSuccess(location.latitude, location.longitude)
         );
-
-        // Also create a notification in the app
         await createNotification(
           user.id,
-          "Location Shared",
-          `Location updated via Telegram at ${new Date().toLocaleTimeString()}`,
+          COPY.telegram.locationReceivedTitle,
+          COPY.telegram.locationReceivedMessage(new Date().toLocaleTimeString()),
           "status_update"
         );
       } else {
-        await sendMessage(chatId, "❌ Failed to save location. Please try again.");
+        await sendMessage(chatId, COPY.telegram.failedToSaveLocation);
       }
-
       return NextResponse.json({ ok: true });
     }
 
-    // Default fallback
-    await sendMessage(
-      chatId,
-      `I received: "${text}"\n\nSend /help to see available commands.`
-    );
+    if (text) {
+      await sendMessage(chatId, COPY.telegram.fallback(text));
+    }
 
     return NextResponse.json({ ok: true });
   } catch (error) {

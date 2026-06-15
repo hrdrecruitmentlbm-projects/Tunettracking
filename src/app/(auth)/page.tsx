@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { toast } from "sonner";
 import { loginByPin } from "@/lib/db";
 import { Wifi } from "lucide-react";
+import { COPY } from "@/lib/copy";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -22,7 +23,7 @@ export default function LoginPage() {
 
     if (user) {
       localStorage.setItem("tunetops-user", JSON.stringify(user));
-      toast.success(`Welcome, ${user.name}!`);
+      toast.success(COPY.auth.welcome(user.name));
 
       switch (user.role) {
         case "admin":
@@ -38,7 +39,7 @@ export default function LoginPage() {
           router.push("/dashboard/noc");
       }
     } else {
-      toast.error("Invalid PIN. Please try again.");
+      toast.error(COPY.auth.invalidPin);
       setPin("");
     }
 
@@ -54,18 +55,18 @@ export default function LoginPage() {
               <Wifi className="w-8 h-8 text-tunet-green" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold text-tunet-text">TunetOps</CardTitle>
+          <CardTitle className="text-2xl font-bold text-tunet-text">{COPY.auth.title}</CardTitle>
           <CardDescription className="text-tunet-text-muted">
-            Network Operations Management System
+            {COPY.auth.subtitle}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-tunet-text">Enter PIN</label>
+              <label className="text-sm font-medium text-tunet-text">{COPY.auth.pinLabel}</label>
               <Input
                 type="password"
-                placeholder="Enter your 4-digit PIN"
+                placeholder={COPY.auth.pinPlaceholder}
                 value={pin}
                 onChange={(e) => setPin(e.target.value)}
                 maxLength={4}
@@ -78,11 +79,11 @@ export default function LoginPage() {
               className="w-full bg-tunet-green hover:bg-tunet-green-dark text-white"
               disabled={pin.length < 4 || loading}
             >
-              {loading ? "Signing in..." : "Sign In"}
+              {loading ? COPY.auth.signingIn : COPY.auth.signIn}
             </Button>
           </form>
           <div className="mt-6 text-center text-xs text-tunet-text-muted">
-            <p>Contact your admin for PIN access</p>
+            <p>{COPY.auth.contactAdmin}</p>
           </div>
         </CardContent>
       </Card>

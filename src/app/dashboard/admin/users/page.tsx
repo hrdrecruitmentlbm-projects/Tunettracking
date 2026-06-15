@@ -107,12 +107,12 @@ export default function AdminUsersPage() {
 
   const handleSave = async () => {
     if (!formData.name || !formData.phone || !formData.pin) {
-      toast.error("Name, phone, and PIN are required");
+      toast.error(COPY.pages.team.requiredFields);
       return;
     }
 
     if (formData.pin.length !== 4 || !/^\d{4}$/.test(formData.pin)) {
-      toast.error("PIN must be exactly 4 digits");
+      toast.error(COPY.pages.team.pinInvalid);
       return;
     }
 
@@ -122,24 +122,24 @@ export default function AdminUsersPage() {
       if (editingUser) {
         const updated = await updateUser(editingUser.id, formData);
         if (updated) {
-          toast.success(`${formData.name} updated`);
+          toast.success(COPY.pages.team.memberUpdated(formData.name));
           setDialogOpen(false);
           loadUsers();
         } else {
-          toast.error("Failed to update user");
+          toast.error(COPY.pages.team.failedUpdateUser);
         }
       } else {
         const created = await createUser(formData);
         if (created) {
-          toast.success(`${formData.name} added`);
+          toast.success(COPY.pages.team.memberAdded(formData.name));
           setDialogOpen(false);
           loadUsers();
         } else {
-          toast.error("Failed to create user");
+          toast.error(COPY.pages.team.failedCreateUser);
         }
       }
     } catch {
-      toast.error("An error occurred");
+      toast.error(COPY.pages.team.errorOccurred);
     }
 
     setSaving(false);
@@ -150,12 +150,12 @@ export default function AdminUsersPage() {
 
     const success = await deactivateUser(deletingUser.id);
     if (success) {
-      toast.success(`${deletingUser.name} deactivated`);
+      toast.success(COPY.pages.team.memberDeactivated(deletingUser.name));
       setDeleteDialogOpen(false);
       setDeletingUser(null);
       loadUsers();
     } else {
-      toast.error("Failed to deactivate user");
+      toast.error(COPY.pages.team.failedDeactivate);
     }
   };
 
@@ -164,12 +164,12 @@ export default function AdminUsersPage() {
 
     const success = await deleteUser(deletingUser.id);
     if (success) {
-      toast.success(`${deletingUser.name} deleted permanently`);
+      toast.success(COPY.pages.team.memberDeleted(deletingUser.name));
       setDeleteDialogOpen(false);
       setDeletingUser(null);
       loadUsers();
     } else {
-      toast.error("Failed to delete user");
+      toast.error(COPY.pages.team.failedDelete);
     }
   };
 
@@ -193,45 +193,42 @@ export default function AdminUsersPage() {
   return (
     <DashboardLayout>
       <div className="min-h-screen bg-tunet-bg">
-        {/* Header */}
         <div className="h-16 border-b border-tunet-border flex items-center justify-between px-6">
           <div>
-            <h1 className="text-lg font-semibold text-tunet-text">Team Management</h1>
-            <p className="text-xs text-tunet-text-muted">Add, edit, and manage staff members</p>
+            <h1 className="text-lg font-semibold text-tunet-text">{COPY.pages.team.title}</h1>
+            <p className="text-xs text-tunet-text-muted">{COPY.pages.team.subtitle}</p>
           </div>
           <Button onClick={openCreateDialog} className="bg-tunet-green hover:bg-tunet-green-dark text-white">
             <Plus className="w-4 h-4 mr-2" />
-            Add Staff
+            {COPY.pages.team.addStaff}
           </Button>
         </div>
 
-        {/* Stats */}
         <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card className="bg-tunet-surface border-tunet-border">
             <CardContent className="p-4">
-              <p className="text-sm text-tunet-text-muted">Total Staff</p>
+              <p className="text-sm text-tunet-text-muted">{COPY.pages.team.totalStaff}</p>
               <p className="text-2xl font-bold text-tunet-text">{users.length}</p>
             </CardContent>
           </Card>
           <Card className="bg-tunet-surface border-tunet-border">
             <CardContent className="p-4">
-              <p className="text-sm text-tunet-text-muted">Active</p>
+              <p className="text-sm text-tunet-text-muted">{COPY.pages.team.active}</p>
               <p className="text-2xl font-bold text-tunet-green">{users.filter((u) => u.is_active).length}</p>
             </CardContent>
           </Card>
           <Card className="bg-tunet-surface border-tunet-border">
             <CardContent className="p-4">
-              <p className="text-sm text-tunet-text-muted">Inactive</p>
+              <p className="text-sm text-tunet-text-muted">{COPY.pages.team.inactive}</p>
               <p className="text-2xl font-bold text-status-overdue">{users.filter((u) => !u.is_active).length}</p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Staff table */}
         <div className="px-6 pb-6">
           <Card className="bg-tunet-surface border-tunet-border">
             <CardHeader>
-              <CardTitle className="text-tunet-text">All Staff</CardTitle>
+              <CardTitle className="text-tunet-text">{COPY.pages.team.allStaff}</CardTitle>
             </CardHeader>
             <CardContent>
               {loading ? (
@@ -261,7 +258,7 @@ export default function AdminUsersPage() {
                       className="bg-tunet-green hover:bg-tunet-green-dark text-white"
                     >
                       <Plus className="w-4 h-4 mr-2" />
-                      Add First Staff
+                      {COPY.pages.team.addFirstStaff}
                     </Button>
                   }
                 />
@@ -270,13 +267,13 @@ export default function AdminUsersPage() {
                   <Table>
                     <TableHeader>
                       <TableRow className="border-tunet-border">
-                        <TableHead className="text-tunet-text-muted">Name</TableHead>
-                        <TableHead className="text-tunet-text-muted">Role</TableHead>
-                        <TableHead className="text-tunet-text-muted">Phone</TableHead>
-                        <TableHead className="text-tunet-text-muted">PIN</TableHead>
-                        <TableHead className="text-tunet-text-muted">Telegram</TableHead>
-                        <TableHead className="text-tunet-text-muted">Status</TableHead>
-                        <TableHead className="text-tunet-text-muted text-right">Actions</TableHead>
+                        <TableHead className="text-tunet-text-muted">{COPY.pages.team.colName}</TableHead>
+                        <TableHead className="text-tunet-text-muted">{COPY.pages.team.colRole}</TableHead>
+                        <TableHead className="text-tunet-text-muted">{COPY.pages.team.colPhone}</TableHead>
+                        <TableHead className="text-tunet-text-muted">{COPY.pages.team.colPin}</TableHead>
+                        <TableHead className="text-tunet-text-muted">{COPY.pages.team.colTelegram}</TableHead>
+                        <TableHead className="text-tunet-text-muted">{COPY.pages.team.colStatus}</TableHead>
+                        <TableHead className="text-tunet-text-muted text-right">{COPY.pages.team.colActions}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -325,7 +322,7 @@ export default function AdminUsersPage() {
                                   : "bg-status-overdue/20 text-status-overdue"
                               }`}
                             >
-                              {user.is_active ? "Active" : "Inactive"}
+                              {user.is_active ? COPY.pages.team.active : COPY.pages.team.inactive}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-right">
@@ -339,14 +336,14 @@ export default function AdminUsersPage() {
                                   className="text-tunet-text cursor-pointer"
                                 >
                                   <Pencil className="w-4 h-4 mr-2" />
-                                  Edit
+                                  {COPY.pages.team.edit}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                   onClick={() => openDeleteDialog(user)}
                                   className="text-status-overdue cursor-pointer"
                                 >
                                   <UserX className="w-4 h-4 mr-2" />
-                                  Deactivate / Delete
+                                  {COPY.pages.team.deactivateOrDelete}
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
@@ -362,33 +359,30 @@ export default function AdminUsersPage() {
         </div>
       </div>
 
-      {/* Add/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="bg-tunet-surface border-tunet-border">
           <DialogHeader>
             <DialogTitle className="text-tunet-text">
-              {editingUser ? "Edit Staff" : "Add Staff"}
+              {editingUser ? COPY.pages.team.editStaff : COPY.pages.team.addStaffForm}
             </DialogTitle>
             <DialogDescription className="text-tunet-text-muted">
-              {editingUser
-                ? "Update staff member information"
-                : "Add a new staff member to the team"}
+              {editingUser ? COPY.pages.team.updateMember : COPY.pages.team.addNewMember}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label className="text-tunet-text">Full Name *</Label>
+              <Label className="text-tunet-text">{COPY.pages.team.fullName} *</Label>
               <Input
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="e.g. Ahmad Fauzi"
+                placeholder="cth. Ahmad Fauzi"
                 className="bg-tunet-bg border-tunet-border text-tunet-text"
               />
             </div>
 
             <div className="space-y-2">
-              <Label className="text-tunet-text">Role *</Label>
+              <Label className="text-tunet-text">{COPY.pages.team.role} *</Label>
               <Select
                 value={formData.role}
                 onValueChange={(value) => {
@@ -409,35 +403,35 @@ export default function AdminUsersPage() {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-tunet-text">Phone *</Label>
+              <Label className="text-tunet-text">{COPY.pages.team.phone} *</Label>
               <Input
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                placeholder="e.g. 081234567890"
+                placeholder="cth. 081234567890"
                 className="bg-tunet-bg border-tunet-border text-tunet-text"
               />
             </div>
 
             <div className="space-y-2">
-              <Label className="text-tunet-text">PIN (4 digits) *</Label>
+              <Label className="text-tunet-text">{COPY.pages.team.pinLabel} *</Label>
               <Input
                 value={formData.pin}
                 onChange={(e) => {
                   const val = e.target.value.replace(/\D/g, "").slice(0, 4);
                   setFormData({ ...formData, pin: val });
                 }}
-                placeholder="e.g. 1234"
+                placeholder="cth. 1234"
                 maxLength={4}
                 className="bg-tunet-bg border-tunet-border text-tunet-text font-mono tracking-widest"
               />
             </div>
 
             <div className="space-y-2">
-              <Label className="text-tunet-text">Telegram ID (optional)</Label>
+              <Label className="text-tunet-text">{COPY.pages.team.telegramIdOptional}</Label>
               <Input
                 value={formData.telegram_id}
                 onChange={(e) => setFormData({ ...formData, telegram_id: e.target.value })}
-                placeholder="e.g. @username"
+                placeholder="cth. @username"
                 className="bg-tunet-bg border-tunet-border text-tunet-text"
               />
             </div>
@@ -449,34 +443,33 @@ export default function AdminUsersPage() {
               onClick={() => setDialogOpen(false)}
               className="border-tunet-border text-tunet-text-muted"
             >
-              Cancel
+              {COPY.pages.team.cancel}
             </Button>
             <Button
               onClick={handleSave}
               disabled={saving}
               className="bg-tunet-green hover:bg-tunet-green-dark text-white"
             >
-              {saving ? "Saving..." : editingUser ? "Save Changes" : "Add Staff"}
+              {saving ? COPY.pages.team.saving : editingUser ? COPY.pages.team.saveChanges : COPY.pages.team.addStaff}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent className="bg-tunet-surface border-tunet-border">
           <DialogHeader>
-            <DialogTitle className="text-tunet-text">Manage Staff Member</DialogTitle>
+            <DialogTitle className="text-tunet-text">{COPY.pages.team.manageMember}</DialogTitle>
             <DialogDescription className="text-tunet-text-muted">
-              Choose how to remove <strong className="text-tunet-text">{deletingUser?.name}</strong> from the system.
+              {COPY.pages.team.chooseHowToRemove(deletingUser?.name || "")}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3 py-2">
             <div className="p-4 rounded-lg border border-tunet-border bg-tunet-bg">
-              <p className="text-sm font-medium text-tunet-text mb-1">Deactivate (Recommended)</p>
+              <p className="text-sm font-medium text-tunet-text mb-1">{COPY.pages.team.deactivateRecommended}</p>
               <p className="text-xs text-tunet-text-muted mb-3">
-                Staff member cannot log in, but their data and task history are preserved.
+                {COPY.pages.team.deactivateDescription}
               </p>
               <Button
                 onClick={handleDeactivate}
@@ -484,21 +477,21 @@ export default function AdminUsersPage() {
                 className="w-full border-status-overdue/50 text-status-overdue hover:bg-status-overdue/10"
               >
                 <UserX className="w-4 h-4 mr-2" />
-                Deactivate
+                {COPY.pages.team.deactivate}
               </Button>
             </div>
 
             <div className="p-4 rounded-lg border border-status-overdue/30 bg-status-overdue/5">
-              <p className="text-sm font-medium text-status-overdue mb-1">Delete Permanently</p>
+              <p className="text-sm font-medium text-status-overdue mb-1">{COPY.pages.team.deletePermanently}</p>
               <p className="text-xs text-tunet-text-muted mb-3">
-                This will permanently remove all data. This action cannot be undone.
+                {COPY.pages.team.deleteDescription}
               </p>
               <Button
                 onClick={handleDelete}
                 className="w-full bg-status-overdue hover:bg-status-overdue/80 text-white"
               >
                 <Trash2 className="w-4 h-4 mr-2" />
-                Delete Permanently
+                {COPY.pages.team.deletePermanently}
               </Button>
             </div>
           </div>
@@ -509,7 +502,7 @@ export default function AdminUsersPage() {
               onClick={() => setDeleteDialogOpen(false)}
               className="border-tunet-border text-tunet-text-muted"
             >
-              Cancel
+              {COPY.pages.team.cancel}
             </Button>
           </DialogFooter>
         </DialogContent>

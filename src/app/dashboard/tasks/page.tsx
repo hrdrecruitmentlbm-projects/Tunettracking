@@ -226,8 +226,8 @@ function TasksPageContent() {
       <div className="h-screen flex flex-col">
         <div className="h-16 border-b border-tunet-border flex items-center justify-between px-6 gap-3 flex-wrap">
           <div>
-            <h1 className="text-lg font-semibold text-tunet-text">Task Board</h1>
-            <p className="text-xs text-tunet-text-muted">Manage all tasks across the team</p>
+            <h1 className="text-lg font-semibold text-tunet-text">{COPY.pages.tasks.title}</h1>
+            <p className="text-xs text-tunet-text-muted">{COPY.pages.tasks.subtitle}</p>
           </div>
           <div className="flex items-center gap-3 flex-wrap">
             <TaskFilters filters={filters} onFiltersChange={setFilters} />
@@ -253,7 +253,7 @@ function TasksPageContent() {
                     ? "bg-tunet-green/20 text-tunet-green"
                     : "text-tunet-text-muted hover:bg-tunet-surface-hover"
                 }`}
-                aria-label="Kanban view"
+                aria-label={COPY.pages.tasks.viewKanban}
               >
                 <LayoutGrid className="w-4 h-4" />
               </button>
@@ -264,47 +264,19 @@ function TasksPageContent() {
                     ? "bg-tunet-green/20 text-tunet-green"
                     : "text-tunet-text-muted hover:bg-tunet-surface-hover"
                 }`}
-                aria-label="List view"
+                aria-label={COPY.pages.tasks.viewList}
               >
                 <List className="w-4 h-4" />
               </button>
             </div>
 
-            {canChangeStatus && (
-              <button
-                onClick={() => setShowDeleted((v) => !v)}
-                className={`flex items-center gap-1.5 px-2.5 h-[34px] rounded-md border text-xs transition-colors ${
-                  showDeleted
-                    ? "bg-status-overdue/20 border-status-overdue/50 text-status-overdue"
-                    : "border-tunet-border text-tunet-text-muted hover:bg-tunet-surface-hover"
-                }`}
-                aria-label="Toggle trash view"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>Trash</span>
-                {tasks.filter((t) => t.deleted_at).length > 0 && (
-                  <span
-                    className={`ml-0.5 px-1.5 rounded-full text-[10px] font-medium ${
-                      showDeleted
-                        ? "bg-status-overdue/30 text-status-overdue"
-                        : "bg-tunet-border text-tunet-text-muted"
-                    }`}
-                  >
-                    {tasks.filter((t) => t.deleted_at).length}
-                  </span>
-                )}
-              </button>
-            )}
-
-            {!showDeleted && (
-              <Button
-                onClick={() => setFormOpen(true)}
-                className="bg-tunet-green hover:bg-tunet-green-dark text-white"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                New Task
-              </Button>
-            )}
+            <Button
+              onClick={() => setFormOpen(true)}
+              className="bg-tunet-green hover:bg-tunet-green-dark text-white"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              {COPY.pages.tasks.newTask}
+            </Button>
           </div>
         </div>
 

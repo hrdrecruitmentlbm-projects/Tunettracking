@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { User as UserIcon, Bell, Moon, Sun } from "lucide-react";
+import { COPY } from "@/lib/copy";
 
 function getStoredUser(): { user: User; name: string; phone: string } | null {
   if (typeof window === "undefined") return null;
@@ -34,23 +35,21 @@ export default function SettingsPage() {
       const updatedUser = { ...user, name, phone };
       localStorage.setItem("tunetops-user", JSON.stringify(updatedUser));
       setUser(updatedUser);
-      toast.success("Settings saved!");
+      toast.success(COPY.pages.settings.saved);
     }
   };
 
   return (
     <DashboardLayout>
       <div className="min-h-screen bg-tunet-bg">
-        {/* Header */}
         <div className="h-16 border-b border-tunet-border flex items-center px-6">
           <div>
-            <h1 className="text-lg font-semibold text-tunet-text">Settings</h1>
-            <p className="text-xs text-tunet-text-muted">Manage your account preferences</p>
+            <h1 className="text-lg font-semibold text-tunet-text">{COPY.pages.settings.title}</h1>
+            <p className="text-xs text-tunet-text-muted">{COPY.pages.settings.subtitle}</p>
           </div>
         </div>
 
         <div className="p-6 max-w-2xl space-y-6">
-          {/* Profile */}
           <Card className="bg-tunet-surface border-tunet-border">
             <CardHeader>
               <div className="flex items-center gap-3">
@@ -58,14 +57,14 @@ export default function SettingsPage() {
                   <UserIcon className="w-5 h-5 text-tunet-green" />
                 </div>
                 <div>
-                  <CardTitle className="text-tunet-text">Profile</CardTitle>
-                  <CardDescription>Update your personal information</CardDescription>
+                  <CardTitle className="text-tunet-text">{COPY.pages.settings.profile}</CardTitle>
+                  <CardDescription>{COPY.pages.settings.profileDesc}</CardDescription>
                 </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <label className="text-sm text-tunet-text">Name</label>
+                <label className="text-sm text-tunet-text">{COPY.pages.settings.name}</label>
                 <Input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -73,7 +72,7 @@ export default function SettingsPage() {
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm text-tunet-text">Phone</label>
+                <label className="text-sm text-tunet-text">{COPY.pages.settings.phone}</label>
                 <Input
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
@@ -81,7 +80,7 @@ export default function SettingsPage() {
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm text-tunet-text">Role</label>
+                <label className="text-sm text-tunet-text">{COPY.pages.settings.role}</label>
                 <Input
                   value={user?.role.toUpperCase() || ""}
                   disabled
@@ -91,7 +90,6 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
-          {/* Appearance */}
           <Card className="bg-tunet-surface border-tunet-border">
             <CardHeader>
               <div className="flex items-center gap-3">
@@ -103,16 +101,16 @@ export default function SettingsPage() {
                   )}
                 </div>
                 <div>
-                  <CardTitle className="text-tunet-text">Appearance</CardTitle>
-                  <CardDescription>Customize the look of the app</CardDescription>
+                  <CardTitle className="text-tunet-text">{COPY.pages.settings.appearance}</CardTitle>
+                  <CardDescription>{COPY.pages.settings.appearanceDesc}</CardDescription>
                 </div>
               </div>
             </CardHeader>
             <CardContent>
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-tunet-text">Dark Mode</p>
-                  <p className="text-xs text-tunet-text-muted">Toggle between dark and light theme</p>
+                  <p className="text-sm text-tunet-text">{COPY.pages.settings.darkMode}</p>
+                  <p className="text-xs text-tunet-text-muted">{COPY.pages.settings.darkModeDesc}</p>
                 </div>
                 <button
                   onClick={() => setDarkMode(!darkMode)}
@@ -130,7 +128,6 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
-          {/* Notifications */}
           <Card className="bg-tunet-surface border-tunet-border">
             <CardHeader>
               <div className="flex items-center gap-3">
@@ -138,16 +135,16 @@ export default function SettingsPage() {
                   <Bell className="w-5 h-5 text-status-assigned" />
                 </div>
                 <div>
-                  <CardTitle className="text-tunet-text">Notifications</CardTitle>
-                  <CardDescription>Configure notification preferences</CardDescription>
+                  <CardTitle className="text-tunet-text">{COPY.pages.settings.notifications}</CardTitle>
+                  <CardDescription>{COPY.pages.settings.notificationsDesc}</CardDescription>
                 </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-tunet-text">Task Assignments</p>
-                  <p className="text-xs text-tunet-text-muted">Get notified when tasks are assigned</p>
+                  <p className="text-sm text-tunet-text">{COPY.pages.settings.taskAssignments}</p>
+                  <p className="text-xs text-tunet-text-muted">{COPY.pages.settings.taskAssignmentsDesc}</p>
                 </div>
                 <button className="w-12 h-6 rounded-full bg-tunet-green">
                   <div className="w-5 h-5 rounded-full bg-white translate-x-6" />
@@ -156,8 +153,8 @@ export default function SettingsPage() {
               <Separator className="bg-tunet-border" />
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-tunet-text">Status Updates</p>
-                  <p className="text-xs text-tunet-text-muted">Get notified on task status changes</p>
+                  <p className="text-sm text-tunet-text">{COPY.pages.settings.statusUpdates}</p>
+                  <p className="text-xs text-tunet-text-muted">{COPY.pages.settings.statusUpdatesDesc}</p>
                 </div>
                 <button className="w-12 h-6 rounded-full bg-tunet-green">
                   <div className="w-5 h-5 rounded-full bg-white translate-x-6" />
@@ -166,8 +163,8 @@ export default function SettingsPage() {
               <Separator className="bg-tunet-border" />
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-tunet-text">Overdue Alerts</p>
-                  <p className="text-xs text-tunet-text-muted">Get notified when tasks are overdue</p>
+                  <p className="text-sm text-tunet-text">{COPY.pages.settings.overdueAlerts}</p>
+                  <p className="text-xs text-tunet-text-muted">{COPY.pages.settings.overdueAlertsDesc}</p>
                 </div>
                 <button className="w-12 h-6 rounded-full bg-tunet-green">
                   <div className="w-5 h-5 rounded-full bg-white translate-x-6" />
@@ -176,13 +173,12 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
-          {/* Save button */}
           <div className="flex justify-end">
             <Button
               onClick={handleSave}
               className="bg-tunet-green hover:bg-tunet-green-dark text-white"
             >
-              Save Changes
+              {COPY.pages.settings.saveChanges}
             </Button>
           </div>
         </div>

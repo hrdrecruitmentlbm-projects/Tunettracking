@@ -1,3 +1,5 @@
+import { COPY } from "./copy";
+
 const TELEGRAM_API = "https://api.telegram.org/bot";
 
 function getBotToken(): string {
@@ -106,17 +108,17 @@ export function formatTaskNotification(task: {
       ? "🟡"
       : "⚪";
 
-  let msg = `<b>${priorityEmoji} New Task Assigned</b>\n\n`;
+  let msg = `<b>${priorityEmoji} ${COPY.telegram.newTaskAssigned}</b>\n\n`;
   msg += `<b>${task.title}</b>\n`;
-  msg += `Priority: ${task.priority.toUpperCase()}\n`;
-  msg += `Location: ${task.location_name}\n`;
+  msg += `${COPY.telegram.priority}: ${task.priority.toUpperCase()}\n`;
+  msg += `${COPY.telegram.location}: ${task.location_name}\n`;
   if (task.deadline) {
     const d = new Date(task.deadline);
-    msg += `Deadline: ${d.toLocaleString()}\n`;
+    msg += `${COPY.telegram.deadline}: ${d.toLocaleString()}\n`;
   }
   if (task.description) {
     msg += `\n${task.description}\n`;
   }
-  msg += `\n📍 Send your location to share your real-time position.`;
+  msg += `\n${COPY.telegram.shareLocationPrompt}`;
   return msg;
 }

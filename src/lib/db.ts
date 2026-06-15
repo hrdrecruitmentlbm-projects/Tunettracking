@@ -347,6 +347,113 @@ export async function deleteUser(id: string): Promise<boolean> {
   return true;
 }
 
+// ===== TELEGRAM BINDING =====
+
+export async function findUserByPin(pin: string): Promise<User | null> {
+  if (!pin || pin.length !== 4) return null;
+  const { data, error } = await supabase
+    .from("users")
+    .select("*")
+    .eq("pin", pin)
+    .eq("is_active", true)
+    .limit(1);
+
+  if (error || !data || data.length === 0) return null;
+  return data[0] as User;
+}
+
+export async function bindTelegramChat(
+  userId: string,
+  chatId: number,
+  username?: string
+): Promise<boolean> {
+  const update: Record<string, unknown> = { telegram_chat_id: chatId };
+  if (username) {
+    const clean = username.replace(/^@/, "").trim();
+    if (clean.length > 0) {
+      update.telegram_id = `@${clean}`;
+    }
+  }
+  const { error } = await supabase
+    .from("users")
+    .update(update)
+    .eq("id", userId);
+
+  if (error) {
+    console.error("Error binding telegram chat:", error);
+    return false;
+  }
+  return true;
+}
+
+function generateRandomPin(): string {
+  return Math.floor(1000 + Math.random() * 9000).toString();
+}
+
+export interface BulkCreateUserResult {
+  created: User[];
+  errors: { input: CreateUserInput; reason: string }[];
+}
+
+export async function bulkCreateUsers(
+  inputs: CreateUserInput[],
+  autoGeneratePins: boolean = true
+): Promise<BulkCreateUserResult> {
+  const result: BulkCreateUserResult = { created: [], errors: [] };
+
+  if (inputs.length === 0) return result;
+
+  // Pre-process: auto-generate PINs where missing or invalid
+  const prepared = inputs.map((input) => {
+    const needsPin = !input.pin || input.pin.length !== 4 || !/^\d{4}$/.test(input.pin);
+    if (needsPin && autoGeneratePins) {
+      return { ...input, pin: generateRandomPin() };
+    }
+    return input;
+  });
+
+  // Reject any remaining invalid PINs (auto-gen disabled but PIN missing)
+  for (const p of prepared) {
+    if (!p.pin || p.pin.length !== 4 || !/^\d{4}$/.test(p.pin)) {
+      result.errors.push({
+        input: p,
+        reason: "PIN must be exactly 4 digits",
+      });
+    }
+  }
+
+  const valid = prepared.filter(
+    (p) => p.pin && p.pin.length === 4 && /^\d{4}$/.test(p.pin)
+  );
+  if (valid.length === 0) {
+    return result;
+  }
+
+  const rows = valid.map((p) => ({
+    name: p.name,
+    role: p.role,
+    phone: p.phone,
+    pin: p.pin,
+    telegram_id: p.telegram_id || null,
+    is_active: true,
+  }));
+
+  const { data, error } = await supabase.from("users").insert(rows).select();
+
+  if (error) {
+    console.error("Bulk create error:", error);
+    for (const p of valid) {
+      result.errors.push({ input: p, reason: error.message });
+    }
+    return result;
+  }
+
+  if (data) {
+    result.created = data as User[];
+  }
+  return result;
+}
+
 // ===== TASK HISTORY =====
 
 export interface TaskHistoryEntry {

@@ -118,12 +118,12 @@ export default function NOCDashboard() {
       <div className="h-screen flex flex-col">
         <div className="h-16 border-b border-tunet-border flex items-center justify-between px-6">
           <div>
-            <h1 className="text-lg font-semibold text-tunet-text">NOC Dashboard</h1>
-            <p className="text-xs text-tunet-text-muted">Network Operations Center</p>
+            <h1 className="text-lg font-semibold text-tunet-text">{COPY.pages.noc.title}</h1>
+            <p className="text-xs text-tunet-text-muted">{COPY.pages.noc.subtitle}</p>
           </div>
           <div className="flex items-center gap-4">
             <div className="text-right">
-              <p className="text-sm text-tunet-text">{new Date().toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</p>
+              <p className="text-sm text-tunet-text">{new Date().toLocaleDateString("id-ID", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</p>
             </div>
           </div>
         </div>
@@ -132,22 +132,22 @@ export default function NOCDashboard() {
           <div className="flex gap-6">
             <div className="flex items-center gap-2">
               <Activity className="w-4 h-4 text-tunet-green" />
-              <span className="text-sm text-tunet-text-muted">Active:</span>
+              <span className="text-sm text-tunet-text-muted">{COPY.pages.noc.active}:</span>
               <span className="text-sm font-medium text-tunet-green">{activeTasks}</span>
             </div>
             <div className="flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-status-overdue" />
-              <span className="text-sm text-tunet-text-muted">Overdue:</span>
+              <span className="text-sm text-tunet-text-muted">{COPY.pages.noc.overdue}:</span>
               <span className="text-sm font-medium text-status-overdue">{overdueTasks}</span>
             </div>
             <div className="flex items-center gap-2">
               <CheckCircle className="w-4 h-4 text-status-done" />
-              <span className="text-sm text-tunet-text-muted">Completed:</span>
+              <span className="text-sm text-tunet-text-muted">{COPY.pages.noc.completed}:</span>
               <span className="text-sm font-medium text-status-done">{completedTasks}</span>
             </div>
             <div className="flex items-center gap-2">
               <Clock className="w-4 h-4 text-tunet-text-muted" />
-              <span className="text-sm text-tunet-text-muted">Total:</span>
+              <span className="text-sm text-tunet-text-muted">{COPY.pages.noc.total}:</span>
               <span className="text-sm font-medium text-tunet-text">{tasks.length}</span>
             </div>
           </div>
@@ -160,7 +160,7 @@ export default function NOCDashboard() {
 
           <div className="w-[40%] border-l border-tunet-border p-4">
             <div className="mb-4">
-              <h2 className="text-sm font-medium text-tunet-text">Recent Tasks</h2>
+              <h2 className="text-sm font-medium text-tunet-text">{COPY.pages.noc.recentTasks}</h2>
             </div>
             <div className="overflow-x-auto">
               <div className="flex gap-3" style={{ minWidth: "max-content" }}>

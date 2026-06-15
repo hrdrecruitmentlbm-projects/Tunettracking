@@ -3,6 +3,8 @@
 import { Task, STATUS_CONFIG, PRIORITY_CONFIG } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { MapPin, Clock, User } from "lucide-react";
+import { formatShortDate } from "@/lib/time";
+import { COPY } from "@/lib/copy";
 
 interface TaskListViewProps {
   tasks: Task[];
@@ -10,24 +12,17 @@ interface TaskListViewProps {
 }
 
 export function TaskListView({ tasks, onTaskClick }: TaskListViewProps) {
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-    });
-  };
-
   return (
     <div className="w-full overflow-auto">
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-tunet-border">
-            <th className="text-left py-3 px-4 text-xs font-medium text-tunet-text-muted">Task</th>
-            <th className="text-left py-3 px-4 text-xs font-medium text-tunet-text-muted">Status</th>
-            <th className="text-left py-3 px-4 text-xs font-medium text-tunet-text-muted">Priority</th>
-            <th className="text-left py-3 px-4 text-xs font-medium text-tunet-text-muted">Assignee</th>
-            <th className="text-left py-3 px-4 text-xs font-medium text-tunet-text-muted">Location</th>
-            <th className="text-left py-3 px-4 text-xs font-medium text-tunet-text-muted">Deadline</th>
+            <th className="text-left py-3 px-4 text-xs font-medium text-tunet-text-muted">{COPY.taskList.colTask}</th>
+            <th className="text-left py-3 px-4 text-xs font-medium text-tunet-text-muted">{COPY.taskList.colStatus}</th>
+            <th className="text-left py-3 px-4 text-xs font-medium text-tunet-text-muted">{COPY.taskList.colPriority}</th>
+            <th className="text-left py-3 px-4 text-xs font-medium text-tunet-text-muted">{COPY.taskList.colAssignee}</th>
+            <th className="text-left py-3 px-4 text-xs font-medium text-tunet-text-muted">{COPY.taskList.colLocation}</th>
+            <th className="text-left py-3 px-4 text-xs font-medium text-tunet-text-muted">{COPY.taskList.colDeadline}</th>
           </tr>
         </thead>
         <tbody>
@@ -87,7 +82,7 @@ export function TaskListView({ tasks, onTaskClick }: TaskListViewProps) {
                   <div className="flex items-center gap-1.5 text-tunet-text-muted">
                     <User className="w-3.5 h-3.5" />
                     <span className="text-xs">
-                      {task.assignee?.name || "Unassigned"}
+                      {task.assignee?.name || COPY.taskList.unassigned}
                     </span>
                   </div>
                 </td>
@@ -101,11 +96,11 @@ export function TaskListView({ tasks, onTaskClick }: TaskListViewProps) {
                   <div className="flex items-center gap-1.5">
                     <Clock className="w-3.5 h-3.5 text-tunet-text-muted" />
                     <span className={`text-xs ${isOverdue ? "text-red-400 font-medium" : "text-tunet-text-muted"}`}>
-                      {task.deadline ? formatDate(task.deadline) : "—"}
+                      {task.deadline ? formatShortDate(task.deadline) : "—"}
                     </span>
                     {isOverdue && (
                       <Badge variant="destructive" className="text-[10px] px-1 py-0">
-                        Overdue
+                        {COPY.taskList.overdue}
                       </Badge>
                     )}
                   </div>
@@ -116,7 +111,7 @@ export function TaskListView({ tasks, onTaskClick }: TaskListViewProps) {
           {tasks.length === 0 && (
             <tr>
               <td colSpan={6} className="py-12 text-center text-tunet-text-muted text-sm">
-                No tasks match the current filters
+                {COPY.taskList.emptyMessage}
               </td>
             </tr>
           )}
