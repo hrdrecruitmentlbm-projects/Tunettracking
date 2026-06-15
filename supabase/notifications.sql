@@ -69,7 +69,8 @@ BEGIN
       'location_name', NEW.location_name,
       'location_lat', NEW.location_lat,
       'location_lng', NEW.location_lng,
-      'deadline', NEW.deadline
+      'deadline', NEW.deadline,
+      'status', NEW.status
     )
   );
 
@@ -115,7 +116,8 @@ BEGIN
       'title', NEW.title,
       'priority', LOWER(COALESCE(v_priority_name, 'medium')),
       'location_name', NEW.location_name,
-      'deadline', NEW.deadline
+      'deadline', NEW.deadline,
+      'status', NEW.status
     )
   );
 
@@ -147,3 +149,11 @@ CREATE TRIGGER trg_task_reassigned
 AFTER UPDATE ON tasks
 FOR EACH ROW
 EXECUTE FUNCTION notify_task_reassigned();
+
+-- F) Backfill: populate metadata->>'status' for notifications created
+--    before the status field was added to the trigger.
+UPDATE notifications n
+SET metadata = COALESCE(n.metadata, '{}'::jsonb) || jsonb_build_object('status', t.status)
+FROM tasks t
+WHERE n.metadata->>'task_id' = t.id::text
+  AND n.metadata->>'status' IS NULL;

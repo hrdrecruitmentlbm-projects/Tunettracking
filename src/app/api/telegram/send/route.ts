@@ -4,6 +4,14 @@ import { supabase } from "@/lib/supabase";
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
+const STATUS_LABEL: Record<string, string> = {
+  todo: "Belum dimulai",
+  assigned: "Ditugaskan",
+  in_progress: "Dikerjakan",
+  review: "Review",
+  done: "Selesai",
+};
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, "&amp;")
@@ -67,16 +75,33 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const text = `<b>${escapeHtml(notif.title)}</b>\n\n${escapeHtml(notif.message)}`;
-
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const metadata = notif.metadata as any;
   const taskId = metadata?.task_id;
+  const title = metadata?.title ?? "Tugas";
+  const location = metadata?.location_name ?? "—";
+  const statusRaw = metadata?.status ?? "todo";
+  const statusLabel = STATUS_LABEL[statusRaw] ?? statusRaw;
+
+  const isReassignment = notif.type === "status_update";
+
+  const text = isReassignment
+    ? `<b>Penanggung jawab telah diganti</b>\n\n` +
+      `Tugas "${escapeHtml(title)}" di ${escapeHtml(location)} telah dialihkan ke teknisi lain.`
+    : `<b>Tugas baru telah ditambahkan</b>\n\n` +
+      `Kamu telah ditugaskan untuk "${escapeHtml(title)}" bertempat di "${escapeHtml(location)}"\n` +
+      `Status : ${escapeHtml(statusLabel)}`;
+
   const reply_markup = taskId
     ? {
-        inline_keyboard: [
-          [{ text: "View Task", url: `${APP_URL}/dashboard/foc` }],
-        ],
+        inline_keyboard: isReassignment
+          ? [[{ text: "📋 Lihat Tugas", url: `${APP_URL}/dashboard/foc` }]]
+          : [
+              [
+                { text: "📋 Lihat Tugas", url: `${APP_URL}/dashboard/foc` },
+                { text: "📍 Perbarui Lokasi", request_location: true },
+              ],
+            ],
       }
     : undefined;
 
