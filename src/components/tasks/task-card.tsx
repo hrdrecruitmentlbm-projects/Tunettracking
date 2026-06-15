@@ -8,9 +8,10 @@ import { MapPin, Clock, User } from "lucide-react";
 interface TaskCardProps {
   task: Task;
   onStatusChange?: (taskId: string, status: Task["status"]) => void;
+  onClick?: (task: Task) => void;
 }
 
-export function TaskCard({ task, onStatusChange }: TaskCardProps) {
+export function TaskCard({ task, onStatusChange, onClick }: TaskCardProps) {
   const statusConfig = STATUS_CONFIG[task.status];
   const priorityConfig = PRIORITY_CONFIG[task.priority];
 
@@ -27,7 +28,10 @@ export function TaskCard({ task, onStatusChange }: TaskCardProps) {
   const isOverdue = task.deadline && new Date(task.deadline) < new Date() && task.status !== "done";
 
   return (
-    <Card className="bg-tunet-surface border-tunet-border hover:border-tunet-green/50 transition-colors cursor-pointer">
+    <Card
+      className="bg-tunet-surface border-tunet-border hover:border-tunet-green/50 transition-colors cursor-pointer"
+      onClick={() => onClick?.(task)}
+    >
       <CardContent className="p-4">
         {/* Priority dot + Title */}
         <div className="flex items-start gap-2 mb-3">

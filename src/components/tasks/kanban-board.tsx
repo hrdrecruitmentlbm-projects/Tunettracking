@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { Task, TaskStatus, STATUS_CONFIG } from "@/types";
 import { TaskCard } from "./task-card";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -8,13 +7,12 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 interface KanbanBoardProps {
   tasks: Task[];
   onStatusChange?: (taskId: string, status: TaskStatus) => void;
+  onTaskClick?: (task: Task) => void;
 }
 
 const COLUMNS: TaskStatus[] = ["todo", "assigned", "in_progress", "review", "done"];
 
-export function KanbanBoard({ tasks, onStatusChange }: KanbanBoardProps) {
-  const [filter, setFilter] = useState<string>("all");
-
+export function KanbanBoard({ tasks, onStatusChange, onTaskClick }: KanbanBoardProps) {
   const getColumnTasks = (status: TaskStatus) => {
     return tasks.filter((t) => t.status === status);
   };
@@ -40,7 +38,12 @@ export function KanbanBoard({ tasks, onStatusChange }: KanbanBoardProps) {
             <ScrollArea className="h-[calc(100vh-280px)]">
               <div className="space-y-3 pr-4">
                 {columnTasks.map((task) => (
-                  <TaskCard key={task.id} task={task} onStatusChange={onStatusChange} />
+                  <TaskCard
+                    key={task.id}
+                    task={task}
+                    onStatusChange={onStatusChange}
+                    onClick={onTaskClick}
+                  />
                 ))}
                 {columnTasks.length === 0 && (
                   <div className="text-center py-8 text-tunet-text-muted text-sm">

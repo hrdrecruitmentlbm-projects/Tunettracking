@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { TaskCard } from "@/components/tasks/task-card";
 import { fetchTasks, upsertLocation, updateTaskStatus } from "@/lib/db";
@@ -8,18 +8,36 @@ import { Task, TaskStatus } from "@/types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Radio, RadioOff, CheckCircle } from "lucide-react";
+import {
+  MapPin,
+  Radio,
+  RadioOff,
+  CheckCircle,
+  RefreshCw,
+  Navigation,
+  Send,
+  Check,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
+
+const LOCATION_INTERVAL = 2 * 60 * 1000; // 2 minutes in ms
+const TELEGRAM_BOT_USERNAME = "TunetOpsTrackingBot";
 
 export default function FOCDashboard() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [locationEnabled, setLocationEnabled] = useState(false);
   const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [updatingLocation, setUpdatingLocation] = useState(false);
+  const [telegramConnected, setTelegramConnected] = useState(false);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const storedUser = typeof window !== "undefined" ? localStorage.getItem("tunetops-user") : null;
   const currentUser = storedUser ? JSON.parse(storedUser) : null;
   const userId = currentUser?.id;
+  const telegramUsername = currentUser?.telegram_id;
 
   useEffect(() => {
     async function load() {
@@ -28,6 +46,15 @@ export default function FOCDashboard() {
       setLoading(false);
     }
     load();
+  }, []);
+
+  // Cleanup interval on unmount
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
   }, []);
 
   const myTasks = tasks.filter((t) => t.assigned_to === userId);
@@ -49,33 +76,76 @@ export default function FOCDashboard() {
     }
   };
 
+  const sendLocationToServer = useCallback(async () => {
+    if (!userId) return;
+
+    return new Promise<void>((resolve) => {
+      if (!("geolocation" in navigator)) {
+        toast.error("Geolocation not supported");
+        resolve();
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const loc = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          };
+          setCurrentLocation(loc);
+          setLastUpdated(new Date());
+
+          const success = await upsertLocation(userId, loc.lat, loc.lng, position.coords.accuracy);
+          if (success) {
+            console.log("Location sent to server:", loc.lat, loc.lng);
+          }
+          resolve();
+        },
+        (error) => {
+          console.error("GPS error:", error);
+          resolve();
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    });
+  }, [userId]);
+
+  const handleManualUpdate = async () => {
+    setUpdatingLocation(true);
+    await sendLocationToServer();
+    toast.success("Location updated!");
+    setUpdatingLocation(false);
+  };
+
   const toggleLocation = async () => {
     if (locationEnabled) {
+      // Disable location tracking
       setLocationEnabled(false);
       setCurrentLocation(null);
+      setLastUpdated(null);
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
       toast.info("Location sharing disabled");
     } else {
-      if ("geolocation" in navigator) {
-        navigator.geolocation.getCurrentPosition(
-          async (position) => {
-            const loc = {
-              lat: position.coords.latitude,
-              lng: position.coords.longitude,
-            };
-            setCurrentLocation(loc);
-            setLocationEnabled(true);
-            if (userId) {
-              await upsertLocation(userId, loc.lat, loc.lng, position.coords.accuracy);
-            }
-            toast.success("Location sharing enabled!");
-          },
-          (error) => {
-            toast.error("Unable to get location. Please enable GPS.");
-          }
-        );
-      } else {
-        toast.error("Geolocation is not supported by your browser");
+      // Enable location tracking
+      if (!("geolocation" in navigator)) {
+        toast.error("Geolocation not supported");
+        return;
       }
+
+      toast.info("Getting your location...");
+
+      // Get first location immediately
+      await sendLocationToServer();
+      setLocationEnabled(true);
+      toast.success("Location sharing enabled!");
+
+      // Set up periodic updates every 2 minutes
+      intervalRef.current = setInterval(async () => {
+        await sendLocationToServer();
+      }, LOCATION_INTERVAL);
     }
   };
 
@@ -95,7 +165,7 @@ export default function FOCDashboard() {
           </div>
         </div>
 
-        {/* Location sharing toggle */}
+        {/* Location sharing */}
         <div className="p-4 border-b border-tunet-border">
           <Card className="bg-tunet-surface border-tunet-border">
             <CardContent className="p-4">
@@ -118,7 +188,7 @@ export default function FOCDashboard() {
                     <p className="text-sm font-medium text-tunet-text">Share My Location</p>
                     <p className="text-xs text-tunet-text-muted">
                       {locationEnabled
-                        ? "NOC can see your real-time location"
+                        ? "Updates every 2 minutes. NOC can see your position."
                         : "Enable to let NOC track your position"}
                     </p>
                   </div>
@@ -135,12 +205,98 @@ export default function FOCDashboard() {
                   {locationEnabled ? "Disable" : "Enable"}
                 </Button>
               </div>
-              {currentLocation && (
-                <div className="mt-3 pt-3 border-t border-tunet-border flex items-center gap-2 text-xs text-tunet-text-muted">
-                  <MapPin className="w-3.5 h-3.5" />
-                  <span>
-                    {currentLocation.lat.toFixed(4)}, {currentLocation.lng.toFixed(4)}
-                  </span>
+
+              {/* Location info */}
+              {locationEnabled && currentLocation && (
+                <div className="mt-3 pt-3 border-t border-tunet-border space-y-2">
+                  <div className="flex items-center gap-2 text-xs text-tunet-text-muted">
+                    <MapPin className="w-3.5 h-3.5" />
+                    <span>
+                      {currentLocation.lat.toFixed(6)}, {currentLocation.lng.toFixed(6)}
+                    </span>
+                  </div>
+                  {lastUpdated && (
+                    <div className="flex items-center gap-2 text-xs text-tunet-text-muted">
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      <span>Last updated: {lastUpdated.toLocaleTimeString()}</span>
+                    </div>
+                  )}
+                  <Button
+                    onClick={handleManualUpdate}
+                    disabled={updatingLocation}
+                    variant="outline"
+                    size="sm"
+                    className="w-full border-tunet-border text-tunet-text hover:bg-tunet-surface-hover"
+                  >
+                    {updatingLocation ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 mr-2 animate-spin" />
+                        Updating...
+                      </>
+                    ) : (
+                      <>
+                        <Navigation className="w-3.5 h-3.5 mr-2" />
+                        Update My Location Now
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Telegram section */}
+        <div className="px-4 pb-4">
+          <Card className="bg-tunet-surface border-tunet-border">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                      telegramUsername
+                        ? "bg-tunet-green/20 text-tunet-green"
+                        : "bg-tunet-surface-hover text-tunet-text-muted"
+                    }`}
+                  >
+                    <Send className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-tunet-text">Telegram Bot</p>
+                    <p className="text-xs text-tunet-text-muted">
+                      {telegramUsername
+                        ? `Linked: ${telegramUsername}`
+                        : "Not linked. Ask admin to set your Telegram username."}
+                    </p>
+                  </div>
+                </div>
+                {telegramUsername ? (
+                  <a
+                    href={`https://t.me/${TELEGRAM_BOT_USERNAME}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center px-3 py-2 text-sm rounded-md bg-tunet-green/20 text-tunet-green hover:bg-tunet-green/30"
+                  >
+                    <Send className="w-3.5 h-3.5 mr-1.5" />
+                    Open Bot
+                  </a>
+                ) : (
+                  <Badge variant="outline" className="text-status-overdue border-status-overdue">
+                    Not Set
+                  </Badge>
+                )}
+              </div>
+
+              {telegramUsername && (
+                <div className="mt-3 pt-3 border-t border-tunet-border">
+                  <p className="text-xs text-tunet-text-muted mb-2">
+                    📍 Share location via Telegram — works even when browser is closed
+                  </p>
+                  <ol className="text-xs text-tunet-text-muted space-y-1 list-decimal list-inside">
+                    <li>Open the bot and send /start</li>
+                    <li>Tap 📎 → Location → Share</li>
+                    <li>Your marker appears on the radar map</li>
+                  </ol>
                 </div>
               )}
             </CardContent>
@@ -190,5 +346,3 @@ export default function FOCDashboard() {
     </DashboardLayout>
   );
 }
-
-

@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { fetchUsers, fetchLocations, fetchTasks } from "@/lib/db";
-import { User, Location, Task } from "@/types";
+import { User, Location, Task, UserRole } from "@/types";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Wifi } from "lucide-react";
+import { Wifi, ArrowLeft } from "lucide-react";
 
 const RadarMap = dynamic(() => import("@/components/map/radar-map").then((m) => m.RadarMap), {
   ssr: false,
@@ -16,10 +17,26 @@ const RadarMap = dynamic(() => import("@/components/map/radar-map").then((m) => 
   ),
 });
 
+const DASHBOARD_ROUTES: Record<UserRole, string> = {
+  admin: "/dashboard/admin",
+  noc: "/dashboard/noc",
+  foc: "/dashboard/foc",
+};
+
 export default function MapPage() {
+  const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [dashboardPath, setDashboardPath] = useState("/dashboard/noc");
+
+  useEffect(() => {
+    const stored = localStorage.getItem("tunetops-user");
+    if (stored) {
+      const user: User = JSON.parse(stored);
+      setDashboardPath(DASHBOARD_ROUTES[user.role] || DASHBOARD_ROUTES.noc);
+    }
+  }, []);
   useEffect(() => {
     async function load() {
       const [u, l, t] = await Promise.all([fetchUsers(), fetchLocations(), fetchTasks()]);
@@ -54,9 +71,17 @@ export default function MapPage() {
     <div className="h-screen flex flex-col bg-tunet-bg">
       {/* Header */}
       <div className="h-16 border-b border-tunet-border flex items-center justify-between px-6">
-        <div>
-          <h1 className="text-lg font-semibold text-tunet-text">Radar Map</h1>
-          <p className="text-xs text-tunet-text-muted">Real-time FOC & NOC locations</p>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => router.push(dashboardPath)}
+            className="p-2 rounded-lg hover:bg-tunet-surface-hover text-tunet-text-muted transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <div>
+            <h1 className="text-lg font-semibold text-tunet-text">Radar Map</h1>
+            <p className="text-xs text-tunet-text-muted">Real-time FOC & NOC locations</p>
+          </div>
         </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">

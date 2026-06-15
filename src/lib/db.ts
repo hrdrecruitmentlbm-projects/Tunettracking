@@ -1,5 +1,5 @@
 import { supabase } from "./supabase";
-import { User, Task, Location, Tag } from "@/types";
+import { User, Task, Location, Tag, Notification } from "@/types";
 
 export async function loginByPin(pin: string): Promise<User | null> {
   const { data, error } = await supabase
@@ -76,6 +76,13 @@ export async function updateTaskStatus(
   newStatus: string,
   performedBy: string
 ): Promise<boolean> {
+  // Fetch task info before update for notification
+  const { data: taskData } = await supabase
+    .from("tasks")
+    .select("title, assigned_to, created_by")
+    .eq("id", taskId)
+    .single();
+
   const { error } = await supabase.rpc("update_task_status", {
     p_task_id: taskId,
     p_new_status: newStatus,
@@ -86,6 +93,38 @@ export async function updateTaskStatus(
     console.error("Error updating task status:", error);
     return false;
   }
+
+  // Create notifications
+  if (taskData) {
+    const statusLabels: Record<string, string> = {
+      todo: "To Do",
+      assigned: "Assigned",
+      in_progress: "In Progress",
+      review: "Review",
+      done: "Done",
+    };
+
+    // Notify assignee (if status changed by someone else)
+    if (taskData.assigned_to && taskData.assigned_to !== performedBy) {
+      await createNotification(
+        taskData.assigned_to,
+        "Task Status Updated",
+        `"${taskData.title}" moved to ${statusLabels[newStatus] || newStatus}`,
+        newStatus === "done" ? "completed" : "status_update"
+      );
+    }
+
+    // Notify creator (if status changed by someone else and creator != assignee)
+    if (taskData.created_by && taskData.created_by !== performedBy && taskData.created_by !== taskData.assigned_to) {
+      await createNotification(
+        taskData.created_by,
+        "Task Status Updated",
+        `"${taskData.title}" moved to ${statusLabels[newStatus] || newStatus}`,
+        "status_update"
+      );
+    }
+  }
+
   return true;
 }
 
@@ -193,6 +232,16 @@ export async function createTask(
     await supabase.from("task_tags").insert(tagInserts);
   }
 
+  // Notify assigned user
+  if (input.assigned_to && task) {
+    await createNotification(
+      input.assigned_to,
+      "New Task Assigned",
+      `You have been assigned to "${input.title}"`,
+      "task_assigned"
+    );
+  }
+
   return task as Task;
 }
 
@@ -273,4 +322,123 @@ export async function deleteUser(id: string): Promise<boolean> {
     return false;
   }
   return true;
+}
+
+// ===== TASK HISTORY =====
+
+export interface TaskHistoryEntry {
+  id: string;
+  task_id: string;
+  action: string;
+  old_value: Record<string, unknown> | null;
+  new_value: Record<string, unknown> | null;
+  performed_by: string;
+  created_at: string;
+  performer?: User;
+}
+
+export async function fetchTaskHistory(taskId: string): Promise<TaskHistoryEntry[]> {
+  const { data, error } = await supabase
+    .from("task_history")
+    .select(`
+      *,
+      performer:users!task_history_performed_by_fkey(id, name, pin, role, phone, telegram_id, is_active, created_at)
+    `)
+    .eq("task_id", taskId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("Error fetching task history:", error);
+    return [];
+  }
+  return (data || []) as TaskHistoryEntry[];
+}
+
+// ===== NOTIFICATIONS =====
+
+export async function fetchNotifications(userId: string): Promise<Notification[]> {
+  const { data, error } = await supabase
+    .from("notifications")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  if (error) {
+    console.error("Error fetching notifications:", error);
+    return [];
+  }
+  return (data || []) as Notification[];
+}
+
+export async function markNotificationRead(id: string): Promise<boolean> {
+  const { error } = await supabase
+    .from("notifications")
+    .update({ read: true })
+    .eq("id", id);
+
+  if (error) {
+    console.error("Error marking notification read:", error);
+    return false;
+  }
+  return true;
+}
+
+export async function markAllNotificationsRead(userId: string): Promise<boolean> {
+  const { error } = await supabase
+    .from("notifications")
+    .update({ read: true })
+    .eq("user_id", userId)
+    .eq("read", false);
+
+  if (error) {
+    console.error("Error marking all notifications read:", error);
+    return false;
+  }
+  return true;
+}
+
+export async function createNotification(
+  userId: string,
+  title: string,
+  message: string,
+  type: Notification["type"]
+): Promise<boolean> {
+  const { error } = await supabase
+    .from("notifications")
+    .insert({ user_id: userId, title, message, type });
+
+  if (error) {
+    console.error("Error creating notification:", error);
+    return false;
+  }
+  return true;
+}
+
+// ===== TELEGRAM INTEGRATION =====
+
+export async function findUserByTelegramUsername(
+  username: string
+): Promise<User | null> {
+  const cleanUsername = username.replace("@", "").trim();
+  const { data, error } = await supabase
+    .from("users")
+    .select("*")
+    .ilike("telegram_id", `@${cleanUsername}`)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Error finding user by telegram:", error);
+    return null;
+  }
+  return data as User | null;
+}
+
+export async function findUserByTelegramId(
+  telegramUserId: number
+): Promise<User | null> {
+  // Telegram user IDs are numeric; we store username (@handle) in telegram_id.
+  // This is a placeholder for future support if we switch to numeric IDs.
+  return null;
 }

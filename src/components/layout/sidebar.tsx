@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { User } from "@/types";
+import { NotificationsPanel } from "./notifications-panel";
 import {
   LayoutDashboard,
   Map,
@@ -13,7 +14,6 @@ import {
   Settings,
   LogOut,
   ChevronLeft,
-  Bell,
   Wifi,
 } from "lucide-react";
 
@@ -45,7 +45,6 @@ const NAV_ITEMS = {
 export function Sidebar({ user }: SidebarProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
-  const [notifications, setNotifications] = useState(3);
 
   const navItems = NAV_ITEMS[user.role] || NAV_ITEMS.noc;
 
@@ -102,17 +101,16 @@ export function Sidebar({ user }: SidebarProps) {
       </nav>
 
       {/* Notifications */}
-      <div className="px-2 pb-2">
-        <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-tunet-text-muted hover:bg-tunet-surface-hover cursor-pointer relative">
-          <Bell className="w-5 h-5 flex-shrink-0" />
-          {!collapsed && <span className="text-sm">Notifications</span>}
-          {notifications > 0 && (
-            <span className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 bg-tunet-green text-white text-xs rounded-full flex items-center justify-center">
-              {notifications}
-            </span>
-          )}
+      {!collapsed && (
+        <div className="px-2 pb-2">
+          <NotificationsPanel userId={user.id} />
         </div>
-      </div>
+      )}
+      {collapsed && (
+        <div className="px-2 pb-2">
+          <NotificationsPanel userId={user.id} />
+        </div>
+      )}
 
       {/* User Info */}
       <div className="p-2 border-t border-tunet-border">

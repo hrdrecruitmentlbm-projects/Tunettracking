@@ -3,8 +3,8 @@
 import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
-import { KanbanBoard } from "@/components/tasks/kanban-board";
 import { fetchTasks } from "@/lib/db";
+import { supabase } from "@/lib/supabase";
 import { Task, TaskStatus } from "@/types";
 import { Activity, AlertTriangle, CheckCircle, Clock } from "lucide-react";
 
@@ -20,6 +20,7 @@ const RadarMap = dynamic(() => import("@/components/map/radar-map").then((m) => 
 export default function NOCDashboard() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -28,12 +29,28 @@ export default function NOCDashboard() {
       setLoading(false);
     }
     load();
+
+    const channel = supabase
+      .channel("noc-tasks-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "tasks" },
+        async () => {
+          const t = await fetchTasks();
+          setTasks(t);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const handleStatusChange = async (taskId: string, newStatus: TaskStatus) => {
     const storedUser = localStorage.getItem("tunetops-user");
     const currentUser = storedUser ? JSON.parse(storedUser) : null;
-    
+
     if (currentUser) {
       const { updateTaskStatus } = await import("@/lib/db");
       const success = await updateTaskStatus(taskId, newStatus, currentUser.id);
@@ -134,6 +151,7 @@ export default function NOCDashboard() {
                         {statusTasks.slice(0, 3).map((task) => (
                           <div
                             key={task.id}
+                            onClick={() => setSelectedTask(task)}
                             className="p-3 rounded-lg bg-tunet-surface border border-tunet-border hover:border-tunet-green/50 transition-colors cursor-pointer"
                           >
                             <div className="flex items-start gap-2 mb-2">
