@@ -327,20 +327,17 @@ export default function AdminUsersPage() {
                           </TableCell>
                           <TableCell className="text-right">
                             <DropdownMenu>
-                              <DropdownMenuTrigger className="inline-flex items-center justify-center rounded-md p-2 text-tunet-text-muted hover:bg-tunet-surface-hover">
-                                <MoreHorizontal className="w-4 h-4" />
+                              <DropdownMenuTrigger>
+                                <MoreHorizontal className="w-4 h-4 text-tunet-text-muted" />
                               </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="bg-tunet-surface border-tunet-border">
-                                <DropdownMenuItem
-                                  onClick={() => openEditDialog(user)}
-                                  className="text-tunet-text cursor-pointer"
-                                >
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => openEditDialog(user)}>
                                   <Pencil className="w-4 h-4 mr-2" />
                                   {COPY.pages.team.edit}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                   onClick={() => openDeleteDialog(user)}
-                                  className="text-status-overdue cursor-pointer"
+                                  className="text-status-overdue"
                                 >
                                   <UserX className="w-4 h-4 mr-2" />
                                   {COPY.pages.team.deactivateOrDelete}

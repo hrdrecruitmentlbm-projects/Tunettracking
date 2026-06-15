@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { COPY } from "@/lib/copy";
+import { getRelativeTime } from "@/lib/time";
 
 interface NotificationsPanelProps {
   userId: string;
@@ -90,19 +91,6 @@ export function NotificationsPanel({ userId, onCountChange }: NotificationsPanel
       default:
         return <Bell className="w-4 h-4 text-tunet-text-muted" />;
     }
-  };
-
-  const formatTime = (dateStr: string) => {
-    const date = new Date(dateStr);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / (1000 * 60));
-    if (diffMins < 1) return "Just now";
-    if (diffMins < 60) return `${diffMins}m ago`;
-    const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `${diffHours}h ago`;
-    const diffDays = Math.floor(diffHours / 24);
-    return `${diffDays}d ago`;
   };
 
   const grouped = useMemo(() => {
@@ -200,7 +188,7 @@ export function NotificationsPanel({ userId, onCountChange }: NotificationsPanel
                               {notification.message}
                             </p>
                             <p className="text-[10px] text-tunet-text-muted mt-1">
-                              {formatTime(notification.created_at)}
+                              {getRelativeTime(notification.created_at)}
                             </p>
                           </div>
                           {!notification.read && (

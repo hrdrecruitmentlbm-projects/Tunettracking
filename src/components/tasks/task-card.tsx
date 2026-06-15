@@ -105,39 +105,18 @@ export function TaskCard({ task, onStatusChange, onClick, canChangeStatus = true
         {onStatusChange && (
           <div className="mt-3 pt-3 border-t border-tunet-border space-y-2">
             <div className="flex gap-2">
-            {task.status === "assigned" && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onStatusChange(task.id, "in_progress");
-                }}
-                className="flex-1 text-xs py-1.5 rounded bg-tunet-green/20 text-tunet-green hover:bg-tunet-green/30 transition-colors"
-              >
-                {COPY.taskCard.start}
-              </button>
-            )}
-            {task.status === "in_progress" && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onStatusChange(task.id, "review");
-                }}
-                className="flex-1 text-xs py-1.5 rounded bg-status-review/20 text-status-review hover:bg-status-review/30 transition-colors"
-              >
-                {COPY.taskCard.submitReview}
-              </button>
-            )}
-            {task.status === "review" && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onStatusChange(task.id, "done");
-                }}
-                className="flex-1 text-xs py-1.5 rounded bg-status-done/20 text-status-done hover:bg-status-done/30 transition-colors"
-              >
-                {COPY.taskCard.complete}
-              </button>
-            )}
+              {task.status === "assigned" && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onStatusChange(task.id, "in_progress");
+                  }}
+                  disabled={!canChangeStatus}
+                  className="flex-1 text-xs py-1.5 rounded bg-tunet-green/20 text-tunet-green hover:bg-tunet-green/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-tunet-green/20"
+                >
+                  {COPY.taskCard.start}
+                </button>
+              )}
               {task.status === "in_progress" && (
                 <button
                   onClick={(e) => {
@@ -159,7 +138,7 @@ export function TaskCard({ task, onStatusChange, onClick, canChangeStatus = true
                   disabled={!canChangeStatus}
                   className="flex-1 text-xs py-1.5 rounded bg-status-done/20 text-status-done hover:bg-status-done/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-status-done/20"
                 >
-                  Complete
+                  {COPY.taskCard.complete}
                 </button>
               )}
             </div>

@@ -6,6 +6,7 @@ import { User } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { User as UserIcon, Bell, Moon, Sun } from "lucide-react";
@@ -23,20 +24,38 @@ function getStoredUser(): { user: User; name: string; phone: string } | null {
   }
 }
 
+function getStoredSettings() {
+  if (typeof window === "undefined") return { darkMode: true, taskAssignments: true, statusUpdates: true, overdueAlerts: true };
+  return {
+    darkMode: localStorage.getItem("tunetops-darkMode") !== "false",
+    taskAssignments: localStorage.getItem("tunetops-taskAssignments") !== "false",
+    statusUpdates: localStorage.getItem("tunetops-statusUpdates") !== "false",
+    overdueAlerts: localStorage.getItem("tunetops-overdueAlerts") !== "false",
+  };
+}
+
 export default function SettingsPage() {
   const initial = getStoredUser();
+  const settings = getStoredSettings();
   const [user, setUser] = useState<User | null>(initial?.user ?? null);
   const [name, setName] = useState(initial?.name ?? "");
   const [phone, setPhone] = useState(initial?.phone ?? "");
-  const [darkMode, setDarkMode] = useState(true);
+  const [darkMode, setDarkMode] = useState(settings.darkMode);
+  const [taskAssignments, setTaskAssignments] = useState(settings.taskAssignments);
+  const [statusUpdates, setStatusUpdates] = useState(settings.statusUpdates);
+  const [overdueAlerts, setOverdueAlerts] = useState(settings.overdueAlerts);
 
   const handleSave = () => {
     if (user) {
       const updatedUser = { ...user, name, phone };
       localStorage.setItem("tunetops-user", JSON.stringify(updatedUser));
       setUser(updatedUser);
-      toast.success(COPY.pages.settings.saved);
     }
+    localStorage.setItem("tunetops-darkMode", String(darkMode));
+    localStorage.setItem("tunetops-taskAssignments", String(taskAssignments));
+    localStorage.setItem("tunetops-statusUpdates", String(statusUpdates));
+    localStorage.setItem("tunetops-overdueAlerts", String(overdueAlerts));
+    toast.success(COPY.pages.settings.saved);
   };
 
   return (
@@ -112,18 +131,7 @@ export default function SettingsPage() {
                   <p className="text-sm text-tunet-text">{COPY.pages.settings.darkMode}</p>
                   <p className="text-xs text-tunet-text-muted">{COPY.pages.settings.darkModeDesc}</p>
                 </div>
-                <button
-                  onClick={() => setDarkMode(!darkMode)}
-                  className={`w-12 h-6 rounded-full transition-colors ${
-                    darkMode ? "bg-tunet-green" : "bg-tunet-surface-hover"
-                  }`}
-                >
-                  <div
-                    className={`w-5 h-5 rounded-full bg-white transition-transform ${
-                      darkMode ? "translate-x-6" : "translate-x-0.5"
-                    }`}
-                  />
-                </button>
+                <Switch checked={darkMode} onCheckedChange={setDarkMode} />
               </div>
             </CardContent>
           </Card>
@@ -146,9 +154,7 @@ export default function SettingsPage() {
                   <p className="text-sm text-tunet-text">{COPY.pages.settings.taskAssignments}</p>
                   <p className="text-xs text-tunet-text-muted">{COPY.pages.settings.taskAssignmentsDesc}</p>
                 </div>
-                <button className="w-12 h-6 rounded-full bg-tunet-green">
-                  <div className="w-5 h-5 rounded-full bg-white translate-x-6" />
-                </button>
+                <Switch checked={taskAssignments} onCheckedChange={setTaskAssignments} />
               </div>
               <Separator className="bg-tunet-border" />
               <div className="flex items-center justify-between">
@@ -156,9 +162,7 @@ export default function SettingsPage() {
                   <p className="text-sm text-tunet-text">{COPY.pages.settings.statusUpdates}</p>
                   <p className="text-xs text-tunet-text-muted">{COPY.pages.settings.statusUpdatesDesc}</p>
                 </div>
-                <button className="w-12 h-6 rounded-full bg-tunet-green">
-                  <div className="w-5 h-5 rounded-full bg-white translate-x-6" />
-                </button>
+                <Switch checked={statusUpdates} onCheckedChange={setStatusUpdates} />
               </div>
               <Separator className="bg-tunet-border" />
               <div className="flex items-center justify-between">
@@ -166,9 +170,7 @@ export default function SettingsPage() {
                   <p className="text-sm text-tunet-text">{COPY.pages.settings.overdueAlerts}</p>
                   <p className="text-xs text-tunet-text-muted">{COPY.pages.settings.overdueAlertsDesc}</p>
                 </div>
-                <button className="w-12 h-6 rounded-full bg-tunet-green">
-                  <div className="w-5 h-5 rounded-full bg-white translate-x-6" />
-                </button>
+                <Switch checked={overdueAlerts} onCheckedChange={setOverdueAlerts} />
               </div>
             </CardContent>
           </Card>

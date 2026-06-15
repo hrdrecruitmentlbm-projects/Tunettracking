@@ -194,42 +194,9 @@ export default function MapPage() {
             <div className="w-3 h-3 rounded-full bg-status-overdue" />
             <span className="text-xs text-tunet-text-muted">{COPY.pages.map.legendOverdue}</span>
           </div>
-        </div>
-        <div className="flex items-center gap-4 flex-wrap">
-          <label className="flex items-center gap-1.5 text-xs text-tunet-text-muted cursor-pointer">
-            <input
-              type="checkbox"
-              checked={showRoles.includes("foc")}
-              onChange={() => toggleRole("foc")}
-              className="rounded accent-tunet-green"
-            />
-            FOC
-          </label>
-          <label className="flex items-center gap-1.5 text-xs text-tunet-text-muted cursor-pointer">
-            <input
-              type="checkbox"
-              checked={showRoles.includes("noc")}
-              onChange={() => toggleRole("noc")}
-              className="rounded accent-tunet-green"
-            />
-            NOC
-          </label>
-          <div className="w-px h-4 bg-tunet-border" />
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-tunet-green" />
-            <span className="text-xs text-tunet-text-muted">Active</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-status-progress" />
-            <span className="text-xs text-tunet-text-muted">Idle</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-status-overdue" />
-            <span className="text-xs text-tunet-text-muted">Overdue</span>
-          </div>
           <div className="flex items-center gap-2">
             <div className="w-4 h-0.5 bg-[#94A3B8]" />
-            <span className="text-xs text-tunet-text-muted">Route</span>
+            <span className="text-xs text-tunet-text-muted">{COPY.pages.map.legendRoute}</span>
           </div>
           <div className="w-px h-4 bg-tunet-border" />
           <div className="flex items-center gap-2">

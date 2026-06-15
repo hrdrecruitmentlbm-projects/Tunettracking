@@ -67,7 +67,7 @@ export const COPY = {
   },
   tasks: {
     start: "Mulai",
-    submitReview: "Kirim Tinjauan",
+    submitReview: "Sedang Ditinjau",
     complete: "Selesaikan",
     skipToNext: "Lewati ke berikutnya",
     overdue: "Terlambat",
@@ -91,7 +91,7 @@ export const COPY = {
   nav: {
     dashboard: "Dasbor",
     radarMap: "Peta Radar",
-    taskBoard: "Papan Tugas",
+    taskBoard: "Daftar Tugas",
     team: "Tim",
     settings: "Pengaturan",
     myTasks: "Tugas Saya",
@@ -196,6 +196,7 @@ export const COPY = {
       legendActive: "Aktif",
       legendIdle: "Menganggur",
       legendOverdue: "Terlambat",
+      legendRoute: "Rute",
       roleFoc: "FOC",
       roleNoc: "NOC",
       searchPlaceholder: "Cari anggota...",
@@ -205,7 +206,7 @@ export const COPY = {
       neverReported: "Belum pernah",
     },
     tasks: {
-      title: "Papan Tugas",
+      title: "Daftar Tugas",
       subtitle: "Kelola semua tugas di seluruh tim",
       newTask: "Tugas Baru",
       viewKanban: "Tampilan Kanban",
@@ -243,8 +244,8 @@ export const COPY = {
     assigned: "Ditugaskan",
     unassigned: "Belum Ditugaskan",
     start: "Mulai",
-    submitReview: "Kirim Tinjauan",
-    complete: "Selesaikan",
+    submitReview: "Sedang Ditinjau",
+    complete: "Selesai",
   },
   taskDetail: {
     title: "Detail dan riwayat tugas",
@@ -258,7 +259,7 @@ export const COPY = {
     tags: "Tag",
     changeStatus: "Ubah Status",
     startWork: "Mulai Kerja",
-    submitReview: "Kirim Tinjauan",
+    submitReview: "Sedang Ditinjau",
     markComplete: "Tandai Selesai",
     skipToNext: "Lewati ke Berikutnya",
     statusHistory: "Riwayat Status",
@@ -360,6 +361,7 @@ export const COPY = {
     gettingLocation: "Mengambil lokasi Anda...",
     locationSharingEnabled: "Berbagi lokasi diaktifkan!",
     locationSharingDisabled: "Berbagi lokasi dinonaktifkan",
+    geolocationDenied: "Izin lokasi ditolak. Aktifkan di pengaturan browser.",
   },
   statusBadge: {
     notSet: "Belum Diatur",

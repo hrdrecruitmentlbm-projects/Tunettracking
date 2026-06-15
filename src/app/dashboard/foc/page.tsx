@@ -93,13 +93,13 @@ export default function FOCDashboard() {
     setDetailOpen(true);
   };
 
-  const sendLocationToServer = useCallback(async () => {
-    if (!userId) return;
+  const sendLocationToServer = useCallback(async (): Promise<boolean> => {
+    if (!userId) return false;
 
-    return new Promise<void>((resolve) => {
+    return new Promise<boolean>((resolve) => {
       if (!("geolocation" in navigator)) {
         toast.error(COPY.toasts.geolocationUnsupported);
-        resolve();
+        resolve(false);
         return;
       }
 
@@ -112,15 +112,12 @@ export default function FOCDashboard() {
           setCurrentLocation(loc);
           setLastUpdated(new Date());
 
-          const success = await upsertLocation(userId, loc.lat, loc.lng, position.coords.accuracy);
-          if (success) {
-            console.log("Location sent to server:", loc.lat, loc.lng);
-          }
-          resolve();
+          await upsertLocation(userId, loc.lat, loc.lng, position.coords.accuracy);
+          resolve(true);
         },
         (error) => {
           console.error("GPS error:", error);
-          resolve();
+          resolve(error.code === GeolocationPositionError.TIMEOUT);
         },
         { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
@@ -129,8 +126,12 @@ export default function FOCDashboard() {
 
   const handleManualUpdate = async () => {
     setUpdatingLocation(true);
-    await sendLocationToServer();
-    toast.success(COPY.toasts.locationUpdated);
+    const ok = await sendLocationToServer();
+    if (ok) {
+      toast.success(COPY.toasts.locationUpdated);
+    } else {
+      toast.error(COPY.toasts.geolocationDenied);
+    }
     setUpdatingLocation(false);
   };
 
@@ -151,7 +152,11 @@ export default function FOCDashboard() {
       }
 
       toast.info(COPY.toasts.gettingLocation);
-      await sendLocationToServer();
+      const ok = await sendLocationToServer();
+      if (!ok) {
+        toast.error(COPY.toasts.geolocationDenied);
+        return;
+      }
       setLocationEnabled(true);
       toast.success(COPY.toasts.locationSharingEnabled);
 
@@ -370,21 +375,6 @@ export default function FOCDashboard() {
             </div>
           )}
 
-          {completedTasks.length > 0 && (
-            <div>
-              <h2 className="text-sm font-medium text-tunet-text-muted mb-3">Completed</h2>
-              <div className="space-y-3 opacity-60">
-                {completedTasks.map((task) => (
-                  <TaskCard
-                    key={task.id}
-                    task={task}
-                    onClick={handleTaskClick}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
           {myTasks.length === 0 && (
             <div className="py-8">
               <EmptyState
@@ -401,7 +391,7 @@ export default function FOCDashboard() {
           open={detailOpen}
           onOpenChange={setDetailOpen}
           onStatusChange={handleStatusChange}
-          canChangeStatus={false}
+          canChangeStatus={true}
         />
       </div>
     </DashboardLayout>

@@ -20,6 +20,8 @@ import { CSS } from "@dnd-kit/utilities";
 import { Task, TaskStatus, STATUS_CONFIG } from "@/types";
 import { TaskCard } from "./task-card";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { EmptyState } from "@/components/ui/empty-state";
+import { COPY } from "@/lib/copy";
 import { cn } from "@/lib/utils";
 
 interface KanbanBoardProps {
@@ -140,9 +142,11 @@ function KanbanColumn({ status, tasks, onStatusChange, onTaskClick, canChangeSta
               />
             ))}
             {tasks.length === 0 && (
-              <div className="text-center py-8 text-tunet-text-muted text-sm">
-                No tasks
-              </div>
+              <EmptyState
+                title={COPY.empty.noTasks.title}
+                description={COPY.empty.noTasks.description}
+                variant="inline"
+              />
             )}
           </div>
         </ScrollArea>
