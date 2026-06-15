@@ -19,6 +19,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     const stored = localStorage.getItem("tunetops-user");
     if (stored) {
       try {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setUser(JSON.parse(stored));
       } catch {
         router.push("/");
@@ -27,7 +28,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       router.push("/");
     }
     setReady(true);
-  }, [router]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (!ready) {
     return (

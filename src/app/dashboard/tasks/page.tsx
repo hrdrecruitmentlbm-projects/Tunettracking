@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { Suspense, useState, useEffect, useMemo } from "react";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { KanbanBoard } from "@/components/tasks/kanban-board";
 import { TaskForm } from "@/components/tasks/task-form";
@@ -12,21 +13,89 @@ import { supabase } from "@/lib/supabase";
 import { Task, TaskStatus } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Search, LayoutGrid, List } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Plus, Search, LayoutGrid, List, Loader2, Inbox } from "lucide-react";
+import { COPY } from "@/lib/copy";
 
 export default function TasksPage() {
+  return (
+    <Suspense fallback={null}>
+      <TasksPageContent />
+    </Suspense>
+  );
+}
+
+const DEFAULT_FILTERS: FilterState = {
+  status: "all",
+  priority: "all",
+  assignee: "all",
+};
+
+function isTaskStatus(v: string | null): v is TaskStatus {
+  return v === "todo" || v === "assigned" || v === "in_progress" || v === "review" || v === "done";
+}
+
+function isTaskPriority(v: string | null): v is Task["priority"] {
+  return v === "critical" || v === "high" || v === "medium" || v === "low";
+}
+
+function readFiltersFromParams(params: URLSearchParams): FilterState {
+  const status = params.get("status");
+  const priority = params.get("priority");
+  const assignee = params.get("assignee");
+  return {
+    status: isTaskStatus(status) ? status : "all",
+    priority: isTaskPriority(priority) ? priority : "all",
+    assignee: assignee || "all",
+  };
+}
+
+function getInitialSearchQuery(): string {
+  if (typeof window === "undefined") return "";
+  return new URLSearchParams(window.location.search).get("q") || "";
+}
+
+function TasksPageContent() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchInput, setSearchInput] = useState(getInitialSearchQuery);
+  const [searchQuery, setSearchQuery] = useState(getInitialSearchQuery);
   const [formOpen, setFormOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
-  const [filters, setFilters] = useState<FilterState>({
-    status: "all",
-    priority: "all",
-    assignee: "all",
-  });
+  const [filters, setFilters] = useState<FilterState>(() =>
+    typeof window === "undefined"
+      ? DEFAULT_FILTERS
+      : readFiltersFromParams(new URLSearchParams(window.location.search))
+  );
+
+  const isSearching = searchInput !== searchQuery;
+
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      setSearchQuery(searchInput);
+    }, 300);
+    return () => clearTimeout(handle);
+  }, [searchInput]);
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (filters.status !== "all") params.set("status", filters.status);
+    if (filters.priority !== "all") params.set("priority", filters.priority);
+    if (filters.assignee !== "all") params.set("assignee", filters.assignee);
+    if (searchQuery) params.set("q", searchQuery);
+    const next = params.toString();
+    const current = searchParams.toString();
+    if (next !== current) {
+      router.replace(`${pathname}${next ? `?${next}` : ""}`, { scroll: false });
+    }
+  }, [filters, searchQuery, pathname, router, searchParams]);
 
   useEffect(() => {
     async function load() {
@@ -57,20 +126,28 @@ export default function TasksPage() {
     const storedUser = localStorage.getItem("tunetops-user");
     const currentUser = storedUser ? JSON.parse(storedUser) : null;
 
+    const previous = tasks.find((t) => t.id === taskId);
+    if (previous) {
+      setTasks((prev) =>
+        prev.map((t) =>
+          t.id === taskId ? { ...t, status: newStatus, updated_at: new Date().toISOString() } : t
+        )
+      );
+    }
+
     if (currentUser) {
       const success = await updateTaskStatus(taskId, newStatus, currentUser.id);
-      if (success) {
-        setTasks((prev) =>
-          prev.map((t) =>
-            t.id === taskId ? { ...t, status: newStatus, updated_at: new Date().toISOString() } : t
-          )
-        );
+      if (!success) {
+        if (previous) {
+          setTasks((prev) => prev.map((t) => (t.id === taskId ? previous : t)));
+        }
       }
     }
   };
 
-  const handleTaskCreated = (task: Task) => {
-    setTasks((prev) => [task, ...prev]);
+  const handleTaskCreated = async () => {
+    const fresh = await fetchTasks();
+    setTasks(fresh);
   };
 
   const handleTaskClick = (task: Task) => {
@@ -80,19 +157,17 @@ export default function TasksPage() {
 
   const filteredTasks = useMemo(() => {
     return tasks.filter((t) => {
-      // Search filter
+      const q = searchQuery.toLowerCase().trim();
       const matchesSearch =
-        !searchQuery ||
-        t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        t.location_name.toLowerCase().includes(searchQuery.toLowerCase());
+        !q ||
+        t.title.toLowerCase().includes(q) ||
+        t.description?.toLowerCase().includes(q) ||
+        t.location_name.toLowerCase().includes(q) ||
+        t.assignee?.name.toLowerCase().includes(q);
 
-      // Status filter
       const matchesStatus = filters.status === "all" || t.status === filters.status;
-
-      // Priority filter
       const matchesPriority = filters.priority === "all" || t.priority === filters.priority;
 
-      // Assignee filter
       let matchesAssignee = true;
       if (filters.assignee === "unassigned") {
         matchesAssignee = !t.assigned_to;
@@ -104,29 +179,36 @@ export default function TasksPage() {
     });
   }, [tasks, searchQuery, filters]);
 
+  const hasActiveFilters =
+    filters.status !== "all" ||
+    filters.priority !== "all" ||
+    filters.assignee !== "all" ||
+    searchQuery.length > 0;
+
   return (
     <DashboardLayout>
       <div className="h-screen flex flex-col">
-        {/* Header */}
-        <div className="h-16 border-b border-tunet-border flex items-center justify-between px-6">
+        <div className="h-16 border-b border-tunet-border flex items-center justify-between px-6 gap-3 flex-wrap">
           <div>
             <h1 className="text-lg font-semibold text-tunet-text">Task Board</h1>
             <p className="text-xs text-tunet-text-muted">Manage all tasks across the team</p>
           </div>
-          <div className="flex items-center gap-3">
-            <TaskFilters onFiltersChange={setFilters} />
+          <div className="flex items-center gap-3 flex-wrap">
+            <TaskFilters filters={filters} onFiltersChange={setFilters} />
 
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-tunet-text-muted" />
               <Input
-                placeholder="Search tasks..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 w-64 bg-tunet-surface border-tunet-border text-tunet-text"
+                placeholder={COPY.search.placeholder}
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                className="pl-9 w-64 bg-tunet-surface border-tunet-border text-tunet-text pr-9"
               />
+              {isSearching && (
+                <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-tunet-text-muted animate-spin" />
+              )}
             </div>
 
-            {/* View toggle */}
             <div className="flex border border-tunet-border rounded-md overflow-hidden">
               <button
                 onClick={() => setViewMode("kanban")}
@@ -135,6 +217,7 @@ export default function TasksPage() {
                     ? "bg-tunet-green/20 text-tunet-green"
                     : "text-tunet-text-muted hover:bg-tunet-surface-hover"
                 }`}
+                aria-label="Kanban view"
               >
                 <LayoutGrid className="w-4 h-4" />
               </button>
@@ -145,6 +228,7 @@ export default function TasksPage() {
                     ? "bg-tunet-green/20 text-tunet-green"
                     : "text-tunet-text-muted hover:bg-tunet-surface-hover"
                 }`}
+                aria-label="List view"
               >
                 <List className="w-4 h-4" />
               </button>
@@ -160,9 +244,50 @@ export default function TasksPage() {
           </div>
         </div>
 
-        {/* Content */}
         <div className="flex-1 p-6 overflow-hidden">
-          {viewMode === "kanban" ? (
+          {loading ? (
+            <TasksPageSkeleton viewMode={viewMode} />
+          ) : filteredTasks.length === 0 ? (
+            <div className="h-full flex items-center justify-center">
+              <EmptyState
+                icon={Inbox}
+                title={
+                  hasActiveFilters
+                    ? COPY.empty.noMatchingTasks.title
+                    : COPY.empty.noTasks.title
+                }
+                description={
+                  hasActiveFilters
+                    ? COPY.empty.noMatchingTasks.description
+                    : COPY.empty.noTasks.description
+                }
+                action={
+                  hasActiveFilters ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setFilters(DEFAULT_FILTERS);
+                        setSearchInput("");
+                        setSearchQuery("");
+                      }}
+                      className="border-tunet-border text-tunet-text-muted"
+                    >
+                      {COPY.filters.clearAll}
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={() => setFormOpen(true)}
+                      className="bg-tunet-green hover:bg-tunet-green-dark text-white"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      New Task
+                    </Button>
+                  )
+                }
+              />
+            </div>
+          ) : viewMode === "kanban" ? (
             <KanbanBoard
               tasks={filteredTasks}
               onStatusChange={handleStatusChange}
@@ -173,14 +298,12 @@ export default function TasksPage() {
           )}
         </div>
 
-        {/* Task creation form */}
         <TaskForm
           open={formOpen}
           onOpenChange={setFormOpen}
           onTaskCreated={handleTaskCreated}
         />
 
-        {/* Task detail view */}
         <TaskDetail
           task={selectedTask}
           open={detailOpen}
@@ -189,5 +312,55 @@ export default function TasksPage() {
         />
       </div>
     </DashboardLayout>
+  );
+}
+
+function TasksPageSkeleton({ viewMode }: { viewMode: "kanban" | "list" }) {
+  if (viewMode === "kanban") {
+    return (
+      <div className="flex gap-4 h-full overflow-x-auto pb-4">
+        {Array.from({ length: 5 }).map((_, col) => (
+          <div key={col} className="flex-shrink-0 w-72 space-y-3">
+            <div className="flex items-center gap-2 mb-4 px-1">
+              <Skeleton className="w-3 h-3 rounded-full" />
+              <Skeleton className="h-3 w-20" />
+              <Skeleton className="h-4 w-6 rounded-full" />
+            </div>
+            <div className="space-y-3 pr-4">
+              {Array.from({ length: 2 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="rounded-xl border border-tunet-border bg-tunet-surface p-4 space-y-3"
+                >
+                  <Skeleton className="h-3 w-3/4" />
+                  <Skeleton className="h-3 w-1/2" />
+                  <div className="flex gap-2">
+                    <Skeleton className="h-4 w-16 rounded-full" />
+                    <Skeleton className="h-4 w-12 rounded-full" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div
+          key={i}
+          className="flex items-center gap-4 px-4 py-3 border-b border-tunet-border"
+        >
+          <Skeleton className="h-3 w-1/3" />
+          <Skeleton className="h-4 w-16 rounded-full" />
+          <Skeleton className="h-4 w-12 rounded-full" />
+          <Skeleton className="h-3 w-24" />
+          <Skeleton className="h-3 w-32 ml-auto" />
+        </div>
+      ))}
+    </div>
   );
 }

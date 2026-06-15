@@ -9,6 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
+import { COPY } from "@/lib/copy";
 import {
   Dialog,
   DialogContent,
@@ -75,6 +78,7 @@ export default function AdminUsersPage() {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadUsers();
   }, []);
 
@@ -231,15 +235,36 @@ export default function AdminUsersPage() {
             </CardHeader>
             <CardContent>
               {loading ? (
-                <div className="text-center py-8 text-tunet-text-muted">Loading...</div>
-              ) : users.length === 0 ? (
-                <div className="text-center py-12">
-                  <p className="text-tunet-text-muted mb-4">No staff members yet</p>
-                  <Button onClick={openCreateDialog} className="bg-tunet-green hover:bg-tunet-green-dark text-white">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add First Staff
-                  </Button>
+                <div className="space-y-3">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div
+                      key={i}
+                      className="flex items-center gap-4 px-4 py-3 border-b border-tunet-border"
+                    >
+                      <Skeleton className="w-8 h-8 rounded-full" />
+                      <div className="flex-1 space-y-2">
+                        <Skeleton className="h-3 w-32" />
+                        <Skeleton className="h-2 w-20" />
+                      </div>
+                      <Skeleton className="h-4 w-12 rounded-full" />
+                    </div>
+                  ))}
                 </div>
+              ) : users.length === 0 ? (
+                <EmptyState
+                  icon={Plus}
+                  title={COPY.empty.noTeamMembers.title}
+                  description={COPY.empty.noTeamMembers.description}
+                  action={
+                    <Button
+                      onClick={openCreateDialog}
+                      className="bg-tunet-green hover:bg-tunet-green-dark text-white"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add First Staff
+                    </Button>
+                  }
+                />
               ) : (
                 <div className="overflow-x-auto">
                   <Table>

@@ -3,16 +3,19 @@
 import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
+import { TaskDetail } from "@/components/tasks/task-detail";
 import { fetchTasks } from "@/lib/db";
 import { supabase } from "@/lib/supabase";
-import { Task, TaskStatus } from "@/types";
-import { Activity, AlertTriangle, CheckCircle, Clock } from "lucide-react";
+import { Task, TaskStatus, STATUS_CONFIG } from "@/types";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Activity, AlertTriangle, CheckCircle, Clock, Inbox } from "lucide-react";
+import { COPY } from "@/lib/copy";
 
 const RadarMap = dynamic(() => import("@/components/map/radar-map").then((m) => m.RadarMap), {
   ssr: false,
   loading: () => (
     <div className="h-full w-full rounded-xl bg-tunet-surface border border-tunet-border flex items-center justify-center">
-      <div className="text-tunet-text-muted text-sm">Loading map...</div>
+      <div className="text-tunet-text-muted text-sm">{COPY.loading.map}</div>
     </div>
   ),
 });
@@ -21,6 +24,7 @@ export default function NOCDashboard() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -64,16 +68,28 @@ export default function NOCDashboard() {
     }
   };
 
+  const handleTaskClick = (task: Task) => {
+    setSelectedTask(task);
+    setDetailOpen(true);
+  };
+
   const activeTasks = tasks.filter((t) => t.status === "in_progress").length;
   const overdueTasks = tasks.filter(
     (t) => t.deadline && new Date(t.deadline) < new Date() && t.status !== "done"
   ).length;
-  const completedToday = tasks.filter((t) => t.status === "done").length;
+  const completedTasks = tasks.filter((t) => t.status === "done").length;
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <NOCSkeleton />
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
       <div className="h-screen flex flex-col">
-        {/* Header */}
         <div className="h-16 border-b border-tunet-border flex items-center justify-between px-6">
           <div>
             <h1 className="text-lg font-semibold text-tunet-text">NOC Dashboard</h1>
@@ -86,7 +102,6 @@ export default function NOCDashboard() {
           </div>
         </div>
 
-        {/* Stats bar */}
         <div className="border-b border-tunet-border px-6 py-3">
           <div className="flex gap-6">
             <div className="flex items-center gap-2">
@@ -102,7 +117,7 @@ export default function NOCDashboard() {
             <div className="flex items-center gap-2">
               <CheckCircle className="w-4 h-4 text-status-done" />
               <span className="text-sm text-tunet-text-muted">Completed:</span>
-              <span className="text-sm font-medium text-status-done">{completedToday}</span>
+              <span className="text-sm font-medium text-status-done">{completedTasks}</span>
             </div>
             <div className="flex items-center gap-2">
               <Clock className="w-4 h-4 text-tunet-text-muted" />
@@ -112,30 +127,20 @@ export default function NOCDashboard() {
           </div>
         </div>
 
-        {/* Main content: 60/40 split */}
         <div className="flex-1 flex overflow-hidden">
-          {/* Map - 60% */}
           <div className="w-[60%] p-4">
             <RadarMap height="100%" />
           </div>
 
-          {/* Task Board - 40% */}
           <div className="w-[40%] border-l border-tunet-border p-4">
             <div className="mb-4">
               <h2 className="text-sm font-medium text-tunet-text">Recent Tasks</h2>
             </div>
             <div className="overflow-x-auto">
               <div className="flex gap-3" style={{ minWidth: "max-content" }}>
-                {(["todo", "assigned", "in_progress", "review", "done"] as const).map((status) => {
+                {(Object.keys(STATUS_CONFIG) as TaskStatus[]).map((status) => {
                   const statusTasks = tasks.filter((t) => t.status === status);
-                  const statusConfig: Record<string, { label: string; color: string }> = {
-                    todo: { label: "To Do", color: "#6B7280" },
-                    assigned: { label: "Assigned", color: "#3B82F6" },
-                    in_progress: { label: "In Progress", color: "#F59E0B" },
-                    review: { label: "Review", color: "#8B5CF6" },
-                    done: { label: "Done", color: "#10B981" },
-                  };
-                  const config = statusConfig[status];
+                  const config = STATUS_CONFIG[status];
 
                   return (
                     <div key={status} className="w-56">
@@ -148,39 +153,48 @@ export default function NOCDashboard() {
                         <span className="text-xs text-tunet-text-muted">({statusTasks.length})</span>
                       </div>
                       <div className="space-y-2">
-                        {statusTasks.slice(0, 3).map((task) => (
-                          <div
-                            key={task.id}
-                            onClick={() => setSelectedTask(task)}
-                            className="p-3 rounded-lg bg-tunet-surface border border-tunet-border hover:border-tunet-green/50 transition-colors cursor-pointer"
-                          >
-                            <div className="flex items-start gap-2 mb-2">
-                              <div
-                                className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0"
-                                style={{
-                                  backgroundColor:
-                                    task.priority === "critical"
-                                      ? "#EF4444"
-                                      : task.priority === "high"
-                                      ? "#F97316"
-                                      : task.priority === "medium"
-                                      ? "#EAB308"
-                                      : "#6B7280",
-                                }}
-                              />
-                              <p className="text-xs font-medium text-tunet-text leading-tight">
-                                {task.title}
-                              </p>
-                            </div>
-                            <p className="text-[10px] text-tunet-text-muted truncate ml-3.5">
-                              {task.location_name}
-                            </p>
+                        {statusTasks.length === 0 ? (
+                          <div className="text-center py-6 text-tunet-text-muted text-[10px] border border-dashed border-tunet-border rounded-lg">
+                            <Inbox className="w-3.5 h-3.5 mx-auto mb-1 opacity-50" />
+                            Kosong
                           </div>
-                        ))}
-                        {statusTasks.length > 3 && (
-                          <p className="text-xs text-tunet-green text-center py-1">
-                            +{statusTasks.length - 3} more
-                          </p>
+                        ) : (
+                          <>
+                            {statusTasks.slice(0, 3).map((task) => (
+                              <div
+                                key={task.id}
+                                onClick={() => handleTaskClick(task)}
+                                className="p-3 rounded-lg bg-tunet-surface border border-tunet-border hover:border-tunet-green/50 transition-colors cursor-pointer"
+                              >
+                                <div className="flex items-start gap-2 mb-2">
+                                  <div
+                                    className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0"
+                                    style={{
+                                      backgroundColor:
+                                        task.priority === "critical"
+                                          ? "#EF4444"
+                                          : task.priority === "high"
+                                          ? "#F97316"
+                                          : task.priority === "medium"
+                                          ? "#EAB308"
+                                          : "#6B7280",
+                                    }}
+                                  />
+                                  <p className="text-xs font-medium text-tunet-text leading-tight">
+                                    {task.title}
+                                  </p>
+                                </div>
+                                <p className="text-[10px] text-tunet-text-muted truncate ml-3.5">
+                                  {task.location_name}
+                                </p>
+                              </div>
+                            ))}
+                            {statusTasks.length > 3 && (
+                              <p className="text-xs text-tunet-green text-center py-1">
+                                +{statusTasks.length - 3} more
+                              </p>
+                            )}
+                          </>
                         )}
                       </div>
                     </div>
@@ -191,6 +205,54 @@ export default function NOCDashboard() {
           </div>
         </div>
       </div>
+
+      <TaskDetail
+        task={selectedTask}
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        onStatusChange={handleStatusChange}
+      />
     </DashboardLayout>
+  );
+}
+
+function NOCSkeleton() {
+  return (
+    <div className="h-screen flex flex-col">
+      <div className="h-16 border-b border-tunet-border flex items-center px-6">
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-32" />
+          <Skeleton className="h-3 w-44" />
+        </div>
+      </div>
+      <div className="border-b border-tunet-border px-6 py-3">
+        <div className="flex gap-6">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <Skeleton className="w-4 h-4 rounded" />
+              <Skeleton className="h-3 w-12" />
+              <Skeleton className="h-3 w-6" />
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="flex-1 flex">
+        <div className="w-[60%] p-4">
+          <Skeleton className="h-full w-full rounded-xl" />
+        </div>
+        <div className="w-[40%] border-l border-tunet-border p-4 space-y-4">
+          <Skeleton className="h-4 w-28" />
+          <div className="flex gap-3">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="w-56 space-y-2">
+                <Skeleton className="h-3 w-20" />
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

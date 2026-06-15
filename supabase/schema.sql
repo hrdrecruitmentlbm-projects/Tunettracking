@@ -97,6 +97,8 @@ CREATE INDEX idx_tasks_created_by ON tasks(created_by);
 CREATE INDEX idx_locations_user_id ON locations(user_id);
 CREATE INDEX idx_notifications_user_id ON notifications(user_id);
 CREATE INDEX idx_notifications_read ON notifications(read);
+CREATE INDEX idx_task_history_created_at ON task_history(created_at);
+CREATE INDEX idx_task_history_task_id ON task_history(task_id);
 
 -- Create spatial index for locations
 CREATE INDEX idx_locations_coords ON locations USING GIST (ST_SetSRID(ST_MakePoint(lng, lat), 4326));
@@ -125,6 +127,11 @@ CREATE POLICY "Users can update own location" ON locations FOR UPDATE USING (aut
 
 CREATE POLICY "Users can view own notifications" ON notifications FOR SELECT USING (auth.uid()::text = user_id::text);
 CREATE POLICY "System can create notifications" ON notifications FOR INSERT WITH CHECK (true);
+
+CREATE POLICY "Anyone can read priorities" ON priorities FOR SELECT USING (true);
+CREATE POLICY "Anyone can read tags" ON tags FOR SELECT USING (true);
+CREATE POLICY "NOC can create task_tags" ON task_tags FOR INSERT WITH CHECK (true);
+CREATE POLICY "Users can view task_tags" ON task_tags FOR SELECT USING (true);
 
 -- Function to find nearest FOC
 CREATE OR REPLACE FUNCTION find_nearest_foc(

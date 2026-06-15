@@ -1,18 +1,23 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { fetchUsers, fetchLocations, fetchTasks } from "@/lib/db";
 import { User, Location, Task, UserRole } from "@/types";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Wifi, ArrowLeft } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Input } from "@/components/ui/input";
+import { Wifi, ArrowLeft, Search, MapPin, Users as UsersIcon } from "lucide-react";
+import { getRelativeTime } from "@/lib/time";
+import { COPY } from "@/lib/copy";
 
 const RadarMap = dynamic(() => import("@/components/map/radar-map").then((m) => m.RadarMap), {
   ssr: false,
   loading: () => (
     <div className="h-full w-full rounded-xl bg-tunet-surface border border-tunet-border flex items-center justify-center">
-      <div className="text-tunet-text-muted text-sm">Loading map...</div>
+      <div className="text-tunet-text-muted text-sm">{COPY.loading.map}</div>
     </div>
   ),
 });
@@ -23,17 +28,24 @@ const DASHBOARD_ROUTES: Record<UserRole, string> = {
   foc: "/dashboard/foc",
 };
 
+type VisibleRole = "foc" | "noc";
+
 export default function MapPage() {
   const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [dashboardPath, setDashboardPath] = useState("/dashboard/noc");
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [focusUserId, setFocusUserId] = useState<string | null>(null);
+  const [showRoles, setShowRoles] = useState<VisibleRole[]>(["foc"]);
 
   useEffect(() => {
     const stored = localStorage.getItem("tunetops-user");
     if (stored) {
       const user: User = JSON.parse(stored);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDashboardPath(DASHBOARD_ROUTES[user.role] || DASHBOARD_ROUTES.noc);
     }
   }, []);
@@ -43,12 +55,25 @@ export default function MapPage() {
       setUsers(u);
       setLocations(l);
       setTasks(t);
+      setLoading(false);
     }
     load();
   }, []);
 
-  const focUsers = users.filter((u) => u.role === "foc");
-  const nocUsers = users.filter((u) => u.role === "noc");
+  const focUsers = useMemo(
+    () => users.filter((u) => u.role === "foc"),
+    [users]
+  );
+  const nocUsers = useMemo(
+    () => users.filter((u) => u.role === "noc"),
+    [users]
+  );
+
+  const filteredFoc = useMemo(() => {
+    const q = search.toLowerCase().trim();
+    if (!q) return focUsers;
+    return focUsers.filter((u) => u.name.toLowerCase().includes(q));
+  }, [focUsers, search]);
 
   const getMarkerColor = (userId: string) => {
     const hasActiveTask = tasks.some(
@@ -67,14 +92,67 @@ export default function MapPage() {
     return "bg-status-progress";
   };
 
+  const toggleRole = (role: VisibleRole) => {
+    setShowRoles((prev) =>
+      prev.includes(role) ? prev.filter((r) => r !== role) : [...prev, role]
+    );
+  };
+
+  const handleFocClick = (userId: string) => {
+    setFocusUserId(userId);
+  };
+
+  if (loading) {
+    return (
+      <div className="h-screen flex flex-col bg-tunet-bg">
+        <div className="h-16 border-b border-tunet-border flex items-center justify-between px-6">
+          <div className="flex items-center gap-3">
+            <Skeleton className="w-8 h-8 rounded-lg" />
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-3 w-40" />
+            </div>
+          </div>
+          <div className="flex items-center gap-4">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <Skeleton className="w-3 h-3 rounded-full" />
+                <Skeleton className="h-3 w-12" />
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="flex-1 flex">
+          <div className="flex-1 p-4">
+            <Skeleton className="h-full w-full rounded-xl" />
+          </div>
+          <div className="w-80 border-l border-tunet-border p-4 space-y-4">
+            <Skeleton className="h-4 w-32" />
+            <div className="space-y-2">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3 p-2">
+                  <Skeleton className="w-2 h-2 rounded-full" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-3 w-24" />
+                    <Skeleton className="h-2 w-32" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="h-screen flex flex-col bg-tunet-bg">
-      {/* Header */}
-      <div className="h-16 border-b border-tunet-border flex items-center justify-between px-6">
+      <div className="h-16 border-b border-tunet-border flex items-center justify-between px-6 gap-3 flex-wrap">
         <div className="flex items-center gap-3">
           <button
             onClick={() => router.push(dashboardPath)}
             className="p-2 rounded-lg hover:bg-tunet-surface-hover text-tunet-text-muted transition-colors"
+            aria-label="Back"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
@@ -83,7 +161,26 @@ export default function MapPage() {
             <p className="text-xs text-tunet-text-muted">Real-time FOC & NOC locations</p>
           </div>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 flex-wrap">
+          <label className="flex items-center gap-1.5 text-xs text-tunet-text-muted cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showRoles.includes("foc")}
+              onChange={() => toggleRole("foc")}
+              className="rounded accent-tunet-green"
+            />
+            FOC
+          </label>
+          <label className="flex items-center gap-1.5 text-xs text-tunet-text-muted cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showRoles.includes("noc")}
+              onChange={() => toggleRole("noc")}
+              className="rounded accent-tunet-green"
+            />
+            NOC
+          </label>
+          <div className="w-px h-4 bg-tunet-border" />
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-tunet-green" />
             <span className="text-xs text-tunet-text-muted">Active</span>
@@ -99,60 +196,98 @@ export default function MapPage() {
         </div>
       </div>
 
-      {/* Main content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Map */}
         <div className="flex-1 p-4">
-          <RadarMap height="100%" />
+          <RadarMap
+            height="100%"
+            showRoles={showRoles}
+            focusUserId={focusUserId}
+          />
         </div>
 
-        {/* Side panel */}
         <div className="w-80 border-l border-tunet-border flex flex-col">
-          {/* FOC list */}
-          <div className="p-4 border-b border-tunet-border">
-            <h2 className="text-sm font-medium text-tunet-text mb-3">
-              FOC Members ({focUsers.length})
-            </h2>
-            <ScrollArea className="h-48">
-              <div className="space-y-2">
-                {focUsers.map((user) => {
-                  const location = locations.find((l) => l.user_id === user.id);
-                  return (
-                    <div
-                      key={user.id}
-                      className="flex items-center gap-3 p-2 rounded-lg hover:bg-tunet-surface-hover cursor-pointer"
-                    >
-                      <div className={`w-2 h-2 rounded-full ${getMarkerColor(user.id)}`} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-tunet-text truncate">{user.name}</p>
-                        <p className="text-xs text-tunet-text-muted">
-                          {location ? `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}` : "Unknown"}
-                        </p>
-                      </div>
-                      <Wifi className="w-3.5 h-3.5 text-tunet-green" />
-                    </div>
-                  );
-                })}
+          <div className="p-4 border-b border-tunet-border space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-medium text-tunet-text">
+                FOC ({filteredFoc.length})
+              </h2>
+            </div>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-tunet-text-muted" />
+              <Input
+                placeholder="Cari anggota..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-8 h-8 text-xs bg-tunet-bg border-tunet-border text-tunet-text"
+              />
+            </div>
+            <ScrollArea className="h-32">
+              <div className="space-y-1 pr-2">
+                {filteredFoc.length === 0 ? (
+                  <div className="py-4">
+                    <EmptyState
+                      icon={UsersIcon}
+                      title={COPY.empty.noMatchingMembers.title}
+                      description={COPY.empty.noMatchingMembers.description}
+                      variant="inline"
+                    />
+                  </div>
+                ) : (
+                  filteredFoc.map((user) => {
+                    const location = locations.find((l) => l.user_id === user.id);
+                    const isFocused = focusUserId === user.id;
+                    return (
+                      <button
+                        key={user.id}
+                        onClick={() => handleFocClick(user.id)}
+                        className={`w-full text-left flex items-center gap-3 p-2 rounded-lg transition-colors ${
+                          isFocused
+                            ? "bg-tunet-green/10 ring-1 ring-tunet-green/30"
+                            : "hover:bg-tunet-surface-hover"
+                        }`}
+                      >
+                        <div className={`w-2 h-2 rounded-full flex-shrink-0 ${getMarkerColor(user.id)}`} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-tunet-text truncate">{user.name}</p>
+                          <p className="text-xs text-tunet-text-muted">
+                            {location
+                              ? getRelativeTime(location.updated_at)
+                              : "Belum pernah"}
+                          </p>
+                        </div>
+                        {location && <Wifi className="w-3.5 h-3.5 text-tunet-green flex-shrink-0" />}
+                      </button>
+                    );
+                  })
+                )}
               </div>
             </ScrollArea>
           </div>
 
-          {/* NOC list */}
           <div className="p-4 flex-1">
             <h2 className="text-sm font-medium text-tunet-text-muted mb-3">
               NOC ({nocUsers.length})
             </h2>
-            <div className="space-y-2">
-              {nocUsers.map((user) => (
-                <div key={user.id} className="flex items-center gap-3 p-2 rounded-lg">
-                  <div className="w-2 h-2 rounded-full bg-status-assigned" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-tunet-text-muted truncate">{user.name}</p>
-                    <p className="text-xs text-tunet-text-muted">In Office</p>
+            {nocUsers.length === 0 ? (
+              <EmptyState
+                icon={MapPin}
+                title={COPY.empty.noLocations.title}
+                description={COPY.empty.noLocations.description}
+                variant="inline"
+              />
+            ) : (
+              <div className="space-y-2">
+                {nocUsers.map((user) => (
+                  <div key={user.id} className="flex items-center gap-3 p-2">
+                    <div className="w-2 h-2 rounded-full bg-status-assigned" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-tunet-text-muted truncate">{user.name}</p>
+                      <p className="text-xs text-tunet-text-muted">In Office</p>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>

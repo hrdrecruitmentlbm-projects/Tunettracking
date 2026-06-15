@@ -36,6 +36,7 @@ export function TaskDetail({ task, open, onOpenChange, onStatusChange }: TaskDet
 
   useEffect(() => {
     if (open && task) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoadingHistory(true);
       fetchTaskHistory(task.id).then((h) => {
         setHistory(h);

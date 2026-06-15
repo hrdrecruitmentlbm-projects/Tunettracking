@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Notification } from "@/types";
 import {
   fetchNotifications,
@@ -16,7 +16,10 @@ import {
   Clock,
   Info,
   CheckCheck,
+  BellOff,
 } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
+import { COPY } from "@/lib/copy";
 
 interface NotificationsPanelProps {
   userId: string;
@@ -37,6 +40,7 @@ export function NotificationsPanel({ userId, onCountChange }: NotificationsPanel
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadNotifications();
 
     const channel = supabase
@@ -53,6 +57,7 @@ export function NotificationsPanel({ userId, onCountChange }: NotificationsPanel
     return () => {
       supabase.removeChannel(channel);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
@@ -100,6 +105,29 @@ export function NotificationsPanel({ userId, onCountChange }: NotificationsPanel
     return `${diffDays}d ago`;
   };
 
+  const grouped = useMemo(() => {
+    const today: Notification[] = [];
+    const yesterday: Notification[] = [];
+    const earlier: Notification[] = [];
+    const now = new Date();
+    const todayKey = now.toDateString();
+    const yesterdayDate = new Date(now);
+    yesterdayDate.setDate(now.getDate() - 1);
+    const yesterdayKey = yesterdayDate.toDateString();
+
+    for (const n of notifications) {
+      const k = new Date(n.created_at).toDateString();
+      if (k === todayKey) today.push(n);
+      else if (k === yesterdayKey) yesterday.push(n);
+      else earlier.push(n);
+    }
+    return [
+      { label: "Hari ini", items: today },
+      { label: "Kemarin", items: yesterday },
+      { label: "Sebelumnya", items: earlier },
+    ].filter((g) => g.items.length > 0);
+  }, [notifications]);
+
   return (
     <div className="relative">
       <button
@@ -137,38 +165,52 @@ export function NotificationsPanel({ userId, onCountChange }: NotificationsPanel
             <div className="overflow-y-auto flex-1">
               {loading ? (
                 <div className="p-4 text-center text-tunet-text-muted text-xs">
-                  Loading...
+                  {COPY.loading.notifications}
                 </div>
               ) : notifications.length === 0 ? (
-                <div className="p-8 text-center text-tunet-text-muted text-xs">
-                  No notifications yet
+                <div className="p-4">
+                  <EmptyState
+                    icon={BellOff}
+                    title={COPY.empty.noNotifications.title}
+                    description={COPY.empty.noNotifications.description}
+                    variant="inline"
+                  />
                 </div>
               ) : (
-                notifications.map((notification) => (
-                  <div
-                    key={notification.id}
-                    onClick={() => !notification.read && handleMarkRead(notification.id)}
-                    className={`flex items-start gap-3 px-4 py-3 border-b border-tunet-border cursor-pointer hover:bg-tunet-surface-hover transition-colors ${
-                      !notification.read ? "bg-tunet-green/5" : ""
-                    }`}
-                  >
-                    <div className="mt-0.5">{getIcon(notification.type)}</div>
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-xs font-medium ${notification.read ? "text-tunet-text-muted" : "text-tunet-text"}`}>
-                        {notification.title}
-                      </p>
-                      <p className="text-xs text-tunet-text-muted mt-0.5 line-clamp-2">
-                        {notification.message}
-                      </p>
-                      <p className="text-[10px] text-tunet-text-muted mt-1">
-                        {formatTime(notification.created_at)}
-                      </p>
+                <div>
+                  {grouped.map((group) => (
+                    <div key={group.label}>
+                      <div className="sticky top-0 bg-tunet-surface px-4 py-1.5 text-[10px] font-medium text-tunet-text-muted uppercase tracking-wide border-b border-tunet-border">
+                        {group.label}
+                      </div>
+                      {group.items.map((notification) => (
+                        <div
+                          key={notification.id}
+                          onClick={() => !notification.read && handleMarkRead(notification.id)}
+                          className={`flex items-start gap-3 px-4 py-3 border-b border-tunet-border cursor-pointer hover:bg-tunet-surface-hover transition-colors ${
+                            !notification.read ? "bg-tunet-green/5" : ""
+                          }`}
+                        >
+                          <div className="mt-0.5">{getIcon(notification.type)}</div>
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-xs font-medium ${notification.read ? "text-tunet-text-muted" : "text-tunet-text"}`}>
+                              {notification.title}
+                            </p>
+                            <p className="text-xs text-tunet-text-muted mt-0.5 line-clamp-2">
+                              {notification.message}
+                            </p>
+                            <p className="text-[10px] text-tunet-text-muted mt-1">
+                              {formatTime(notification.created_at)}
+                            </p>
+                          </div>
+                          {!notification.read && (
+                            <div className="w-2 h-2 rounded-full bg-tunet-green flex-shrink-0 mt-1" />
+                          )}
+                        </div>
+                      ))}
                     </div>
-                    {!notification.read && (
-                      <div className="w-2 h-2 rounded-full bg-tunet-green flex-shrink-0 mt-1" />
-                    )}
-                  </div>
-                ))
+                  ))}
+                </div>
               )}
             </div>
           </div>

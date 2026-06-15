@@ -38,21 +38,25 @@ tunet-ops/src/
 ├── app/
 │   ├── (auth)/page.tsx          # PIN login
 │   ├── dashboard/
-│   │   ├── admin/page.tsx       # Admin dashboard
+│   │   ├── admin/page.tsx       # Admin dashboard (sparkline, stats)
 │   │   ├── noc/page.tsx         # NOC (60/40 map+tasks)
-│   │   ├── foc/page.tsx         # FOC (mobile-first)
-│   │   ├── map/page.tsx         # Full-screen radar
-│   │   ├── tasks/page.tsx       # Kanban board
+│   │   ├── foc/page.tsx         # FOC (mobile-first, tabbed tracking)
+│   │   ├── map/page.tsx         # Full-screen radar with role filters + search
+│   │   ├── tasks/page.tsx       # Kanban board (DnD) + list, URL-persisted filters
 │   │   └── settings/page.tsx
 │   └── api/                     # API routes
 ├── components/
-│   ├── layout/                  # DashboardLayout, Sidebar
-│   ├── map/                     # RadarMap (Leaflet)
-│   ├── tasks/                   # KanbanBoard, TaskCard
-│   └── ui/                      # shadcn components
+│   ├── layout/                  # DashboardLayout, Sidebar, NotificationsPanel (day-grouped)
+│   ├── map/                     # RadarMap (Leaflet, showRoles, focusUserId)
+│   ├── tasks/                   # KanbanBoard (DnD), TaskCard, TaskDetail, TaskForm, TaskFilters (chips)
+│   └── ui/                      # shadcn + Skeleton, EmptyState, Sparkline
 ├── lib/
 │   ├── supabase.ts              # Supabase client
-│   ├── mock-data.ts             # Demo users/tasks/locations
+│   ├── db.ts                    # Data access + fetchCompletionTrend
+│   ├── copy.ts                  # Indonesian strings (empty/loading/time/filters/search)
+│   ├── time.ts                  # getRelativeTime, getTimeRemaining helpers
+│   ├── telegram.ts              # Bot sendMessage, setWebhook
+│   ├── telegram-cache.ts        # In-memory chat_id cache
 │   └── utils.ts                 # cn() helper
 └── types/
     └── index.ts                 # All TypeScript types + configs
@@ -67,6 +71,11 @@ tunet-ops/src/
 - **Priority colors**: `priority-critical`, `priority-high`, `priority-medium`, `priority-low`
 - **Components**: Use `cn()` from `@/lib/utils` for class merging
 - **Leaflet**: Must render client-side only (no SSR)
+- **Empty states**: Use `<EmptyState>` from `@/components/ui/empty-state` with copy from `@/lib/copy`
+- **Loading states**: Use `<Skeleton>` from `@/components/ui/skeleton` instead of "Loading..." text
+- **Indonesian copy**: All user-facing empty/loading strings come from `@/lib/copy`. English kept for nav, buttons, page titles.
+- **Time formatting**: Use `getRelativeTime` / `getTimeRemaining` from `@/lib/time` instead of manual Date math
+- **Drag-and-drop**: Kanban uses `@dnd-kit`; cards in `kanban-board.tsx` are sortable via `useSortable`
 
 ## Subagent Dispatch
 

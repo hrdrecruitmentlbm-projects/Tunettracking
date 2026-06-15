@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   Sheet,
   SheetContent,
@@ -12,7 +13,7 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { fetchUsers, fetchTags, createTask, CreateTaskInput } from "@/lib/db";
+import { fetchUsers, fetchTags, createTask, getCurrentUser, CreateTaskInput } from "@/lib/db";
 import { User, Tag, Task, PRIORITY_CONFIG } from "@/types";
 import { toast } from "sonner";
 import { MapPin, Calendar, Tag as TagIcon } from "lucide-react";
@@ -24,6 +25,7 @@ interface TaskFormProps {
 }
 
 export function TaskForm({ open, onOpenChange, onTaskCreated }: TaskFormProps) {
+  const router = useRouter();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState<string>("medium");
@@ -59,6 +61,12 @@ export function TaskForm({ open, onOpenChange, onTaskCreated }: TaskFormProps) {
     setSelectedTags([]);
   };
 
+  const handleSessionExpired = () => {
+    localStorage.removeItem("tunetops-user");
+    toast.error("Session expired. Please log in again.");
+    router.push("/");
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -68,8 +76,17 @@ export function TaskForm({ open, onOpenChange, onTaskCreated }: TaskFormProps) {
     }
 
     const storedUser = localStorage.getItem("tunetops-user");
-    const currentUser = storedUser ? JSON.parse(storedUser) : null;
-    if (!currentUser) return;
+    const cachedUser = storedUser ? JSON.parse(storedUser) : null;
+    if (!cachedUser?.id) {
+      handleSessionExpired();
+      return;
+    }
+
+    const currentUser = await getCurrentUser(cachedUser.id);
+    if (!currentUser) {
+      handleSessionExpired();
+      return;
+    }
 
     setSubmitting(true);
 
@@ -85,7 +102,7 @@ export function TaskForm({ open, onOpenChange, onTaskCreated }: TaskFormProps) {
       tagIds: selectedTags.length > 0 ? selectedTags : undefined,
     };
 
-    const task = await createTask(input, currentUser.id);
+    const { task, error } = await createTask(input, currentUser);
 
     if (task) {
       toast.success("Task created successfully!");
@@ -93,7 +110,7 @@ export function TaskForm({ open, onOpenChange, onTaskCreated }: TaskFormProps) {
       onOpenChange(false);
       onTaskCreated(task);
     } else {
-      toast.error("Failed to create task");
+      toast.error(`Failed to create task: ${error ?? "Unknown error"}`);
     }
 
     setSubmitting(false);

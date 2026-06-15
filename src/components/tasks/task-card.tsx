@@ -3,7 +3,8 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Task, STATUS_CONFIG, PRIORITY_CONFIG } from "@/types";
-import { MapPin, Clock, User } from "lucide-react";
+import { MapPin, Clock, User, AlertTriangle } from "lucide-react";
+import { getTimeRemaining } from "@/lib/time";
 
 interface TaskCardProps {
   task: Task;
@@ -25,7 +26,9 @@ export function TaskCard({ task, onStatusChange, onClick }: TaskCardProps) {
     return `${diffDays} days`;
   };
 
-  const isOverdue = task.deadline && new Date(task.deadline) < new Date() && task.status !== "done";
+  const isOverdue =
+    task.deadline && new Date(task.deadline) < new Date() && task.status !== "done";
+  const timeRemaining = getTimeRemaining(task.deadline);
 
   return (
     <Card
@@ -46,7 +49,7 @@ export function TaskCard({ task, onStatusChange, onClick }: TaskCardProps) {
         </div>
 
         {/* Status badge */}
-        <div className="flex items-center gap-2 mb-3">
+        <div className="flex items-center gap-2 mb-3 flex-wrap">
           <Badge
             variant="secondary"
             className="text-xs"
@@ -57,6 +60,24 @@ export function TaskCard({ task, onStatusChange, onClick }: TaskCardProps) {
           {isOverdue && (
             <Badge variant="destructive" className="text-xs">
               Overdue
+            </Badge>
+          )}
+          {timeRemaining && !isOverdue && timeRemaining.isUrgent && task.status !== "done" && (
+            <Badge
+              variant="secondary"
+              className="text-xs bg-status-progress/20 text-status-progress"
+            >
+              <Clock className="w-3 h-3 mr-1" />
+              {timeRemaining.label}
+            </Badge>
+          )}
+          {timeRemaining && isOverdue && task.status !== "done" && (
+            <Badge
+              variant="secondary"
+              className="text-xs bg-status-overdue/20 text-status-overdue"
+            >
+              <AlertTriangle className="w-3 h-3 mr-1" />
+              {timeRemaining.label}
             </Badge>
           )}
         </div>

@@ -13,6 +13,22 @@ export async function loginByPin(pin: string): Promise<User | null> {
   return data[0] as User;
 }
 
+export async function getCurrentUser(id: string): Promise<User | null> {
+  if (!id) return null;
+  const { data, error } = await supabase
+    .from("users")
+    .select("*")
+    .eq("id", id)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Error fetching current user:", error);
+    return null;
+  }
+  return (data as User) ?? null;
+}
+
 export async function fetchUsers(): Promise<User[]> {
   const { data, error } = await supabase
     .from("users")
@@ -26,16 +42,32 @@ export async function fetchUsers(): Promise<User[]> {
   return (data || []) as User[];
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function normalizeTaskRow(row: any): Task {
+  return {
+    ...row,
+    priority: row.priority?.name?.toLowerCase() ?? "medium",
+    assignee: row.assignee || undefined,
+    creator: row.creator || undefined,
+    tags: Array.isArray(row.tags)
+      ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        row.tags.map((t: any) => t.tag)
+      : [],
+  };
+}
+
+const TASK_SELECT = `
+  *,
+  priority:priorities(name),
+  assignee:users!tasks_assigned_to_fkey(id, name, pin, role, phone, telegram_id, is_active, created_at),
+  creator:users!tasks_created_by_fkey(id, name, pin, role, phone, telegram_id, is_active, created_at),
+  tags:task_tags(tag:tags(id, name, color))
+`;
+
 export async function fetchTasks(): Promise<Task[]> {
   const { data, error } = await supabase
     .from("tasks")
-    .select(`
-      *,
-      priority:priorities(name),
-      assignee:users!tasks_assigned_to_fkey(id, name, pin, role, phone, telegram_id, is_active, created_at),
-      creator:users!tasks_created_by_fkey(id, name, pin, role, phone, telegram_id, is_active, created_at),
-      tags:task_tags(tag:tags(id, name, color))
-    `)
+    .select(TASK_SELECT)
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -43,16 +75,7 @@ export async function fetchTasks(): Promise<Task[]> {
     return [];
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (data || []).map((row: any) => ({
-    ...row,
-    priority: row.priority?.name?.toLowerCase() ?? "medium",
-    assignee: row.assignee || undefined,
-    creator: row.creator || undefined,
-    tags: Array.isArray(row.tags)
-      ? row.tags.map((t: any) => t.tag)
-      : [],
-  })) as Task[];
+  return (data || []).map(normalizeTaskRow);
 }
 
 export async function fetchLocations(): Promise<Location[]> {
@@ -186,11 +209,19 @@ export interface CreateTaskInput {
   tagIds?: string[];
 }
 
+export interface CreateTaskResult {
+  task: Task | null;
+  error: string | null;
+}
+
 export async function createTask(
   input: CreateTaskInput,
-  createdBy: string
-): Promise<Task | null> {
-  // Look up priority_id from priorities table
+  currentUser: User
+): Promise<CreateTaskResult> {
+  if (!currentUser?.id) {
+    return { task: null, error: "Session is invalid. Please log in again." };
+  }
+
   const { data: priorityRow } = await supabase
     .from("priorities")
     .select("id")
@@ -200,7 +231,6 @@ export async function createTask(
 
   const priorityId = priorityRow?.id ?? null;
 
-  // Insert task
   const { data: task, error } = await supabase
     .from("tasks")
     .insert({
@@ -208,7 +238,7 @@ export async function createTask(
       description: input.description,
       status: input.assigned_to ? "assigned" : "todo",
       priority_id: priorityId,
-      created_by: createdBy,
+      created_by: currentUser.id,
       assigned_to: input.assigned_to || null,
       location_name: input.location_name,
       location_lat: input.location_lat,
@@ -220,19 +250,22 @@ export async function createTask(
 
   if (error) {
     console.error("Error creating task:", error);
-    return null;
+    return { task: null, error: error.message };
   }
 
-  // Insert task tags
   if (input.tagIds && input.tagIds.length > 0 && task) {
     const tagInserts = input.tagIds.map((tagId) => ({
       task_id: task.id,
       tag_id: tagId,
     }));
-    await supabase.from("task_tags").insert(tagInserts);
+    const { error: tagsError } = await supabase
+      .from("task_tags")
+      .insert(tagInserts);
+    if (tagsError) {
+      console.error("Error attaching task tags:", tagsError);
+    }
   }
 
-  // Notify assigned user
   if (input.assigned_to && task) {
     await createNotification(
       input.assigned_to,
@@ -242,7 +275,18 @@ export async function createTask(
     );
   }
 
-  return task as Task;
+  const { data: fullTask, error: refetchError } = await supabase
+    .from("tasks")
+    .select(TASK_SELECT)
+    .eq("id", task.id)
+    .single();
+
+  if (refetchError) {
+    console.error("Error refetching created task:", refetchError);
+    return { task: null, error: refetchError.message };
+  }
+
+  return { task: normalizeTaskRow(fullTask), error: null };
 }
 
 // ===== USER CRUD =====
@@ -441,4 +485,47 @@ export async function findUserByTelegramId(
   // Telegram user IDs are numeric; we store username (@handle) in telegram_id.
   // This is a placeholder for future support if we switch to numeric IDs.
   return null;
+}
+
+// ===== ANALYTICS =====
+
+export interface CompletionTrendPoint {
+  date: string;
+  count: number;
+}
+
+export async function fetchCompletionTrend(
+  days: number = 7
+): Promise<CompletionTrendPoint[]> {
+  const startDate = new Date();
+  startDate.setHours(0, 0, 0, 0);
+  startDate.setDate(startDate.getDate() - (days - 1));
+
+  const { data, error } = await supabase
+    .from("task_history")
+    .select("created_at")
+    .eq("action", "status_changed")
+    .contains("new_value", { status: "done" })
+    .gte("created_at", startDate.toISOString());
+
+  if (error) {
+    console.error("Error fetching completion trend:", error);
+    return [];
+  }
+
+  const buckets = new Map<string, number>();
+  for (let i = 0; i < days; i++) {
+    const d = new Date(startDate);
+    d.setDate(startDate.getDate() + i);
+    buckets.set(d.toISOString().slice(0, 10), 0);
+  }
+
+  for (const row of data || []) {
+    const key = new Date(row.created_at).toISOString().slice(0, 10);
+    if (buckets.has(key)) {
+      buckets.set(key, (buckets.get(key) || 0) + 1);
+    }
+  }
+
+  return Array.from(buckets.entries()).map(([date, count]) => ({ date, count }));
 }
