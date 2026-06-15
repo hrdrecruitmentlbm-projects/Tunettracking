@@ -10,6 +10,8 @@ import { Task, TaskStatus, STATUS_CONFIG } from "@/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Activity, AlertTriangle, CheckCircle, Clock, Inbox } from "lucide-react";
 import { COPY } from "@/lib/copy";
+import { toast } from "sonner";
+import { useTelegramDispatch } from "@/hooks/use-telegram-dispatch";
 
 const RadarMap = dynamic(() => import("@/components/map/radar-map").then((m) => m.RadarMap), {
   ssr: false,
@@ -25,6 +27,23 @@ export default function NOCDashboard() {
   const [loading, setLoading] = useState(true);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | undefined>(undefined);
+
+  useTelegramDispatch(currentUserId);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("tunetops-user");
+      if (stored) {
+        try {
+          // eslint-disable-next-line react-hooks/set-state-in-effect
+          setCurrentUserId(JSON.parse(stored).id);
+        } catch {
+          // ignore
+        }
+      }
+    }
+  }, []);
 
   useEffect(() => {
     async function load() {
@@ -64,6 +83,8 @@ export default function NOCDashboard() {
             t.id === taskId ? { ...t, status: newStatus, updated_at: new Date().toISOString() } : t
           )
         );
+      } else {
+        toast.error("Failed to update task status");
       }
     }
   };
@@ -211,6 +232,7 @@ export default function NOCDashboard() {
         open={detailOpen}
         onOpenChange={setDetailOpen}
         onStatusChange={handleStatusChange}
+        canChangeStatus={true}
       />
     </DashboardLayout>
   );

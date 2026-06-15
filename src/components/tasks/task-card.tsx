@@ -10,9 +10,10 @@ interface TaskCardProps {
   task: Task;
   onStatusChange?: (taskId: string, status: Task["status"]) => void;
   onClick?: (task: Task) => void;
+  canChangeStatus?: boolean;
 }
 
-export function TaskCard({ task, onStatusChange, onClick }: TaskCardProps) {
+export function TaskCard({ task, onStatusChange, onClick, canChangeStatus = true }: TaskCardProps) {
   const statusConfig = STATUS_CONFIG[task.status];
   const priorityConfig = PRIORITY_CONFIG[task.priority];
 
@@ -96,39 +97,49 @@ export function TaskCard({ task, onStatusChange, onClick }: TaskCardProps) {
 
         {/* Quick actions */}
         {onStatusChange && (
-          <div className="flex gap-2 mt-3 pt-3 border-t border-tunet-border">
-            {task.status === "assigned" && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onStatusChange(task.id, "in_progress");
-                }}
-                className="flex-1 text-xs py-1.5 rounded bg-tunet-green/20 text-tunet-green hover:bg-tunet-green/30 transition-colors"
-              >
-                Start
-              </button>
-            )}
-            {task.status === "in_progress" && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onStatusChange(task.id, "review");
-                }}
-                className="flex-1 text-xs py-1.5 rounded bg-status-review/20 text-status-review hover:bg-status-review/30 transition-colors"
-              >
-                Submit Review
-              </button>
-            )}
-            {task.status === "review" && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onStatusChange(task.id, "done");
-                }}
-                className="flex-1 text-xs py-1.5 rounded bg-status-done/20 text-status-done hover:bg-status-done/30 transition-colors"
-              >
-                Complete
-              </button>
+          <div className="mt-3 pt-3 border-t border-tunet-border space-y-2">
+            <div className="flex gap-2">
+              {task.status === "assigned" && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onStatusChange(task.id, "in_progress");
+                  }}
+                  disabled={!canChangeStatus}
+                  className="flex-1 text-xs py-1.5 rounded bg-tunet-green/20 text-tunet-green hover:bg-tunet-green/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-tunet-green/20"
+                >
+                  Start
+                </button>
+              )}
+              {task.status === "in_progress" && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onStatusChange(task.id, "review");
+                  }}
+                  disabled={!canChangeStatus}
+                  className="flex-1 text-xs py-1.5 rounded bg-status-review/20 text-status-review hover:bg-status-review/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-status-review/20"
+                >
+                  Submit Review
+                </button>
+              )}
+              {task.status === "review" && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onStatusChange(task.id, "done");
+                  }}
+                  disabled={!canChangeStatus}
+                  className="flex-1 text-xs py-1.5 rounded bg-status-done/20 text-status-done hover:bg-status-done/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-status-done/20"
+                >
+                  Complete
+                </button>
+              )}
+            </div>
+            {!canChangeStatus && (
+              <p className="text-[10px] text-tunet-text-muted text-center">
+                Status hanya bisa diubah oleh NOC
+              </p>
             )}
           </div>
         )}

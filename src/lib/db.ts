@@ -459,6 +459,41 @@ export async function createNotification(
   return true;
 }
 
+export interface NotificationRow {
+  id: string;
+  user_id: string;
+  type: "task_assigned" | "status_update" | "overdue" | "completed";
+  title: string;
+  message: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  metadata: Record<string, any> | null;
+  read: boolean;
+  telegram_sent_at: string | null;
+  created_at: string;
+}
+
+export function subscribeToNotifications(
+  userId: string,
+  onInsert: (n: NotificationRow) => void
+) {
+  const channel = supabase
+    .channel(`notifications-${userId}`)
+    .on(
+      "postgres_changes",
+      {
+        event: "INSERT",
+        schema: "public",
+        table: "notifications",
+        filter: `user_id=eq.${userId}`,
+      },
+      (payload) => onInsert(payload.new as NotificationRow)
+    )
+    .subscribe();
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}
+
 // ===== TELEGRAM INTEGRATION =====
 
 export async function findUserByTelegramUsername(
@@ -528,4 +563,26 @@ export async function fetchCompletionTrend(
   }
 
   return Array.from(buckets.entries()).map(([date, count]) => ({ date, count }));
+}
+
+// ===== REASSIGNMENT =====
+
+export async function reassignTask(
+  taskId: string,
+  newAssigneeId: string,
+  performedBy: string
+): Promise<boolean> {
+  const { error } = await supabase
+    .from("tasks")
+    .update({
+      assigned_to: newAssigneeId,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", taskId);
+
+  if (error) {
+    console.error("Error reassigning task:", error);
+    return false;
+  }
+  return true;
 }

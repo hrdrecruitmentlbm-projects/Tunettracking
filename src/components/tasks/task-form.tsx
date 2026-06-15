@@ -105,7 +105,12 @@ export function TaskForm({ open, onOpenChange, onTaskCreated }: TaskFormProps) {
     const { task, error } = await createTask(input, currentUser);
 
     if (task) {
-      toast.success("Task created successfully!");
+      const assignee = focUsers.find((u) => u.id === task.assigned_to);
+      toast.success(
+        assignee
+          ? `Task created! ${assignee.name} has been notified via Telegram.`
+          : "Task created successfully!"
+      );
       resetForm();
       onOpenChange(false);
       onTaskCreated(task);

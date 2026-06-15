@@ -174,14 +174,20 @@ CREATE OR REPLACE FUNCTION update_task_status(
 RETURNS VOID AS $$
 DECLARE
   v_old_status TEXT;
+  v_user_role TEXT;
 BEGIN
+  SELECT role INTO v_user_role FROM users WHERE id = p_performed_by AND is_active = true;
+  IF v_user_role IS NULL OR v_user_role NOT IN ('admin', 'noc') THEN
+    RAISE EXCEPTION 'Permission denied: only admin and NOC can update task status';
+  END IF;
+
   SELECT status INTO v_old_status FROM tasks WHERE id = p_task_id;
-  
+
   UPDATE tasks
   SET status = p_new_status,
       updated_at = now()
   WHERE id = p_task_id;
-  
+
   INSERT INTO task_history (task_id, action, old_value, new_value, performed_by)
   VALUES (p_task_id, 'status_changed', jsonb_build_object('status', v_old_status), jsonb_build_object('status', p_new_status), p_performed_by);
 END;

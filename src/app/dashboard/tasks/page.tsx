@@ -10,13 +10,14 @@ import { TaskFilters, FilterState } from "@/components/tasks/task-filters";
 import { TaskListView } from "@/components/tasks/task-list-view";
 import { fetchTasks, updateTaskStatus } from "@/lib/db";
 import { supabase } from "@/lib/supabase";
-import { Task, TaskStatus } from "@/types";
+import { Task, TaskStatus, User } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Plus, Search, LayoutGrid, List, Loader2, Inbox } from "lucide-react";
 import { COPY } from "@/lib/copy";
+import { toast } from "sonner";
 
 export default function TasksPage() {
   return (
@@ -75,6 +76,21 @@ function TasksPageContent() {
       : readFiltersFromParams(new URLSearchParams(window.location.search))
   );
 
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const canChangeStatus = currentUser?.role !== "foc";
+
+  useEffect(() => {
+    const stored = localStorage.getItem("tunetops-user");
+    if (stored) {
+      try {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setCurrentUser(JSON.parse(stored));
+      } catch {
+        // ignore
+      }
+    }
+  }, []);
+
   const isSearching = searchInput !== searchQuery;
 
   useEffect(() => {
@@ -123,9 +139,6 @@ function TasksPageContent() {
   }, []);
 
   const handleStatusChange = async (taskId: string, newStatus: TaskStatus) => {
-    const storedUser = localStorage.getItem("tunetops-user");
-    const currentUser = storedUser ? JSON.parse(storedUser) : null;
-
     const previous = tasks.find((t) => t.id === taskId);
     if (previous) {
       setTasks((prev) =>
@@ -138,6 +151,7 @@ function TasksPageContent() {
     if (currentUser) {
       const success = await updateTaskStatus(taskId, newStatus, currentUser.id);
       if (!success) {
+        toast.error("Failed to update task status");
         if (previous) {
           setTasks((prev) => prev.map((t) => (t.id === taskId ? previous : t)));
         }
@@ -153,6 +167,16 @@ function TasksPageContent() {
   const handleTaskClick = (task: Task) => {
     setSelectedTask(task);
     setDetailOpen(true);
+  };
+
+  const handleReassigned = (taskId: string, newAssigneeId: string) => {
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === taskId
+          ? { ...t, assigned_to: newAssigneeId, updated_at: new Date().toISOString() }
+          : t
+      )
+    );
   };
 
   const filteredTasks = useMemo(() => {
@@ -292,6 +316,7 @@ function TasksPageContent() {
               tasks={filteredTasks}
               onStatusChange={handleStatusChange}
               onTaskClick={handleTaskClick}
+              canChangeStatus={canChangeStatus}
             />
           ) : (
             <TaskListView tasks={filteredTasks} onTaskClick={handleTaskClick} />
@@ -309,6 +334,8 @@ function TasksPageContent() {
           open={detailOpen}
           onOpenChange={setDetailOpen}
           onStatusChange={handleStatusChange}
+          canChangeStatus={canChangeStatus}
+          onReassigned={handleReassigned}
         />
       </div>
     </DashboardLayout>

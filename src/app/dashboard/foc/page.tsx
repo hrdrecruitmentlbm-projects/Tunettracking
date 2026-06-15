@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { COPY } from "@/lib/copy";
+import { useTelegramDispatch } from "@/hooks/use-telegram-dispatch";
 
 const LOCATION_INTERVAL = 2 * 60 * 1000;
 const TELEGRAM_BOT_USERNAME = "TunetOpsTrackingBot";
@@ -42,6 +43,8 @@ export default function FOCDashboard() {
   const currentUser = storedUser ? JSON.parse(storedUser) : null;
   const userId = currentUser?.id;
   const telegramUsername = currentUser?.telegram_id;
+
+  useTelegramDispatch(userId);
 
   useEffect(() => {
     async function load() {
@@ -346,6 +349,7 @@ export default function FOCDashboard() {
                     task={task}
                     onStatusChange={handleStatusChange}
                     onClick={handleTaskClick}
+                    canChangeStatus={false}
                   />
                 ))}
               </div>
@@ -383,6 +387,7 @@ export default function FOCDashboard() {
           open={detailOpen}
           onOpenChange={setDetailOpen}
           onStatusChange={handleStatusChange}
+          canChangeStatus={false}
         />
       </div>
     </DashboardLayout>

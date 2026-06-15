@@ -16,12 +16,30 @@ import { Sparkline, TrendBadge } from "@/components/ui/sparkline";
 import { Users, CheckSquare, AlertTriangle, Activity, UsersRound } from "lucide-react";
 import { User, Task } from "@/types";
 import { COPY } from "@/lib/copy";
+import { useTelegramDispatch } from "@/hooks/use-telegram-dispatch";
 
 export default function AdminDashboard() {
   const [users, setUsers] = useState<User[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [trend, setTrend] = useState<CompletionTrendPoint[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentUserId, setCurrentUserId] = useState<string | undefined>(undefined);
+
+  useTelegramDispatch(currentUserId);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("tunetops-user");
+      if (stored) {
+        try {
+          // eslint-disable-next-line react-hooks/set-state-in-effect
+          setCurrentUserId(JSON.parse(stored).id);
+        } catch {
+          // ignore
+        }
+      }
+    }
+  }, []);
 
   useEffect(() => {
     async function load() {

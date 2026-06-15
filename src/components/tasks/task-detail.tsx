@@ -10,17 +10,24 @@ import {
 } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Task, STATUS_CONFIG, PRIORITY_CONFIG } from "@/types";
-import { fetchTaskHistory, updateTaskStatus, TaskHistoryEntry } from "@/lib/db";
+import { Task, User, STATUS_CONFIG, PRIORITY_CONFIG } from "@/types";
+import {
+  fetchTaskHistory,
+  updateTaskStatus,
+  TaskHistoryEntry,
+  fetchUsers,
+  reassignTask,
+} from "@/lib/db";
 import { toast } from "sonner";
 import {
   MapPin,
   Calendar,
-  User,
+  User as UserIcon,
   Clock,
   Tag,
   ArrowRight,
   History,
+  RefreshCw,
 } from "lucide-react";
 
 interface TaskDetailProps {
@@ -28,11 +35,26 @@ interface TaskDetailProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onStatusChange?: (taskId: string, status: Task["status"]) => void;
+  canChangeStatus?: boolean;
+  onReassigned?: (taskId: string, newAssigneeId: string) => void;
 }
 
-export function TaskDetail({ task, open, onOpenChange, onStatusChange }: TaskDetailProps) {
+export function TaskDetail({
+  task,
+  open,
+  onOpenChange,
+  onStatusChange,
+  canChangeStatus = true,
+  onReassigned,
+}: TaskDetailProps) {
   const [history, setHistory] = useState<TaskHistoryEntry[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [focUsers, setFocUsers] = useState<User[]>([]);
+  const [selectedAssignee, setSelectedAssignee] = useState<string>("");
+  const [reassigning, setReassigning] = useState(false);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+
+  const canReassign = currentUser?.role === "admin" || currentUser?.role === "noc";
 
   useEffect(() => {
     if (open && task) {
@@ -42,8 +64,45 @@ export function TaskDetail({ task, open, onOpenChange, onStatusChange }: TaskDet
         setHistory(h);
         setLoadingHistory(false);
       });
+      fetchUsers().then((u) => {
+        setFocUsers(u.filter((x) => x.role === "foc"));
+      });
+      if (task.assigned_to) {
+        setSelectedAssignee(task.assigned_to);
+      }
     }
   }, [open, task]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = localStorage.getItem("tunetops-user");
+    if (stored) {
+      try {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setCurrentUser(JSON.parse(stored));
+      } catch {
+        // ignore
+      }
+    }
+  }, []);
+
+  const handleReassign = async () => {
+    if (!currentUser || !task) return;
+    if (!selectedAssignee || selectedAssignee === task.assigned_to) {
+      toast.error("Pick a different FOC user");
+      return;
+    }
+    setReassigning(true);
+    const ok = await reassignTask(task.id, selectedAssignee, currentUser.id);
+    if (ok) {
+      toast.success("Task reassigned. Old assignee will be notified via Telegram.");
+      onReassigned?.(task.id, selectedAssignee);
+      onOpenChange(false);
+    } else {
+      toast.error("Failed to reassign task");
+    }
+    setReassigning(false);
+  };
 
   if (!task) return null;
 
@@ -129,7 +188,7 @@ export function TaskDetail({ task, open, onOpenChange, onStatusChange }: TaskDet
             {/* Assignee */}
             <div className="space-y-1">
               <div className="flex items-center gap-1.5 text-tunet-text-muted">
-                <User className="w-3.5 h-3.5" />
+                <UserIcon className="w-3.5 h-3.5" />
                 <span className="text-xs font-medium">Assignee</span>
               </div>
               <p className="text-sm text-tunet-text">
@@ -140,7 +199,7 @@ export function TaskDetail({ task, open, onOpenChange, onStatusChange }: TaskDet
             {/* Creator */}
             <div className="space-y-1">
               <div className="flex items-center gap-1.5 text-tunet-text-muted">
-                <User className="w-3.5 h-3.5" />
+                <UserIcon className="w-3.5 h-3.5" />
                 <span className="text-xs font-medium">Created by</span>
               </div>
               <p className="text-sm text-tunet-text">
@@ -209,6 +268,47 @@ export function TaskDetail({ task, open, onOpenChange, onStatusChange }: TaskDet
             </div>
           )}
 
+          {/* Reassign (admin/noc only) */}
+          {canReassign && task.status !== "done" && (
+            <div className="border-t border-tunet-border pt-4 space-y-2">
+              <div className="flex items-center gap-1.5 text-tunet-text-muted">
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span className="text-xs font-medium uppercase">Reassign</span>
+              </div>
+              <select
+                value={selectedAssignee}
+                onChange={(e) => setSelectedAssignee(e.target.value)}
+                className="w-full rounded-md border border-tunet-border bg-tunet-bg px-3 py-2 text-sm text-tunet-text focus:outline-none focus:ring-2 focus:ring-tunet-green/50"
+              >
+                <option value="">— Unassigned —</option>
+                {focUsers.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name}
+                    {u.id === task.assigned_to ? " (current)" : ""}
+                  </option>
+                ))}
+              </select>
+              <Button
+                onClick={handleReassign}
+                disabled={
+                  reassigning ||
+                  !selectedAssignee ||
+                  selectedAssignee === task.assigned_to
+                }
+                size="sm"
+                className="w-full bg-tunet-green hover:bg-tunet-green-dark text-white text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <RefreshCw
+                  className={`w-3.5 h-3.5 mr-2 ${reassigning ? "animate-spin" : ""}`}
+                />
+                {reassigning ? "Reassigning..." : "Confirm Reassign"}
+              </Button>
+              <p className="text-[10px] text-tunet-text-muted">
+                Old assignee will be notified via Telegram.
+              </p>
+            </div>
+          )}
+
           {/* Quick status actions */}
           <div>
             <h4 className="text-xs font-medium text-tunet-text-muted uppercase mb-2">
@@ -219,7 +319,8 @@ export function TaskDetail({ task, open, onOpenChange, onStatusChange }: TaskDet
                 <Button
                   size="sm"
                   onClick={() => handleStatusChange("in_progress")}
-                  className="bg-tunet-green hover:bg-tunet-green-dark text-white text-xs"
+                  disabled={!canChangeStatus}
+                  className="bg-tunet-green hover:bg-tunet-green-dark text-white text-xs disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Start Work
                 </Button>
@@ -228,7 +329,8 @@ export function TaskDetail({ task, open, onOpenChange, onStatusChange }: TaskDet
                 <Button
                   size="sm"
                   onClick={() => handleStatusChange("review")}
-                  className="bg-status-review hover:opacity-90 text-white text-xs"
+                  disabled={!canChangeStatus}
+                  className="bg-status-review hover:opacity-90 text-white text-xs disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Submit Review
                 </Button>
@@ -237,12 +339,13 @@ export function TaskDetail({ task, open, onOpenChange, onStatusChange }: TaskDet
                 <Button
                   size="sm"
                   onClick={() => handleStatusChange("done")}
-                  className="bg-status-done hover:opacity-90 text-white text-xs"
+                  disabled={!canChangeStatus}
+                  className="bg-status-done hover:opacity-90 text-white text-xs disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Mark Complete
                 </Button>
               )}
-              {task.status !== "done" && (
+              {canChangeStatus && task.status !== "done" && (
                 <Button
                   size="sm"
                   variant="outline"
@@ -263,6 +366,11 @@ export function TaskDetail({ task, open, onOpenChange, onStatusChange }: TaskDet
                 </Button>
               )}
             </div>
+            {!canChangeStatus && (
+              <p className="text-[10px] text-tunet-text-muted mt-2">
+                Status hanya bisa diubah oleh NOC
+              </p>
+            )}
           </div>
 
           {/* Status History */}
