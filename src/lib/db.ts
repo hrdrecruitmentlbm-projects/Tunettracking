@@ -671,7 +671,7 @@ export async function recordLocationUpdate(
 
   const { data: existing, error: existingError } = await supabase
     .from("locations")
-    .select("id, lat, lng, arrived_at, session_date")
+    .select("id, lat, lng, arrived_at, session_date, updated_at")
     .eq("user_id", userId)
     .maybeSingle();
 
