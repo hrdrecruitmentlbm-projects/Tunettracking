@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-leaflet";
 import L from "leaflet";
 import { Location, Task } from "@/types";
-import { fetchLocations, fetchTasks } from "@/lib/db";
+import { fetchLocations, fetchTasks, fetchVisits, getFocColor, LocationVisit } from "@/lib/db";
 import { supabase } from "@/lib/supabase";
 import { getRelativeTime } from "@/lib/time";
 import "leaflet/dist/leaflet.css";
@@ -15,6 +15,8 @@ L.Icon.Default.mergeOptions({
   iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
   shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
 });
+
+const ROUTE_LINE_COLOR = "#94A3B8"; // slate-400 — non-monochrome, light enough to read on dark map
 
 function createCustomIcon(
   color: string,
@@ -57,6 +59,30 @@ function createCustomIcon(
   });
 }
 
+function createVisitIcon(color: string, number: number) {
+  return L.divIcon({
+    className: "visit-marker",
+    html: `
+      <div style="
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        background: ${color};
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: bold;
+        font-size: 12px;
+        box-shadow: 0 0 0 2px rgba(255,255,255,0.9), 0 2px 4px rgba(0,0,0,0.4);
+      ">${number}</div>
+    `,
+    iconSize: [26, 26],
+    iconAnchor: [13, 13],
+    popupAnchor: [0, -13],
+  });
+}
+
 function MapFocusController({
   locations,
   focusUserId,
@@ -75,25 +101,53 @@ function MapFocusController({
   return null;
 }
 
+function formatTimeWIB(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleString("id-ID", {
+    timeZone: "Asia/Jakarta",
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatDuration(minutes: number | null): string {
+  if (minutes == null) return "—";
+  if (minutes < 60) return `${minutes} menit`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m === 0 ? `${h} jam` : `${h} jam ${m} menit`;
+}
+
 interface RadarMapProps {
   height?: string;
   showRoles?: ("foc" | "noc")[];
   focusUserId?: string | null;
+  sessionDate?: string; // YYYY-MM-DD; defaults to today's session date
 }
 
 export function RadarMap({
   height = "100%",
   showRoles = ["foc"],
   focusUserId = null,
+  sessionDate,
 }: RadarMapProps) {
   const [locations, setLocations] = useState<Location[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [visits, setVisits] = useState<LocationVisit[]>([]);
+
+  async function reloadVisits() {
+    const v = await fetchVisits(sessionDate || new Date().toISOString().split("T")[0]);
+    setVisits(v);
+  }
 
   useEffect(() => {
     async function load() {
       const [locs, tks] = await Promise.all([fetchLocations(), fetchTasks()]);
       setLocations(locs);
       setTasks(tks);
+      await reloadVisits();
     }
     load();
 
@@ -113,11 +167,20 @@ export function RadarMap({
       })
       .subscribe();
 
+    const visitChannel = supabase
+      .channel("visits-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "location_visits" }, () => {
+        reloadVisits();
+      })
+      .subscribe();
+
     return () => {
       supabase.removeChannel(locChannel);
       supabase.removeChannel(taskChannel);
+      supabase.removeChannel(visitChannel);
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionDate]);
 
   const center: [number, number] = [-7.4833, 109.2333];
 
@@ -127,6 +190,9 @@ export function RadarMap({
   });
 
   const getMarkerColor = (location: Location) => {
+    if (showRoles.includes("foc") && location.user?.role === "foc") {
+      return getFocColor(location.user_id);
+    }
     const hasActiveTask = tasks.some(
       (t) => t.assigned_to === location.user_id && t.status === "in_progress"
     );
@@ -143,6 +209,14 @@ export function RadarMap({
     return "#F59E0B";
   };
 
+  // Group visits by user
+  const visitsByUser = new Map<string, LocationVisit[]>();
+  for (const v of visits) {
+    const list = visitsByUser.get(v.user_id) ?? [];
+    list.push(v);
+    visitsByUser.set(v.user_id, list);
+  }
+
   return (
     <div style={{ height }} className="rounded-xl overflow-hidden border border-tunet-border">
       <MapContainer center={center} zoom={13} style={{ height: "100%", width: "100%" }}>
@@ -151,6 +225,54 @@ export function RadarMap({
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
           url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
         />
+
+        {/* Render visit polylines + numbered stop markers per user */}
+        {Array.from(visitsByUser.entries()).map(([userId, userVisits]) => {
+          const color = getFocColor(userId);
+          const currentLoc = visibleLocations.find((l) => l.user_id === userId);
+
+          // Polyline: visit 1 → visit 2 → visit 3 → ... → current position
+          const points: [number, number][] = userVisits.map((v) => [v.lat, v.lng]);
+          if (currentLoc) points.push([Number(currentLoc.lat), Number(currentLoc.lng)]);
+
+          return (
+            <div key={`route-${userId}`}>
+              {points.length >= 2 && (
+                <Polyline
+                  positions={points}
+                  pathOptions={{ color: ROUTE_LINE_COLOR, weight: 3, opacity: 0.8 }}
+                />
+              )}
+              {userVisits.map((v) => (
+                <Marker
+                  key={v.id}
+                  position={[v.lat, v.lng]}
+                  icon={createVisitIcon(color, v.visit_number)}
+                >
+                  <Popup>
+                    <div className="p-1">
+                      <p className="font-bold">Stop #{v.visit_number}</p>
+                      <p className="text-xs text-gray-600">📍 {v.lat.toFixed(5)}, {v.lng.toFixed(5)}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Tiba: {formatTimeWIB(v.arrived_at)} WIB
+                      </p>
+                      {v.departed_at && (
+                        <p className="text-xs text-gray-500">
+                          Berangkat: {formatTimeWIB(v.departed_at)} WIB
+                        </p>
+                      )}
+                      <p className="text-xs text-gray-700 mt-1 font-medium">
+                        Durasi: {formatDuration(v.duration_minutes)}
+                      </p>
+                    </div>
+                  </Popup>
+                </Marker>
+              ))}
+            </div>
+          );
+        })}
+
+        {/* Render current position markers (existing behavior) */}
         {visibleLocations.map((location) => {
           const user = location.user;
           if (!user) return null;

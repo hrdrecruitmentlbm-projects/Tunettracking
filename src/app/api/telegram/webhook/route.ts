@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sendMessage, TelegramUpdate } from "@/lib/telegram";
-import { findUserByTelegramUsername, findUserByTelegramChatId, upsertLocation, fetchTasks, createNotification } from "@/lib/db";
+import { findUserByTelegramUsername, findUserByTelegramChatId, recordLocationUpdate, fetchTasks, createNotification } from "@/lib/db";
 import { cacheTelegramChat } from "@/lib/telegram-cache";
 
 export async function POST(request: NextRequest) {
@@ -13,10 +13,11 @@ export async function POST(request: NextRequest) {
       const chatId = editedMessage.chat.id;
       const user = await findUserByTelegramChatId(chatId);
       if (user) {
-        await upsertLocation(
+        await recordLocationUpdate(
           user.id,
           editedMessage.location.latitude,
-          editedMessage.location.longitude
+          editedMessage.location.longitude,
+          "telegram_live"
         );
       }
       return NextResponse.json({ ok: true });
@@ -119,13 +120,14 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ ok: true });
       }
 
-      const success = await upsertLocation(
+      const result = await recordLocationUpdate(
         user.id,
         location.latitude,
-        location.longitude
+        location.longitude,
+        "telegram_request"
       );
 
-      if (success) {
+      if (result.ok) {
         await sendMessage(
           chatId,
           `✅ Location shared!\n\n📍 ${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}\n\nNOC can now see you on the radar map.`

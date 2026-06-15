@@ -3,13 +3,13 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
-import { fetchUsers, fetchLocations, fetchTasks } from "@/lib/db";
+import { fetchUsers, fetchLocations, fetchTasks, getSessionDate } from "@/lib/db";
 import { User, Location, Task, UserRole } from "@/types";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
-import { Wifi, ArrowLeft, Search, MapPin, Users as UsersIcon } from "lucide-react";
+import { Wifi, ArrowLeft, Search, MapPin, Users as UsersIcon, Calendar } from "lucide-react";
 import { getRelativeTime } from "@/lib/time";
 import { COPY } from "@/lib/copy";
 
@@ -40,6 +40,7 @@ export default function MapPage() {
   const [search, setSearch] = useState("");
   const [focusUserId, setFocusUserId] = useState<string | null>(null);
   const [showRoles, setShowRoles] = useState<VisibleRole[]>(["foc"]);
+  const [selectedDate, setSelectedDate] = useState<string>(() => getSessionDate());
 
   useEffect(() => {
     const stored = localStorage.getItem("tunetops-user");
@@ -193,6 +194,29 @@ export default function MapPage() {
             <div className="w-3 h-3 rounded-full bg-status-overdue" />
             <span className="text-xs text-tunet-text-muted">Overdue</span>
           </div>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-0.5 bg-[#94A3B8]" />
+            <span className="text-xs text-tunet-text-muted">Route</span>
+          </div>
+          <div className="w-px h-4 bg-tunet-border" />
+          <div className="flex items-center gap-2">
+            <Calendar className="w-3.5 h-3.5 text-tunet-text-muted" />
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              max={getSessionDate()}
+              className="h-7 px-2 text-xs bg-tunet-bg border border-tunet-border rounded-md text-tunet-text focus:outline-none focus:ring-1 focus:ring-tunet-green"
+            />
+            {selectedDate !== getSessionDate() && (
+              <button
+                onClick={() => setSelectedDate(getSessionDate())}
+                className="text-xs text-tunet-green hover:underline"
+              >
+                Hari ini
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -202,6 +226,7 @@ export default function MapPage() {
             height="100%"
             showRoles={showRoles}
             focusUserId={focusUserId}
+            sessionDate={selectedDate}
           />
         </div>
 

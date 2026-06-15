@@ -58,11 +58,16 @@ export function TaskCard({ task, onStatusChange, onClick, canChangeStatus = true
           >
             {statusConfig.label}
           </Badge>
-          {isOverdue && (
-            <Badge variant="destructive" className="text-xs">
-              Overdue
-            </Badge>
-          )}
+            {isOverdue && (
+              <Badge variant="destructive" className="text-xs">
+                Overdue
+              </Badge>
+            )}
+            {task.deleted_at && (
+              <Badge variant="destructive" className="text-xs">
+                Deleted
+              </Badge>
+            )}
           {timeRemaining && !isOverdue && timeRemaining.isUrgent && task.status !== "done" && (
             <Badge
               variant="secondary"

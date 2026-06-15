@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Search, LayoutGrid, List, Loader2, Inbox } from "lucide-react";
+import { Plus, Search, LayoutGrid, List, Loader2, Inbox, Trash2 } from "lucide-react";
 import { COPY } from "@/lib/copy";
 import { toast } from "sonner";
 
@@ -70,6 +70,7 @@ function TasksPageContent() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
+  const [showDeleted, setShowDeleted] = useState(false);
   const [filters, setFilters] = useState<FilterState>(() =>
     typeof window === "undefined"
       ? DEFAULT_FILTERS
@@ -115,7 +116,8 @@ function TasksPageContent() {
 
   useEffect(() => {
     async function load() {
-      const t = await fetchTasks();
+      setLoading(true);
+      const t = await fetchTasks({ includeDeleted: showDeleted });
       setTasks(t);
       setLoading(false);
     }
@@ -127,7 +129,7 @@ function TasksPageContent() {
         "postgres_changes",
         { event: "*", schema: "public", table: "tasks" },
         async () => {
-          const t = await fetchTasks();
+          const t = await fetchTasks({ includeDeleted: showDeleted });
           setTasks(t);
         }
       )
@@ -136,7 +138,7 @@ function TasksPageContent() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [showDeleted]);
 
   const handleStatusChange = async (taskId: string, newStatus: TaskStatus) => {
     const previous = tasks.find((t) => t.id === taskId);
@@ -177,6 +179,16 @@ function TasksPageContent() {
           : t
       )
     );
+  };
+
+  const handleTaskDeleted = (taskId: string) => {
+    if (showDeleted) {
+      // In trash view: refresh from DB to pick up the new deleted_at
+      fetchTasks({ includeDeleted: true }).then(setTasks);
+    } else {
+      // In active view: remove from local state
+      setTasks((prev) => prev.filter((t) => t.id !== taskId));
+    }
   };
 
   const filteredTasks = useMemo(() => {
@@ -258,13 +270,41 @@ function TasksPageContent() {
               </button>
             </div>
 
-            <Button
-              onClick={() => setFormOpen(true)}
-              className="bg-tunet-green hover:bg-tunet-green-dark text-white"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              New Task
-            </Button>
+            {canChangeStatus && (
+              <button
+                onClick={() => setShowDeleted((v) => !v)}
+                className={`flex items-center gap-1.5 px-2.5 h-[34px] rounded-md border text-xs transition-colors ${
+                  showDeleted
+                    ? "bg-status-overdue/20 border-status-overdue/50 text-status-overdue"
+                    : "border-tunet-border text-tunet-text-muted hover:bg-tunet-surface-hover"
+                }`}
+                aria-label="Toggle trash view"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Trash</span>
+                {tasks.filter((t) => t.deleted_at).length > 0 && (
+                  <span
+                    className={`ml-0.5 px-1.5 rounded-full text-[10px] font-medium ${
+                      showDeleted
+                        ? "bg-status-overdue/30 text-status-overdue"
+                        : "bg-tunet-border text-tunet-text-muted"
+                    }`}
+                  >
+                    {tasks.filter((t) => t.deleted_at).length}
+                  </span>
+                )}
+              </button>
+            )}
+
+            {!showDeleted && (
+              <Button
+                onClick={() => setFormOpen(true)}
+                className="bg-tunet-green hover:bg-tunet-green-dark text-white"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                New Task
+              </Button>
+            )}
           </div>
         </div>
 
@@ -299,6 +339,15 @@ function TasksPageContent() {
                     >
                       {COPY.filters.clearAll}
                     </Button>
+                  ) : showDeleted ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowDeleted(false)}
+                      className="border-tunet-border text-tunet-text-muted"
+                    >
+                      Back to Active
+                    </Button>
                   ) : (
                     <Button
                       onClick={() => setFormOpen(true)}
@@ -311,7 +360,7 @@ function TasksPageContent() {
                 }
               />
             </div>
-          ) : viewMode === "kanban" ? (
+          ) : viewMode === "kanban" && !showDeleted ? (
             <KanbanBoard
               tasks={filteredTasks}
               onStatusChange={handleStatusChange}
@@ -336,6 +385,8 @@ function TasksPageContent() {
           onStatusChange={handleStatusChange}
           canChangeStatus={canChangeStatus}
           onReassigned={handleReassigned}
+          canDelete={canChangeStatus}
+          onDeleted={handleTaskDeleted}
         />
       </div>
     </DashboardLayout>

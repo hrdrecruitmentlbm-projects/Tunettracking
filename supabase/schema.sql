@@ -48,7 +48,8 @@ CREATE TABLE tasks (
   location_lng DECIMAL,
   deadline TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now()
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  deleted_at TIMESTAMPTZ
 );
 
 -- Task tags junction table
@@ -162,6 +163,50 @@ BEGIN
       ST_SetSRID(ST_MakePoint(target_lng, target_lat), 4326)::geography
     ) <= max_distance_meters
   ORDER BY distance_meters ASC;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function to soft-delete a task (admin: any task; NOC: only own)
+CREATE OR REPLACE FUNCTION soft_delete_task(
+  p_task_id UUID,
+  p_performed_by UUID
+)
+RETURNS VOID AS $$
+DECLARE
+  v_user_role TEXT;
+  v_creator UUID;
+BEGIN
+  SELECT role INTO v_user_role FROM users WHERE id = p_performed_by AND is_active = true;
+  IF v_user_role IS NULL OR v_user_role NOT IN ('admin', 'noc') THEN
+    RAISE EXCEPTION 'Permission denied: only admin and NOC can delete tasks';
+  END IF;
+
+  SELECT created_by INTO v_creator FROM tasks WHERE id = p_task_id;
+  IF v_creator IS NULL THEN
+    RAISE EXCEPTION 'Task not found';
+  END IF;
+
+  IF v_user_role = 'noc' AND v_creator IS DISTINCT FROM p_performed_by THEN
+    RAISE EXCEPTION 'Permission denied: NOC can only delete tasks they created';
+  END IF;
+
+  IF EXISTS (SELECT 1 FROM tasks WHERE id = p_task_id AND deleted_at IS NOT NULL) THEN
+    RAISE EXCEPTION 'Task is already deleted';
+  END IF;
+
+  INSERT INTO task_history (task_id, action, old_value, new_value, performed_by)
+  VALUES (
+    p_task_id,
+    'deleted',
+    jsonb_build_object('deleted_at', NULL),
+    jsonb_build_object('deleted_at', now()),
+    p_performed_by
+  );
+
+  UPDATE tasks
+  SET deleted_at = now(),
+      updated_at = now()
+  WHERE id = p_task_id;
 END;
 $$ LANGUAGE plpgsql;
 

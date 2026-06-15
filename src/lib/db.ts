@@ -64,11 +64,17 @@ const TASK_SELECT = `
   tags:task_tags(tag:tags(id, name, color))
 `;
 
-export async function fetchTasks(): Promise<Task[]> {
-  const { data, error } = await supabase
+export async function fetchTasks(options: { includeDeleted?: boolean } = {}): Promise<Task[]> {
+  let query = supabase
     .from("tasks")
     .select(TASK_SELECT)
     .order("created_at", { ascending: false });
+
+  if (!options.includeDeleted) {
+    query = query.is("deleted_at", null);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error("Error fetching tasks:", error);
@@ -139,37 +145,31 @@ export async function updateTaskStatus(
   return true;
 }
 
+export async function softDeleteTask(
+  taskId: string,
+  performedBy: string
+): Promise<boolean> {
+  const { error } = await supabase.rpc("soft_delete_task", {
+    p_task_id: taskId,
+    p_performed_by: performedBy,
+  });
+
+  if (error) {
+    console.error("Error soft-deleting task:", error);
+    return false;
+  }
+
+  return true;
+}
+
 export async function upsertLocation(
   userId: string,
   lat: number,
   lng: number,
   accuracy?: number
 ): Promise<boolean> {
-  const { data: existing } = await supabase
-    .from("locations")
-    .select("id")
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (existing) {
-    const { error } = await supabase
-      .from("locations")
-      .update({ lat, lng, accuracy, updated_at: new Date().toISOString() })
-      .eq("id", existing.id);
-    if (error) {
-      console.error("Error updating location:", error);
-      return false;
-    }
-  } else {
-    const { error } = await supabase
-      .from("locations")
-      .insert({ user_id: userId, lat, lng, accuracy });
-    if (error) {
-      console.error("Error inserting location:", error);
-      return false;
-    }
-  }
-  return true;
+  const result = await recordLocationUpdate(userId, lat, lng, "web_app", accuracy);
+  return result.ok;
 }
 
 export async function fetchTags(): Promise<Tag[]> {
@@ -587,4 +587,221 @@ export async function reassignTask(
     return false;
   }
   return true;
+}
+
+// ===== TRAVEL HISTORY / STAY TRACKING =====
+
+export const FOC_PALETTE: string[] = [
+  "#FF6B6B", // coral red
+  "#4ECDC4", // teal
+  "#45B7D1", // sky blue
+  "#FFA07A", // light salmon
+  "#98D8C8", // mint
+  "#F7DC6F", // soft yellow
+  "#BB8FCE", // lavender
+  "#85C1E2", // light blue
+];
+
+export function getFocColor(userId: string): string {
+  let hash = 0;
+  for (let i = 0; i < userId.length; i++) {
+    hash = (hash * 31 + userId.charCodeAt(i)) | 0;
+  }
+  return FOC_PALETTE[Math.abs(hash) % FOC_PALETTE.length];
+}
+
+const STAY_THRESHOLD_METERS = 100;
+const MIN_STAY_DURATION_MINUTES = 10;
+const DAY_RESET_HOUR_JAKARTA = 6;
+
+export function getSessionDate(date: Date = new Date()): string {
+  const jakartaStr = date.toLocaleString("en-US", { timeZone: "Asia/Jakarta" });
+  const jakarta = new Date(jakartaStr);
+  if (jakarta.getHours() < DAY_RESET_HOUR_JAKARTA) {
+    jakarta.setDate(jakarta.getDate() - 1);
+  }
+  const y = jakarta.getFullYear();
+  const m = String(jakarta.getMonth() + 1).padStart(2, "0");
+  const d = String(jakarta.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function haversineDistance(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number
+): number {
+  const R = 6371000;
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+export interface LocationVisit {
+  id: string;
+  user_id: string;
+  session_date: string;
+  visit_number: number;
+  lat: number;
+  lng: number;
+  arrived_at: string;
+  departed_at: string | null;
+  duration_minutes: number | null;
+  source: string | null;
+}
+
+export type RecordResult =
+  | { ok: true; newVisit?: LocationVisit; stayedAt: { lat: number; lng: number } }
+  | { ok: false; error: string };
+
+export async function recordLocationUpdate(
+  userId: string,
+  lat: number,
+  lng: number,
+  source: "telegram_live" | "telegram_request" | "web_app",
+  accuracy?: number
+): Promise<RecordResult> {
+  const now = new Date().toISOString();
+  const sessionDate = getSessionDate();
+
+  const { data: existing, error: existingError } = await supabase
+    .from("locations")
+    .select("id, lat, lng, arrived_at, session_date")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (existingError) {
+    return { ok: false, error: existingError.message };
+  }
+
+  if (!existing) {
+    const { error } = await supabase.from("locations").insert({
+      user_id: userId,
+      lat,
+      lng,
+      accuracy: accuracy ?? null,
+      updated_at: now,
+      arrived_at: now,
+      session_date: sessionDate,
+    });
+    if (error) return { ok: false, error: error.message };
+    return { ok: true, stayedAt: { lat, lng } };
+  }
+
+  // Compare to current stay's ARRIVAL point (not last position)
+  const arrivalLat = Number(existing.lat);
+  const arrivalLng = Number(existing.lng);
+  const distance = haversineDistance(arrivalLat, arrivalLng, lat, lng);
+
+  if (distance < STAY_THRESHOLD_METERS) {
+    // Same stay, just refresh the timestamp
+    const { error } = await supabase
+      .from("locations")
+      .update({ lat, lng, accuracy: accuracy ?? null, updated_at: now })
+      .eq("id", existing.id);
+    if (error) return { ok: false, error: error.message };
+    return { ok: true, stayedAt: { lat: arrivalLat, lng: arrivalLng } };
+  }
+
+  // FOC moved >= 100m from the arrival. Check if previous stay qualifies.
+  const arrivedAt = existing.arrived_at
+    ? new Date(existing.arrived_at)
+    : new Date(existing.updated_at);
+  const stayMinutes = (Date.now() - arrivedAt.getTime()) / 60000;
+
+  if (stayMinutes >= MIN_STAY_DURATION_MINUTES) {
+    // Save the previous stay as a visit
+    const { data: maxRow } = await supabase
+      .from("location_visits")
+      .select("visit_number")
+      .eq("user_id", userId)
+      .eq("session_date", sessionDate)
+      .order("visit_number", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const nextNumber = (maxRow?.visit_number ?? 0) + 1;
+
+    const { data: visit, error: visitError } = await supabase
+      .from("location_visits")
+      .insert({
+        user_id: userId,
+        session_date: sessionDate,
+        visit_number: nextNumber,
+        lat: arrivalLat,
+        lng: arrivalLng,
+        arrived_at: arrivedAt.toISOString(),
+        departed_at: now,
+        duration_minutes: Math.round(stayMinutes),
+        source,
+      })
+      .select()
+      .single();
+
+    if (visitError) {
+      console.error("Error inserting location_visit:", visitError);
+    }
+
+    // Update the location row to reflect the NEW stay
+    const { error } = await supabase
+      .from("locations")
+      .update({
+        lat,
+        lng,
+        accuracy: accuracy ?? null,
+        updated_at: now,
+        arrived_at: now,
+        session_date: sessionDate,
+      })
+      .eq("id", existing.id);
+    if (error) return { ok: false, error: error.message };
+
+    return {
+      ok: true,
+      newVisit: visit as LocationVisit | undefined,
+      stayedAt: { lat, lng },
+    };
+  }
+
+  // Previous stay too short — discard, start new stay
+  const { error } = await supabase
+    .from("locations")
+    .update({
+      lat,
+      lng,
+      accuracy: accuracy ?? null,
+      updated_at: now,
+      arrived_at: now,
+      session_date: sessionDate,
+    })
+    .eq("id", existing.id);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, stayedAt: { lat, lng } };
+}
+
+export async function fetchVisits(
+  sessionDate: string,
+  userIds?: string[]
+): Promise<LocationVisit[]> {
+  let query = supabase
+    .from("location_visits")
+    .select("*")
+    .eq("session_date", sessionDate)
+    .order("visit_number", { ascending: true });
+
+  if (userIds && userIds.length > 0) {
+    query = query.in("user_id", userIds);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    console.error("Error fetching visits:", error);
+    return [];
+  }
+  return (data || []) as LocationVisit[];
 }

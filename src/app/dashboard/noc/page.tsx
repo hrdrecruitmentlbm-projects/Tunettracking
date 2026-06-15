@@ -94,6 +94,11 @@ export default function NOCDashboard() {
     setDetailOpen(true);
   };
 
+  const handleTaskDeleted = async () => {
+    const fresh = await fetchTasks();
+    setTasks(fresh);
+  };
+
   const activeTasks = tasks.filter((t) => t.status === "in_progress").length;
   const overdueTasks = tasks.filter(
     (t) => t.deadline && new Date(t.deadline) < new Date() && t.status !== "done"
@@ -233,6 +238,8 @@ export default function NOCDashboard() {
         onOpenChange={setDetailOpen}
         onStatusChange={handleStatusChange}
         canChangeStatus={true}
+        canDelete={true}
+        onDeleted={handleTaskDeleted}
       />
     </DashboardLayout>
   );

@@ -10,6 +10,14 @@ import {
 } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Task, User, STATUS_CONFIG, PRIORITY_CONFIG } from "@/types";
 import {
   fetchTaskHistory,
@@ -17,6 +25,7 @@ import {
   TaskHistoryEntry,
   fetchUsers,
   reassignTask,
+  softDeleteTask,
 } from "@/lib/db";
 import { toast } from "sonner";
 import {
@@ -28,6 +37,7 @@ import {
   ArrowRight,
   History,
   RefreshCw,
+  Trash2,
 } from "lucide-react";
 
 interface TaskDetailProps {
@@ -37,6 +47,8 @@ interface TaskDetailProps {
   onStatusChange?: (taskId: string, status: Task["status"]) => void;
   canChangeStatus?: boolean;
   onReassigned?: (taskId: string, newAssigneeId: string) => void;
+  canDelete?: boolean;
+  onDeleted?: (taskId: string) => void;
 }
 
 export function TaskDetail({
@@ -46,6 +58,8 @@ export function TaskDetail({
   onStatusChange,
   canChangeStatus = true,
   onReassigned,
+  canDelete = false,
+  onDeleted,
 }: TaskDetailProps) {
   const [history, setHistory] = useState<TaskHistoryEntry[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -53,8 +67,11 @@ export function TaskDetail({
   const [selectedAssignee, setSelectedAssignee] = useState<string>("");
   const [reassigning, setReassigning] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const canReassign = currentUser?.role === "admin" || currentUser?.role === "noc";
+  const isDeleted = !!task?.deleted_at;
 
   useEffect(() => {
     if (open && task) {
@@ -102,6 +119,25 @@ export function TaskDetail({
       toast.error("Failed to reassign task");
     }
     setReassigning(false);
+  };
+
+  const handleDelete = async () => {
+    if (!currentUser || !task) return;
+    setDeleting(true);
+    const ok = await softDeleteTask(task.id, currentUser.id);
+    if (ok) {
+      toast.success("Task moved to trash");
+      onDeleted?.(task.id);
+      setDeleteOpen(false);
+      onOpenChange(false);
+    } else {
+      toast.error(
+        currentUser.role === "noc"
+          ? "You can only delete tasks you created"
+          : "Failed to delete task"
+      );
+    }
+    setDeleting(false);
   };
 
   if (!task) return null;
@@ -173,6 +209,11 @@ export function TaskDetail({
             {isOverdue && (
               <Badge variant="destructive" className="text-xs">
                 Overdue
+              </Badge>
+            )}
+            {isDeleted && (
+              <Badge variant="destructive" className="text-xs">
+                Deleted
               </Badge>
             )}
           </div>
@@ -373,6 +414,26 @@ export function TaskDetail({
             )}
           </div>
 
+          {/* Delete (admin/noc only, not for deleted tasks) */}
+          {canDelete && !isDeleted && (
+            <div className="border-t border-tunet-border pt-4">
+              <Button
+                onClick={() => setDeleteOpen(true)}
+                size="sm"
+                variant="outline"
+                className="w-full border-status-overdue/50 text-status-overdue hover:bg-status-overdue/10 text-xs"
+              >
+                <Trash2 className="w-3.5 h-3.5 mr-2" />
+                Delete Task
+              </Button>
+              <p className="text-[10px] text-tunet-text-muted mt-1.5 text-center">
+                {currentUser?.role === "noc"
+                  ? "You can only delete tasks you created"
+                  : "Moves the task to trash. You can view deleted tasks from the tasks page."}
+              </p>
+            </div>
+          )}
+
           {/* Status History */}
           <div>
             <div className="flex items-center gap-1.5 text-tunet-text-muted mb-2">
@@ -416,6 +477,38 @@ export function TaskDetail({
           </div>
         </div>
       </SheetContent>
+
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete this task?</DialogTitle>
+            <DialogDescription>
+              This task will be moved to trash and hidden from views. You can view deleted
+              tasks from the tasks page.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setDeleteOpen(false)}
+              disabled={deleting}
+              className="border-tunet-border text-tunet-text-muted"
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleDelete}
+              disabled={deleting}
+              className="bg-status-overdue hover:opacity-90 text-white"
+            >
+              <Trash2 className="w-3.5 h-3.5 mr-2" />
+              {deleting ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Sheet>
   );
 }

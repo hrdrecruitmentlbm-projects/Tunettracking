@@ -29,6 +29,7 @@ export interface Task {
   deadline?: string;
   created_at: string;
   updated_at: string;
+  deleted_at?: string | null;
   tags?: Tag[];
   assignee?: User;
   creator?: User;
