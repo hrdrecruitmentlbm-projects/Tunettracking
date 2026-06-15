@@ -19,7 +19,7 @@ function escapeHtml(s: string): string {
 }
 
 export type SendResult =
-  | { ok: true; skipped?: "already_claimed" | "no_chat_id" }
+  | { ok: true; skipped?: "already_claimed" | "no_chat_id" | "no_metadata" }
   | { ok: false; error: string; detail?: string };
 
 export async function sendTelegramNotification(
@@ -66,20 +66,34 @@ export async function sendTelegramNotification(
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const metadata = notif.metadata as any;
-  const taskId = metadata?.task_id;
+  if (!metadata) {
+    return { ok: true, skipped: "no_metadata" };
+  }
+
+  const taskId = metadata.task_id;
   const title = metadata?.title ?? "Tugas";
   const location = metadata?.location_name ?? "—";
   const statusRaw = metadata?.status ?? "todo";
   const statusLabel = STATUS_LABEL[statusRaw] ?? statusRaw;
 
   const isReassignment = notif.type === "status_update";
+  const isCompleted = notif.type === "completed";
 
-  const text = isReassignment
-    ? `<b>Penanggung jawab telah diganti</b>\n\n` +
-      `Tugas "${escapeHtml(title)}" di ${escapeHtml(location)} telah dialihkan ke teknisi lain.`
-    : `<b>Tugas baru telah ditambahkan</b>\n\n` +
+  let text: string;
+  if (isCompleted) {
+    text =
+      `<b>Tugas telah selesai</b>\n\n` +
+      `Tugas "${escapeHtml(title)}" di ${escapeHtml(location)} telah diselesaikan.`;
+  } else if (isReassignment) {
+    text =
+      `<b>Penanggung jawab telah diganti</b>\n\n` +
+      `Tugas "${escapeHtml(title)}" di ${escapeHtml(location)} telah dialihkan ke teknisi lain.`;
+  } else {
+    text =
+      `<b>Tugas baru telah ditambahkan</b>\n\n` +
       `Kamu telah ditugaskan untuk "${escapeHtml(title)}" bertempat di "${escapeHtml(location)}"\n` +
       `Status : ${escapeHtml(statusLabel)}`;
+  }
 
   const reply_markup = taskId
     ? {
@@ -88,7 +102,9 @@ export async function sendTelegramNotification(
           : [
               [
                 { text: "📋 Lihat Tugas", url: `${APP_URL}/dashboard/foc` },
-                { text: "📍 Perbarui Lokasi", request_location: true },
+                ...(isCompleted
+                  ? []
+                  : [{ text: "📍 Perbarui Lokasi", request_location: true }]),
               ],
             ],
       }

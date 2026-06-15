@@ -102,7 +102,7 @@ export async function updateTaskStatus(
   // Fetch task info before update for notification
   const { data: taskData } = await supabase
     .from("tasks")
-    .select("title, assigned_to, created_by")
+    .select("title, assigned_to, created_by, location_name, priority:priorities(name)")
     .eq("id", taskId)
     .single();
 
@@ -117,35 +117,23 @@ export async function updateTaskStatus(
     return false;
   }
 
-  // Create notifications
-  if (taskData) {
-    const statusLabels: Record<string, string> = {
-      todo: "To Do",
-      assigned: "Assigned",
-      in_progress: "In Progress",
-      review: "Review",
-      done: "Done",
-    };
-
-    // Notify assignee (if status changed by someone else)
-    if (taskData.assigned_to && taskData.assigned_to !== performedBy) {
-      await createNotification(
-        taskData.assigned_to,
-        "Task Status Updated",
-        `"${taskData.title}" moved to ${statusLabels[newStatus] || newStatus}`,
-        newStatus === "done" ? "completed" : "status_update"
-      );
-    }
-
-    // Notify creator (if status changed by someone else and creator != assignee)
-    if (taskData.created_by && taskData.created_by !== performedBy && taskData.created_by !== taskData.assigned_to) {
-      await createNotification(
-        taskData.created_by,
-        "Task Status Updated",
-        `"${taskData.title}" moved to ${statusLabels[newStatus] || newStatus}`,
-        "status_update"
-      );
-    }
+  // Only notify on "done" — notify the creator (NOC/admin)
+  if (taskData && newStatus === "done" && taskData.created_by && taskData.created_by !== performedBy) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const priorityName = (taskData as any).priority?.name ?? "medium";
+    await createNotification(
+      taskData.created_by,
+      "Task Completed",
+      `"${taskData.title}" has been marked as done.`,
+      "completed",
+      {
+        task_id: taskId,
+        title: taskData.title,
+        location_name: taskData.location_name,
+        priority: priorityName.toLowerCase(),
+        status: "done",
+      }
+    );
   }
 
   return true;
@@ -264,15 +252,6 @@ export async function createTask(
     if (tagsError) {
       console.error("Error attaching task tags:", tagsError);
     }
-  }
-
-  if (input.assigned_to && task) {
-    await createNotification(
-      input.assigned_to,
-      "New Task Assigned",
-      `You have been assigned to "${input.title}"`,
-      "task_assigned"
-    );
   }
 
   const { data: fullTask, error: refetchError } = await supabase
@@ -446,11 +425,16 @@ export async function createNotification(
   userId: string,
   title: string,
   message: string,
-  type: Notification["type"]
+  type: Notification["type"],
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  metadata?: Record<string, any>
 ): Promise<boolean> {
+  const row: Record<string, unknown> = { user_id: userId, title, message, type };
+  if (metadata) row.metadata = metadata;
+
   const { error } = await supabase
     .from("notifications")
-    .insert({ user_id: userId, title, message, type });
+    .insert(row);
 
   if (error) {
     console.error("Error creating notification:", error);
