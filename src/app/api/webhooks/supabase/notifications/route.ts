@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
   //   { type: "INSERT", table: "notifications", record: { id, user_id, ... }, schema, old_record: null }
   const record = body?.record;
   const notificationId = record?.id;
-  const eventType = body?.type;
+  const eventType = body?.event;
 
   if (eventType !== "INSERT" || !notificationId) {
     return NextResponse.json({ ok: true, skipped: "non-insert or no id" });
