@@ -4,7 +4,6 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { fetchActiveCount, recordHeartbeat } from "@/lib/db";
 
 const HEARTBEAT_INTERVAL_MS = 30 * 1000;
-const REFRESH_INTERVAL_MS = 30 * 1000;
 const ACTIVE_THRESHOLD_MS = 60 * 1000;
 
 interface UseHeartbeatOptions {
@@ -46,29 +45,30 @@ export function useHeartbeat(options: UseHeartbeatOptions): UseHeartbeatResult {
     stoppedRef.current = false;
     if (!userId) return;
 
-    // Fire immediately on mount
-    void send();
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (watchCount) void refresh();
+    // Single chained tick: write first, then read. Avoids the race where
+    // refresh() reads the count before send()'s upsert has committed.
+    const tick = () => {
+      if (stoppedRef.current) return;
+      void send().then(() => {
+        if (stoppedRef.current) return;
+        if (watchCount) void refresh();
+      });
+    };
 
-    const beatId = setInterval(() => void send(), HEARTBEAT_INTERVAL_MS);
-    const refreshId = watchCount
-      ? setInterval(() => void refresh(), REFRESH_INTERVAL_MS)
-      : null;
+    // Fire immediately on mount
+    tick();
+
+    const beatId = setInterval(tick, HEARTBEAT_INTERVAL_MS);
 
     // Also send on tab focus
     const onVisibility = () => {
-      if (document.visibilityState === "visible") {
-        void send();
-        if (watchCount) void refresh();
-      }
+      if (document.visibilityState === "visible") tick();
     };
     document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
       stoppedRef.current = true;
       clearInterval(beatId);
-      if (refreshId) clearInterval(refreshId);
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [userId, watchCount, send, refresh]);
