@@ -60,6 +60,8 @@ export interface Notification {
   type: "task_assigned" | "status_update" | "overdue" | "completed";
   read: boolean;
   created_at: string;
+  task_id?: string;
+  metadata?: Record<string, unknown>;
 }
 
 export const STATUS_CONFIG: Record<TaskStatus, { label: string; color: string }> = {

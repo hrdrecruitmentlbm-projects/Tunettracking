@@ -9,15 +9,15 @@ import { TaskDetail } from "@/components/tasks/task-detail";
 import { TaskFilters, FilterState } from "@/components/tasks/task-filters";
 import { TaskListView } from "@/components/tasks/task-list-view";
 import { fetchTasks, updateTaskStatus } from "@/lib/db";
-import { supabase } from "@/lib/supabase";
 import { Task, TaskStatus, User } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Search, LayoutGrid, List, Loader2, Inbox, Trash2 } from "lucide-react";
+import { Plus, Search, LayoutGrid, List, Loader2, Inbox } from "lucide-react";
 import { COPY } from "@/lib/copy";
 import { toast } from "sonner";
+import { useIncrementalTasks } from "@/hooks/use-incremental-tasks";
 
 export default function TasksPage() {
   return (
@@ -92,6 +92,8 @@ function TasksPageContent() {
     }
   }, []);
 
+  useIncrementalTasks(setTasks, { includeDeleted: showDeleted });
+
   const isSearching = searchInput !== searchQuery;
 
   useEffect(() => {
@@ -122,23 +124,24 @@ function TasksPageContent() {
       setLoading(false);
     }
     load();
-
-    const channel = supabase
-      .channel("tasks-realtime")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "tasks" },
-        async () => {
-          const t = await fetchTasks({ includeDeleted: showDeleted });
-          setTasks(t);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
   }, [showDeleted]);
+
+  // Auto-open task from ?highlight=... query param
+  useEffect(() => {
+    const highlightId = searchParams.get("highlight");
+    if (highlightId && tasks.length > 0) {
+      const target = tasks.find((t) => t.id === highlightId);
+      if (target) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setSelectedTask(target);
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setDetailOpen(true);
+        // Clean up the URL after opening
+        router.replace(pathname + (searchParams.toString() ? `?${new URLSearchParams(Array.from(searchParams.entries()).filter(([k]) => k !== "highlight")).toString()}` : ""), { scroll: false });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasks, searchParams]);
 
   const handleStatusChange = async (taskId: string, newStatus: TaskStatus) => {
     const previous = tasks.find((t) => t.id === taskId);
@@ -179,6 +182,10 @@ function TasksPageContent() {
           : t
       )
     );
+  };
+
+  const handleTaskUpdated = (updated: Task) => {
+    setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
   };
 
   const handleTaskDeleted = (taskId: string) => {
@@ -359,6 +366,8 @@ function TasksPageContent() {
           onReassigned={handleReassigned}
           canDelete={canChangeStatus}
           onDeleted={handleTaskDeleted}
+          canEdit={canChangeStatus}
+          onUpdated={handleTaskUpdated}
         />
       </div>
     </DashboardLayout>

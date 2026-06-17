@@ -28,9 +28,11 @@ import {
   Tag,
   ArrowRight,
   History,
+  Pencil,
 } from "lucide-react";
 import { COPY } from "@/lib/copy";
 import { formatLongDate } from "@/lib/time";
+import { TaskForm } from "./task-form";
 
 interface TaskDetailProps {
   task: Task | null;
@@ -41,6 +43,8 @@ interface TaskDetailProps {
   onReassigned?: (taskId: string, newAssigneeId: string) => void;
   canDelete?: boolean;
   onDeleted?: (taskId: string) => void;
+  canEdit?: boolean;
+  onUpdated?: (task: Task) => void;
 }
 
 export function TaskDetail({
@@ -52,6 +56,8 @@ export function TaskDetail({
   onReassigned,
   canDelete = false,
   onDeleted,
+  canEdit = false,
+  onUpdated,
 }: TaskDetailProps) {
   const [history, setHistory] = useState<TaskHistoryEntry[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -61,6 +67,7 @@ export function TaskDetail({
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   const canReassign = currentUser?.role === "admin" || currentUser?.role === "noc";
   const isDeleted = !!task?.deleted_at;
@@ -170,7 +177,21 @@ export function TaskDetail({
           </SheetDescription>
         </SheetHeader>
 
-        <div className="px-4 pb-4 space-y-5 overflow-y-auto max-h-[calc(100vh-120px)]">
+        {canEdit && !isDeleted && (
+          <div className="px-4">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setEditOpen(true)}
+              className="w-full border-tunet-border text-tunet-text hover:bg-tunet-surface-hover"
+            >
+              <Pencil className="w-3.5 h-3.5 mr-1.5" />
+              {COPY.actions.edit}
+            </Button>
+          </div>
+        )}
+
+        <div className="px-4 pb-4 space-y-5 overflow-y-auto">
           <div className="flex items-center gap-2 flex-wrap">
             <Badge
               variant="secondary"
@@ -371,9 +392,20 @@ export function TaskDetail({
                   </div>
                 ))}
               </div>
-            )}
-          </div>
+          )}
         </div>
+        </div>
+
+        <TaskForm
+          open={editOpen}
+          onOpenChange={setEditOpen}
+          onTaskCreated={() => {}}
+          onTaskUpdated={(updated) => {
+            onUpdated?.(updated);
+            onOpenChange(false);
+          }}
+          editingTask={task}
+        />
       </SheetContent>
     </Sheet>
   );

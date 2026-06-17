@@ -28,8 +28,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       router.push("/");
     }
     setReady(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [router]);
 
   if (!ready) {
     return (
@@ -46,7 +45,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   return (
     <div className="min-h-screen flex bg-tunet-bg">
       <Sidebar user={user} />
-      <main className="flex-1 overflow-auto">{children}</main>
+      <main className="flex-1 overflow-auto w-full md:w-auto">{children}</main>
     </div>
   );
 }

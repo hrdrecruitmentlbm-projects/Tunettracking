@@ -5,13 +5,13 @@ import dynamic from "next/dynamic";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { TaskDetail } from "@/components/tasks/task-detail";
 import { fetchTasks } from "@/lib/db";
-import { supabase } from "@/lib/supabase";
 import { Task, TaskStatus, STATUS_CONFIG } from "@/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Activity, AlertTriangle, CheckCircle, Clock, Inbox } from "lucide-react";
 import { COPY } from "@/lib/copy";
 import { toast } from "sonner";
 import { useTelegramDispatch } from "@/hooks/use-telegram-dispatch";
+import { useIncrementalTasks } from "@/hooks/use-incremental-tasks";
 
 const RadarMap = dynamic(() => import("@/components/map/radar-map").then((m) => m.RadarMap), {
   ssr: false,
@@ -52,23 +52,9 @@ export default function NOCDashboard() {
       setLoading(false);
     }
     load();
-
-    const channel = supabase
-      .channel("noc-tasks-realtime")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "tasks" },
-        async () => {
-          const t = await fetchTasks();
-          setTasks(t);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
   }, []);
+
+  useIncrementalTasks(setTasks);
 
   const handleStatusChange = async (taskId: string, newStatus: TaskStatus) => {
     const storedUser = localStorage.getItem("tunetops-user");
@@ -99,6 +85,10 @@ export default function NOCDashboard() {
     setTasks(fresh);
   };
 
+  const handleTaskUpdated = (updated: Task) => {
+    setTasks((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+  };
+
   const activeTasks = tasks.filter((t) => t.status === "in_progress").length;
   const overdueTasks = tasks.filter(
     (t) => t.deadline && new Date(t.deadline) < new Date() && t.status !== "done"
@@ -115,21 +105,21 @@ export default function NOCDashboard() {
 
   return (
     <DashboardLayout>
-      <div className="h-screen flex flex-col">
-        <div className="h-16 border-b border-tunet-border flex items-center justify-between px-6">
+      <div className="min-h-screen md:h-screen flex flex-col">
+        <div className="h-16 border-b border-tunet-border flex items-center justify-between px-4 md:px-6 pl-16 md:pl-6">
           <div>
             <h1 className="text-lg font-semibold text-tunet-text">{COPY.pages.noc.title}</h1>
             <p className="text-xs text-tunet-text-muted">{COPY.pages.noc.subtitle}</p>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="hidden md:flex items-center gap-4">
             <div className="text-right">
               <p className="text-sm text-tunet-text">{new Date().toLocaleDateString("id-ID", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</p>
             </div>
           </div>
         </div>
 
-        <div className="border-b border-tunet-border px-6 py-3">
-          <div className="flex gap-6">
+        <div className="border-b border-tunet-border px-4 md:px-6 py-3 overflow-x-auto">
+          <div className="flex gap-4 md:gap-6 min-w-max">
             <div className="flex items-center gap-2">
               <Activity className="w-4 h-4 text-tunet-green" />
               <span className="text-sm text-tunet-text-muted">{COPY.pages.noc.active}:</span>
@@ -153,12 +143,12 @@ export default function NOCDashboard() {
           </div>
         </div>
 
-        <div className="flex-1 flex overflow-hidden">
-          <div className="w-[60%] p-4">
+        <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+          <div className="w-full md:w-[60%] h-64 md:h-auto p-2 md:p-4">
             <RadarMap height="100%" />
           </div>
 
-          <div className="w-[40%] border-l border-tunet-border p-4">
+          <div className="w-full md:w-[40%] border-t md:border-t-0 md:border-l border-tunet-border p-2 md:p-4 overflow-y-auto">
             <div className="mb-4">
               <h2 className="text-sm font-medium text-tunet-text">{COPY.pages.noc.recentTasks}</h2>
             </div>
@@ -240,6 +230,8 @@ export default function NOCDashboard() {
         canChangeStatus={true}
         canDelete={true}
         onDeleted={handleTaskDeleted}
+        canEdit={true}
+        onUpdated={handleTaskUpdated}
       />
     </DashboardLayout>
   );

@@ -43,7 +43,7 @@ export async function fetchUsers(): Promise<User[]> {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function normalizeTaskRow(row: any): Task {
+export function normalizeTaskRow(row: any): Task {
   return {
     ...row,
     priority: row.priority?.name?.toLowerCase() ?? "medium",
@@ -202,6 +202,23 @@ export interface CreateTaskResult {
   error: string | null;
 }
 
+export interface UpdateTaskInput {
+  title?: string;
+  description?: string;
+  priority?: string;
+  assigned_to?: string | null;
+  location_name?: string;
+  location_lat?: number;
+  location_lng?: number;
+  deadline?: string | null;
+  tagIds?: string[];
+}
+
+export interface UpdateTaskResult {
+  task: Task | null;
+  error: string | null;
+}
+
 export async function createTask(
   input: CreateTaskInput,
   currentUser: User
@@ -262,6 +279,76 @@ export async function createTask(
 
   if (refetchError) {
     console.error("Error refetching created task:", refetchError);
+    return { task: null, error: refetchError.message };
+  }
+
+  return { task: normalizeTaskRow(fullTask), error: null };
+}
+
+export async function updateTask(
+  taskId: string,
+  input: UpdateTaskInput,
+  currentUser: User
+): Promise<UpdateTaskResult> {
+  if (!currentUser?.id) {
+    return { task: null, error: "Session is invalid. Please log in again." };
+  }
+
+  const updates: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+  };
+
+  if (input.title !== undefined) updates.title = input.title;
+  if (input.description !== undefined) updates.description = input.description;
+  if (input.priority !== undefined) {
+    const { data: priorityRow } = await supabase
+      .from("priorities")
+      .select("id")
+      .eq("name", input.priority.charAt(0).toUpperCase() + input.priority.slice(1))
+      .limit(1)
+      .maybeSingle();
+    if (priorityRow?.id) updates.priority_id = priorityRow.id;
+  }
+  if (input.assigned_to !== undefined) updates.assigned_to = input.assigned_to;
+  if (input.location_name !== undefined) updates.location_name = input.location_name;
+  if (input.location_lat !== undefined) updates.location_lat = input.location_lat;
+  if (input.location_lng !== undefined) updates.location_lng = input.location_lng;
+  if (input.deadline !== undefined) updates.deadline = input.deadline;
+
+  const { error } = await supabase
+    .from("tasks")
+    .update(updates)
+    .eq("id", taskId);
+
+  if (error) {
+    console.error("Error updating task:", error);
+    return { task: null, error: error.message };
+  }
+
+  if (input.tagIds !== undefined) {
+    await supabase.from("task_tags").delete().eq("task_id", taskId);
+    if (input.tagIds.length > 0) {
+      const tagInserts = input.tagIds.map((tagId) => ({
+        task_id: taskId,
+        tag_id: tagId,
+      }));
+      const { error: tagsError } = await supabase
+        .from("task_tags")
+        .insert(tagInserts);
+      if (tagsError) {
+        console.error("Error updating task tags:", tagsError);
+      }
+    }
+  }
+
+  const { data: fullTask, error: refetchError } = await supabase
+    .from("tasks")
+    .select(TASK_SELECT)
+    .eq("id", taskId)
+    .single();
+
+  if (refetchError) {
+    console.error("Error refetching updated task:", refetchError);
     return { task: null, error: refetchError.message };
   }
 
@@ -498,7 +585,14 @@ export async function fetchNotifications(userId: string): Promise<Notification[]
     console.error("Error fetching notifications:", error);
     return [];
   }
-  return (data || []) as Notification[];
+  return (data || []).map((row) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const r = row as any;
+    return {
+      ...r,
+      task_id: r.task_id ?? r.metadata?.task_id,
+    } as Notification;
+  });
 }
 
 export async function markNotificationRead(id: string): Promise<boolean> {

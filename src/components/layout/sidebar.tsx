@@ -15,8 +15,11 @@ import {
   LogOut,
   ChevronLeft,
   Wifi,
+  Menu,
+  X,
 } from "lucide-react";
 import { COPY } from "@/lib/copy";
+import { useMediaQuery } from "@/hooks/use-media-query";
 
 interface SidebarProps {
   user: User;
@@ -46,6 +49,8 @@ const NAV_ITEMS = {
 export function Sidebar({ user }: SidebarProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const isMobile = useMediaQuery("(max-width: 767px)");
 
   const navItems = NAV_ITEMS[user.role] || NAV_ITEMS.noc;
 
@@ -54,16 +59,17 @@ export function Sidebar({ user }: SidebarProps) {
     window.location.href = "/";
   };
 
-  return (
+  const closeMobile = () => setMobileOpen(false);
+
+  const sidebarContent = (
     <aside
       className={cn(
         "h-full bg-tunet-surface border-r border-tunet-border flex flex-col transition-all duration-300",
-        collapsed ? "w-16" : "w-60"
+        isMobile ? "w-64" : collapsed ? "w-16" : "w-60"
       )}
     >
-      {/* Logo */}
       <div className="h-16 flex items-center justify-between px-4 border-b border-tunet-border">
-        {!collapsed && (
+        {(!collapsed || isMobile) && (
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-tunet-green/20 flex items-center justify-center">
               <Wifi className="w-5 h-5 text-tunet-green" />
@@ -71,22 +77,33 @@ export function Sidebar({ user }: SidebarProps) {
             <span className="font-bold text-tunet-text">TunetOps</span>
           </div>
         )}
-        <button
-          onClick={() => setCollapsed(!collapsed)}
-          className="p-1.5 rounded-lg hover:bg-tunet-surface-hover text-tunet-text-muted"
-        >
-          <ChevronLeft className={cn("w-4 h-4 transition-transform", collapsed && "rotate-180")} />
-        </button>
+        {isMobile ? (
+          <button
+            onClick={closeMobile}
+            className="p-1.5 rounded-lg hover:bg-tunet-surface-hover text-tunet-text-muted"
+            aria-label="Close menu"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        ) : (
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            className="p-1.5 rounded-lg hover:bg-tunet-surface-hover text-tunet-text-muted"
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            <ChevronLeft className={cn("w-4 h-4 transition-transform", collapsed && "rotate-180")} />
+          </button>
+        )}
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 p-2 space-y-1">
+      <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
         {navItems.map((item) => {
           const isActive = pathname === item.href;
           return (
             <Link
               key={item.href}
               href={item.href}
+              onClick={closeMobile}
               className={cn(
                 "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors",
                 isActive
@@ -95,40 +112,32 @@ export function Sidebar({ user }: SidebarProps) {
               )}
             >
               <item.icon className="w-5 h-5 flex-shrink-0" />
-              {!collapsed && <span className="text-sm">{COPY.nav[item.labelKey]}</span>}
+              {(!collapsed || isMobile) && <span className="text-sm">{COPY.nav[item.labelKey]}</span>}
             </Link>
           );
         })}
       </nav>
 
-      {/* Notifications */}
-      {!collapsed && (
-        <div className="px-2 pb-2">
-          <NotificationsPanel userId={user.id} />
-        </div>
-      )}
-      {collapsed && (
-        <div className="px-2 pb-2">
-          <NotificationsPanel userId={user.id} />
-        </div>
-      )}
+      <div className="px-2 pb-2">
+        <NotificationsPanel userId={user.id} />
+      </div>
 
-      {/* User Info */}
       <div className="p-2 border-t border-tunet-border">
         <div className="flex items-center gap-3 px-3 py-2.5">
           <div className="w-8 h-8 rounded-full bg-tunet-green/20 flex items-center justify-center text-tunet-green text-sm font-medium">
             {user.name.charAt(0)}
           </div>
-          {!collapsed && (
+          {(!collapsed || isMobile) && (
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-tunet-text truncate">{user.name}</p>
               <p className="text-xs text-tunet-text-muted uppercase">{user.role}</p>
             </div>
           )}
-          {!collapsed && (
+          {(!collapsed || isMobile) && (
             <button
               onClick={handleLogout}
               className="p-1.5 rounded-lg hover:bg-tunet-surface-hover text-tunet-text-muted"
+              aria-label="Logout"
             >
               <LogOut className="w-4 h-4" />
             </button>
@@ -137,4 +146,37 @@ export function Sidebar({ user }: SidebarProps) {
       </div>
     </aside>
   );
+
+  if (isMobile) {
+    return (
+      <>
+        <button
+          onClick={() => setMobileOpen(true)}
+          className="fixed top-3 left-3 z-50 p-2 rounded-lg bg-tunet-surface border border-tunet-border text-tunet-text md:hidden shadow-lg"
+          aria-label="Open menu"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+
+        {mobileOpen && (
+          <div
+            className="fixed inset-0 bg-black/50 z-40 md:hidden"
+            onClick={closeMobile}
+            aria-hidden="true"
+          />
+        )}
+
+        <div
+          className={cn(
+            "fixed inset-y-0 left-0 z-50 md:hidden transform transition-transform duration-300",
+            mobileOpen ? "translate-x-0" : "-translate-x-full"
+          )}
+        >
+          {sidebarContent}
+        </div>
+      </>
+    );
+  }
+
+  return sidebarContent;
 }

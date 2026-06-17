@@ -1,15 +1,16 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, Suspense } from "react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
+import { BottomNav } from "@/components/layout/bottom-nav";
 import { TaskCard } from "@/components/tasks/task-card";
 import { TaskDetail } from "@/components/tasks/task-detail";
 import { fetchTasks, upsertLocation, updateTaskStatus } from "@/lib/db";
-import { Task, TaskStatus } from "@/types";
+import { Task, TaskStatus, User } from "@/types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
@@ -20,15 +21,36 @@ import {
   RefreshCw,
   Navigation,
   Send,
+  Timer,
 } from "lucide-react";
 import { toast } from "sonner";
 import { COPY } from "@/lib/copy";
 import { useTelegramDispatch } from "@/hooks/use-telegram-dispatch";
+import { useIncrementalTasks } from "@/hooks/use-incremental-tasks";
 
 const LOCATION_INTERVAL = 2 * 60 * 1000;
 const TELEGRAM_BOT_USERNAME = "TunetOpsTrackingBot";
 
-export default function FOCDashboard() {
+function formatCountdown(ms: number): string {
+  if (ms <= 0) return "0:00";
+  const totalSec = Math.floor(ms / 1000);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+export default function FOCDashboardPage() {
+  return (
+    <Suspense fallback={null}>
+      <FOCDashboard />
+    </Suspense>
+  );
+}
+
+function FOCDashboard() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [locationEnabled, setLocationEnabled] = useState(false);
@@ -37,14 +59,23 @@ export default function FOCDashboard() {
   const [updatingLocation, setUpdatingLocation] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [countdownMs, setCountdownMs] = useState(LOCATION_INTERVAL);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const storedUser = typeof window !== "undefined" ? localStorage.getItem("tunetops-user") : null;
-  const currentUser = storedUser ? JSON.parse(storedUser) : null;
-  const userId = currentUser?.id;
-  const telegramUsername = currentUser?.telegram_id;
+  useTelegramDispatch(currentUser?.id);
 
-  useTelegramDispatch(userId);
+  useEffect(() => {
+    const stored = typeof window !== "undefined" ? localStorage.getItem("tunetops-user") : null;
+    if (stored) {
+      try {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setCurrentUser(JSON.parse(stored));
+      } catch {
+        // ignore
+      }
+    }
+  }, []);
 
   useEffect(() => {
     async function load() {
@@ -55,6 +86,26 @@ export default function FOCDashboard() {
     load();
   }, []);
 
+  useIncrementalTasks(setTasks);
+
+  // Auto-open task from ?task=... query param
+  useEffect(() => {
+    const taskId = searchParams.get("task");
+    if (taskId && tasks.length > 0) {
+      const target = tasks.find((t) => t.id === taskId);
+      if (target) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setSelectedTask(target);
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setDetailOpen(true);
+        const params = new URLSearchParams(Array.from(searchParams.entries()).filter(([k]) => k !== "task"));
+        const qs = params.toString();
+        router.replace(pathname + (qs ? `?${qs}` : ""), { scroll: false });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasks, searchParams]);
+
   useEffect(() => {
     return () => {
       if (intervalRef.current) {
@@ -62,6 +113,32 @@ export default function FOCDashboard() {
       }
     };
   }, []);
+
+  // Countdown timer for next auto-update
+  useEffect(() => {
+    if (!locationEnabled) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setCountdownMs(LOCATION_INTERVAL);
+      return;
+    }
+    const tick = () => {
+      if (!lastUpdated) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setCountdownMs(LOCATION_INTERVAL);
+        return;
+      }
+      const elapsed = Date.now() - lastUpdated.getTime();
+      const remaining = Math.max(0, LOCATION_INTERVAL - elapsed);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setCountdownMs(remaining);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [locationEnabled, lastUpdated]);
+
+  const userId = currentUser?.id;
+  const telegramUsername = currentUser?.telegram_id;
 
   const myTasks = tasks.filter((t) => t.assigned_to === userId);
   const pendingTasks = myTasks.filter((t) => t.status !== "done");
@@ -176,8 +253,8 @@ export default function FOCDashboard() {
 
   return (
     <DashboardLayout>
-      <div className="min-h-screen bg-tunet-bg">
-        <div className="h-16 border-b border-tunet-border flex items-center justify-between px-4">
+      <div className="min-h-screen bg-tunet-bg pb-20 md:pb-0">
+        <div className="h-16 border-b border-tunet-border flex items-center justify-between px-4 md:px-6 pl-16 md:pl-6">
           <div>
             <h1 className="text-lg font-semibold text-tunet-text">{COPY.pages.foc.title}</h1>
             <p className="text-xs text-tunet-text-muted">{COPY.pages.foc.subtitle}</p>
@@ -189,156 +266,137 @@ export default function FOCDashboard() {
           </div>
         </div>
 
-        <div className="p-4 border-b border-tunet-border">
+        {/* Persistent Location Sharing Card (always visible, no tab) */}
+        <div className="p-4 md:p-6 border-b border-tunet-border">
           <Card className="bg-tunet-surface border-tunet-border">
-            <CardContent className="p-4">
-              <Tabs defaultValue="location">
-                <TabsList>
-                  <TabsTrigger value="location">
-                    <MapPin className="w-3.5 h-3.5 mr-1.5" />
-                    Lokasi
-                  </TabsTrigger>
-                  <TabsTrigger value="telegram">
-                    <Send className="w-3.5 h-3.5 mr-1.5" />
-                    Telegram
-                  </TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="location" className="mt-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                          locationEnabled
-                            ? "bg-tunet-green/20 text-tunet-green"
-                            : "bg-tunet-surface-hover text-tunet-text-muted"
-                        }`}
-                      >
-                        {locationEnabled ? (
-                          <Radio className="w-5 h-5 animate-pulse" />
-                        ) : (
-                          <RadioOff className="w-5 h-5" />
-                        )}
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-tunet-text">Bagikan Lokasi Saya</p>
-                        <p className="text-xs text-tunet-text-muted">
-                          {locationEnabled
-                            ? "Pembaruan setiap 2 menit. NOC dapat melihat posisi Anda."
-                            : "Aktifkan agar NOC dapat melacak posisi Anda"}
-                        </p>
-                      </div>
-                    </div>
-                    <Button
-                      onClick={toggleLocation}
-                      variant={locationEnabled ? "outline" : "default"}
-                      className={
-                        locationEnabled
-                          ? "border-tunet-green text-tunet-green hover:bg-tunet-green/10"
-                          : "bg-tunet-green hover:bg-tunet-green-dark text-white"
-                      }
-                    >
-                      {locationEnabled ? "Nonaktifkan" : "Aktifkan"}
-                    </Button>
-                  </div>
-
-                  {locationEnabled && currentLocation && (
-                    <div className="pt-3 border-t border-tunet-border space-y-2">
-                      <div className="flex items-center gap-2 text-xs text-tunet-text-muted">
-                        <MapPin className="w-3.5 h-3.5" />
-                        <span className="font-mono">
-                          {currentLocation.lat.toFixed(6)}, {currentLocation.lng.toFixed(6)}
-                        </span>
-                      </div>
-                      {lastUpdated && (
-                        <div className="flex items-center gap-2 text-xs text-tunet-text-muted">
-                          <RefreshCw className="w-3.5 h-3.5" />
-                          <span>Terakhir diperbarui: {lastUpdated.toLocaleTimeString()}</span>
-                        </div>
-                      )}
-                      <Button
-                        onClick={handleManualUpdate}
-                        disabled={updatingLocation}
-                        variant="outline"
-                        size="sm"
-                        className="w-full border-tunet-border text-tunet-text hover:bg-tunet-surface-hover"
-                      >
-                        {updatingLocation ? (
-                          <>
-                            <RefreshCw className="w-3.5 h-3.5 mr-2 animate-spin" />
-                            Memperbarui...
-                          </>
-                        ) : (
-                          <>
-                            <Navigation className="w-3.5 h-3.5 mr-2" />
-                            Perbarui Lokasi Saya Sekarang
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  )}
-                </TabsContent>
-
-                <TabsContent value="telegram" className="mt-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                          telegramUsername
-                            ? "bg-tunet-green/20 text-tunet-green"
-                            : "bg-tunet-surface-hover text-tunet-text-muted"
-                        }`}
-                      >
-                        <Send className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-tunet-text">Bot Telegram</p>
-                        <p className="text-xs text-tunet-text-muted">
-                          {telegramUsername
-                            ? `Terhubung: ${telegramUsername}`
-                            : "Belum terhubung. Minta admin untuk mengatur nama pengguna Telegram Anda."}
-                        </p>
-                      </div>
-                    </div>
-                    {telegramUsername ? (
-                      <a
-                        href={`https://t.me/${TELEGRAM_BOT_USERNAME}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center justify-center px-3 py-2 text-sm rounded-md bg-tunet-green/20 text-tunet-green hover:bg-tunet-green/30"
-                      >
-                        <Send className="w-3.5 h-3.5 mr-1.5" />
-                        Buka Bot
-                      </a>
+            <CardContent className="p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <div
+                    className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${
+                      locationEnabled
+                        ? "bg-tunet-green/20 text-tunet-green"
+                        : "bg-tunet-surface-hover text-tunet-text-muted"
+                    }`}
+                  >
+                    {locationEnabled ? (
+                      <Radio className="w-6 h-6 animate-pulse" />
                     ) : (
-                      <Badge
-                        variant="secondary"
-                        className="text-xs bg-tunet-surface text-tunet-text-muted border border-tunet-border"
-                      >
-                        {COPY.statusBadge.notSet}
-                      </Badge>
+                      <RadioOff className="w-6 h-6" />
                     )}
                   </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-tunet-text">Bagikan Lokasi Saya</p>
+                    <p className="text-xs text-tunet-text-muted">
+                      {locationEnabled
+                        ? "Aktif • Pembaruan otomatis setiap 2 menit"
+                        : "Aktifkan agar NOC dapat melacak posisi Anda"}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  onClick={toggleLocation}
+                  variant={locationEnabled ? "outline" : "default"}
+                  size="lg"
+                  className={
+                    locationEnabled
+                      ? "border-tunet-green text-tunet-green hover:bg-tunet-green/10"
+                      : "bg-tunet-green hover:bg-tunet-green-dark text-white"
+                  }
+                >
+                  {locationEnabled ? "Nonaktifkan" : "Aktifkan"}
+                </Button>
+              </div>
 
-                  {telegramUsername && (
-                    <div className="pt-3 border-t border-tunet-border">
-                      <p className="text-xs text-tunet-text-muted mb-2">
-                        📍 Bagikan lokasi melalui Telegram — berfungsi bahkan saat browser ditutup
-                      </p>
-                      <ol className="text-xs text-tunet-text-muted space-y-1 list-decimal list-inside">
-                        <li>Buka bot dan kirim /start</li>
-                        <li>Ketuk 📎 → Lokasi → Bagikan</li>
-                        <li>Marker Anda muncul di peta radar</li>
-                      </ol>
+              {locationEnabled && (
+                <div className="pt-3 border-t border-tunet-border space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2 text-tunet-text-muted">
+                      <MapPin className="w-3.5 h-3.5" />
+                      <span className="font-mono">
+                        {currentLocation
+                          ? `${currentLocation.lat.toFixed(6)}, ${currentLocation.lng.toFixed(6)}`
+                          : "Mengambil lokasi..."}
+                      </span>
                     </div>
+                    {lastUpdated && (
+                      <div className="flex items-center gap-1.5 text-tunet-text-muted">
+                        <Timer className="w-3.5 h-3.5" />
+                        <span className="font-mono">{formatCountdown(countdownMs)}</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-tunet-text-muted">
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Terakhir diperbarui: {lastUpdated ? lastUpdated.toLocaleTimeString() : "—"}</span>
+                  </div>
+                  <Button
+                    onClick={handleManualUpdate}
+                    disabled={updatingLocation}
+                    variant="outline"
+                    size="sm"
+                    className="w-full border-tunet-border text-tunet-text hover:bg-tunet-surface-hover"
+                  >
+                    {updatingLocation ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 mr-2 animate-spin" />
+                        Memperbarui...
+                      </>
+                    ) : (
+                      <>
+                        <Navigation className="w-3.5 h-3.5 mr-2" />
+                        Perbarui Lokasi Saya Sekarang
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
+
+              {/* Telegram integration - compact section below */}
+              <div className="pt-3 border-t border-tunet-border">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <div
+                      className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                        telegramUsername
+                          ? "bg-tunet-green/20 text-tunet-green"
+                          : "bg-tunet-surface-hover text-tunet-text-muted"
+                      }`}
+                    >
+                      <Send className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-medium text-tunet-text">Bot Telegram</p>
+                      <p className="text-[10px] text-tunet-text-muted truncate">
+                        {telegramUsername
+                          ? `Terhubung: ${telegramUsername}`
+                          : "Belum terhubung"}
+                      </p>
+                    </div>
+                  </div>
+                  {telegramUsername && (
+                    <a
+                      href={`https://t.me/${TELEGRAM_BOT_USERNAME}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center justify-center px-2 py-1 text-xs rounded-md bg-tunet-green/20 text-tunet-green hover:bg-tunet-green/30"
+                    >
+                      <Send className="w-3 h-3 mr-1" />
+                      Buka
+                    </a>
                   )}
-                </TabsContent>
-              </Tabs>
+                </div>
+                {telegramUsername && (
+                  <p className="text-[10px] text-tunet-text-muted mt-2">
+                    📍 Tap 📎 → Lokasi → Bagikan di bot untuk share lokasi via Telegram (bahkan saat browser ditutup)
+                  </p>
+                )}
+              </div>
             </CardContent>
           </Card>
         </div>
 
-        <div className="p-4 space-y-4">
+        <div className="p-4 md:p-6 space-y-4">
           {pendingTasks.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-3">
@@ -362,14 +420,20 @@ export default function FOCDashboard() {
 
           {completedTasks.length > 0 && (
             <div>
-              <h2 className="text-sm font-medium text-tunet-text-muted mb-3">{COPY.pages.foc.completed}</h2>
-              <div className="space-y-3 opacity-60">
+              <div className="flex items-center gap-2 mb-3">
+                <CheckCircle className="w-4 h-4 text-status-done" />
+                <h2 className="text-sm font-medium text-tunet-text-muted">{COPY.pages.foc.completed}</h2>
+                <span className="text-xs text-tunet-text-muted">({completedTasks.length})</span>
+              </div>
+              <div className="space-y-3">
                 {completedTasks.map((task) => (
-                  <TaskCard
-                    key={task.id}
-                    task={task}
-                    onClick={handleTaskClick}
-                  />
+                  <div key={task.id} className="relative">
+                    <div className="absolute -left-1 top-3 bottom-3 w-0.5 bg-status-done/40 rounded-full" />
+                    <TaskCard
+                      task={task}
+                      onClick={handleTaskClick}
+                    />
+                  </div>
                 ))}
               </div>
             </div>
@@ -379,12 +443,14 @@ export default function FOCDashboard() {
             <div className="py-8">
               <EmptyState
                 icon={CheckCircle}
-                title={COPY.empty.allCaughtUp.title}
-                description={COPY.empty.allCaughtUp.description}
+                title={COPY.empty.noActiveTasks.title}
+                description={COPY.empty.noActiveTasks.description}
               />
             </div>
           )}
         </div>
+
+        {currentUser && <BottomNav role={currentUser.role} />}
 
         <TaskDetail
           task={selectedTask}
@@ -400,8 +466,8 @@ export default function FOCDashboard() {
 
 function FOCDashboardSkeleton() {
   return (
-    <div className="min-h-screen bg-tunet-bg">
-      <div className="h-16 border-b border-tunet-border flex items-center justify-between px-4">
+    <div className="min-h-screen bg-tunet-bg pb-20 md:pb-0">
+      <div className="h-16 border-b border-tunet-border flex items-center justify-between px-4 md:px-6 pl-16 md:pl-6">
         <div className="space-y-2">
           <Skeleton className="h-4 w-24" />
           <Skeleton className="h-3 w-32" />
@@ -409,21 +475,20 @@ function FOCDashboardSkeleton() {
         <Skeleton className="h-5 w-16 rounded-full" />
       </div>
 
-      <div className="p-4 border-b border-tunet-border">
+      <div className="p-4 md:p-6 border-b border-tunet-border">
         <div className="rounded-xl border border-tunet-border bg-tunet-surface p-4 space-y-4">
-          <Skeleton className="h-8 w-48" />
           <div className="flex items-center gap-3">
-            <Skeleton className="w-10 h-10 rounded-full" />
+            <Skeleton className="w-12 h-12 rounded-full" />
             <div className="flex-1 space-y-2">
-              <Skeleton className="h-3 w-32" />
+              <Skeleton className="h-4 w-32" />
               <Skeleton className="h-3 w-48" />
             </div>
-            <Skeleton className="h-8 w-16" />
+            <Skeleton className="h-10 w-24" />
           </div>
         </div>
       </div>
 
-      <div className="p-4 space-y-3">
+      <div className="p-4 md:p-6 space-y-3">
         {Array.from({ length: 3 }).map((_, i) => (
           <div
             key={i}

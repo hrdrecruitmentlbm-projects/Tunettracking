@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-leaflet";
 import L from "leaflet";
 import { Location, Task } from "@/types";
 import { fetchLocations, fetchTasks, fetchVisits, fetchPings, getFocColor, LocationVisit, LocationPing } from "@/lib/db";
 import { supabase } from "@/lib/supabase";
 import { getRelativeTime } from "@/lib/time";
+import { useIncrementalLocations } from "@/hooks/use-incremental-locations";
 import "leaflet/dist/leaflet.css";
 
 delete (L.Icon.Default.prototype as { _getIconUrl?: unknown })._getIconUrl;
@@ -163,15 +164,17 @@ export function RadarMap({
   const [visits, setVisits] = useState<LocationVisit[]>([]);
   const [pings, setPings] = useState<LocationPing[]>([]);
 
-  async function reloadVisits() {
+  useIncrementalLocations(setLocations);
+
+  const reloadVisits = useCallback(async () => {
     const v = await fetchVisits(sessionDate || new Date().toISOString().split("T")[0]);
     setVisits(v);
-  }
+  }, [sessionDate]);
 
-  async function reloadPings() {
+  const reloadPings = useCallback(async () => {
     const p = await fetchPings(sessionDate || new Date().toISOString().split("T")[0]);
     setPings(p);
-  }
+  }, [sessionDate]);
 
   useEffect(() => {
     async function load() {
@@ -183,44 +186,34 @@ export function RadarMap({
     }
     load();
 
-    const locChannel = supabase
-      .channel("locations-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "locations" }, async () => {
-        const locs = await fetchLocations();
-        setLocations(locs);
-      })
-      .subscribe();
-
-    const taskChannel = supabase
-      .channel("tasks-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "tasks" }, async () => {
-        const tks = await fetchTasks();
-        setTasks(tks);
-      })
-      .subscribe();
-
     const visitChannel = supabase
-      .channel("visits-realtime")
+      .channel(`visits-realtime-${sessionDate || "today"}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "location_visits" }, () => {
         reloadVisits();
       })
       .subscribe();
 
     const pingChannel = supabase
-      .channel("pings-realtime")
+      .channel(`pings-realtime-${sessionDate || "today"}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "location_pings" }, () => {
         reloadPings();
       })
       .subscribe();
 
+    const taskChannel = supabase
+      .channel(`tasks-realtime-${Date.now()}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "tasks" }, async () => {
+        const tks = await fetchTasks();
+        setTasks(tks);
+      })
+      .subscribe();
+
     return () => {
-      supabase.removeChannel(locChannel);
-      supabase.removeChannel(taskChannel);
       supabase.removeChannel(visitChannel);
       supabase.removeChannel(pingChannel);
+      supabase.removeChannel(taskChannel);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionDate]);
+  }, [sessionDate, reloadVisits, reloadPings]);
 
   const center: [number, number] = [-7.4833, 109.2333];
 

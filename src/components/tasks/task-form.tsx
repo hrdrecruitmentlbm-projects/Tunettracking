@@ -18,6 +18,7 @@ import {
   fetchTags,
   createTask,
   getCurrentUser,
+  updateTask,
   CreateTaskInput,
 } from "@/lib/db";
 import { User, Tag, Task, PRIORITY_CONFIG } from "@/types";
@@ -29,9 +30,17 @@ interface TaskFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onTaskCreated: (task: Task) => void;
+  onTaskUpdated?: (task: Task) => void;
+  editingTask?: Task | null;
 }
 
-export function TaskForm({ open, onOpenChange, onTaskCreated }: TaskFormProps) {
+export function TaskForm({
+  open,
+  onOpenChange,
+  onTaskCreated,
+  onTaskUpdated,
+  editingTask,
+}: TaskFormProps) {
   const router = useRouter();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -46,6 +55,8 @@ export function TaskForm({ open, onOpenChange, onTaskCreated }: TaskFormProps) {
 
   const [focUsers, setFocUsers] = useState<User[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
+
+  const isEditMode = !!editingTask;
 
   useEffect(() => {
     if (open) {
@@ -67,6 +78,35 @@ export function TaskForm({ open, onOpenChange, onTaskCreated }: TaskFormProps) {
     setDeadline("");
     setSelectedTags([]);
   };
+
+  useEffect(() => {
+    if (open && editingTask) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setTitle(editingTask.title);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setDescription(editingTask.description);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setPriority(editingTask.priority);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setAssignedTo(editingTask.assigned_to || "");
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setLocationName(editingTask.location_name);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setLocationLat(String(editingTask.location_lat));
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setLocationLng(String(editingTask.location_lng));
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setDeadline(
+        editingTask.deadline
+          ? new Date(editingTask.deadline).toISOString().slice(0, 16)
+          : ""
+      );
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setSelectedTags((editingTask.tags || []).map((t) => t.id));
+    } else if (open && !editingTask) {
+      resetForm();
+    }
+  }, [open, editingTask]);
 
   const handleSessionExpired = () => {
     localStorage.removeItem("tunetops-user");
@@ -109,15 +149,33 @@ export function TaskForm({ open, onOpenChange, onTaskCreated }: TaskFormProps) {
       tagIds: selectedTags.length > 0 ? selectedTags : undefined,
     };
 
-    const { task, error } = await createTask(input, currentUser);
-
-    if (task) {
-      toast.success(COPY.taskForm.created);
-      resetForm();
-      onOpenChange(false);
-      onTaskCreated(task);
+    if (isEditMode && editingTask) {
+      const { task, error } = await updateTask(
+        editingTask.id,
+        {
+          ...input,
+          assigned_to: assignedTo || null,
+          deadline: deadline ? new Date(deadline).toISOString() : null,
+        },
+        currentUser
+      );
+      if (task) {
+        toast.success(COPY.taskForm.updated);
+        onTaskUpdated?.(task);
+        onOpenChange(false);
+      } else {
+        toast.error(error || COPY.taskForm.failedUpdate);
+      }
     } else {
-      toast.error(COPY.taskForm.failed);
+      const { task, error } = await createTask(input, currentUser);
+      if (task) {
+        toast.success(COPY.taskForm.created);
+        resetForm();
+        onOpenChange(false);
+        onTaskCreated(task);
+      } else {
+        toast.error(error || COPY.taskForm.failed);
+      }
     }
 
     setSubmitting(false);
@@ -133,9 +191,11 @@ export function TaskForm({ open, onOpenChange, onTaskCreated }: TaskFormProps) {
       <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="right" className="bg-tunet-surface border-tunet-border w-full sm:max-w-md">
         <SheetHeader>
-          <SheetTitle className="text-tunet-text">{COPY.taskForm.createTitle}</SheetTitle>
+          <SheetTitle className="text-tunet-text">
+            {isEditMode ? COPY.taskForm.editTitle : COPY.taskForm.createTitle}
+          </SheetTitle>
           <SheetDescription className="text-tunet-text-muted">
-            {COPY.taskForm.createSubtitle}
+            {isEditMode ? COPY.taskForm.editSubtitle : COPY.taskForm.createSubtitle}
           </SheetDescription>
         </SheetHeader>
 
@@ -169,7 +229,7 @@ export function TaskForm({ open, onOpenChange, onTaskCreated }: TaskFormProps) {
 
           <div className="space-y-2">
             <label className="text-sm font-medium text-tunet-text">{COPY.taskForm.priority}</label>
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               {(Object.entries(PRIORITY_CONFIG) as [string, { label: string; color: string; dot: string }][]).map(
                 ([key, config]) => (
                   <button
@@ -302,7 +362,13 @@ export function TaskForm({ open, onOpenChange, onTaskCreated }: TaskFormProps) {
             disabled={submitting || !title.trim() || !description.trim() || !locationName.trim()}
             className="bg-tunet-green hover:bg-tunet-green-dark text-white"
           >
-            {submitting ? COPY.taskForm.creating : COPY.taskForm.create}
+            {submitting
+              ? isEditMode
+                ? COPY.taskForm.saving
+                : COPY.taskForm.creating
+              : isEditMode
+              ? COPY.taskForm.save
+              : COPY.taskForm.create}
           </Button>
         </SheetFooter>
       </SheetContent>

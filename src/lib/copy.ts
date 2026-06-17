@@ -278,6 +278,8 @@ export const COPY = {
   taskForm: {
     createTitle: "Buat Tugas Baru",
     createSubtitle: "Isi detail untuk membuat tugas baru",
+    editTitle: "Edit Tugas",
+    editSubtitle: "Perbarui detail tugas",
     title: "Judul",
     description: "Deskripsi",
     priority: "Prioritas",
@@ -294,8 +296,12 @@ export const COPY = {
     created: "Tugas berhasil dibuat!",
     failed: "Gagal membuat tugas",
     creating: "Membuat...",
+    saving: "Menyimpan...",
+    updated: "Tugas berhasil diperbarui!",
+    failedUpdate: "Gagal memperbarui tugas",
     cancel: "Batal",
     create: "Buat Tugas",
+    save: "Simpan Perubahan",
   },
   taskList: {
     colTask: "Tugas",

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { Notification } from "@/types";
 import {
   fetchNotifications,
@@ -17,6 +18,7 @@ import {
   Info,
   CheckCheck,
   BellOff,
+  ExternalLink,
 } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { COPY } from "@/lib/copy";
@@ -28,6 +30,7 @@ interface NotificationsPanelProps {
 }
 
 export function NotificationsPanel({ userId, onCountChange }: NotificationsPanelProps) {
+  const router = useRouter();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -45,12 +48,18 @@ export function NotificationsPanel({ userId, onCountChange }: NotificationsPanel
     loadNotifications();
 
     const channel = supabase
-      .channel("notifications-realtime")
+      .channel(`notifications-realtime-${userId}`)
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` },
-        () => {
-          loadNotifications();
+        (payload) => {
+          // Apply incremental insert
+          const newNotif = payload.new as Notification;
+          setNotifications((prev) => {
+            if (prev.some((n) => n.id === newNotif.id)) return prev;
+            return [newNotif, ...prev];
+          });
+          onCountChange?.(notifications.filter((n) => !n.read).length + 1);
         }
       )
       .subscribe();
@@ -63,19 +72,34 @@ export function NotificationsPanel({ userId, onCountChange }: NotificationsPanel
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
-  const handleMarkRead = async (id: string) => {
-    await markNotificationRead(id);
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
-    );
-    onCountChange?.(notifications.filter((n) => !n.read && n.id !== id).length);
+  const handleNotificationClick = async (notification: Notification) => {
+    // Mark as read if unread
+    if (!notification.read) {
+      await markNotificationRead(notification.id);
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === notification.id ? { ...n, read: true } : n))
+      );
+      onCountChange?.(notifications.filter((n) => !n.read && n.id !== notification.id).length);
+    }
+    // Navigate to task if task_id exists
+    const taskId = notification.task_id || (notification.metadata?.task_id as string | undefined);
+    if (taskId) {
+      setOpen(false);
+      const stored = typeof window !== "undefined" ? localStorage.getItem("tunetops-user") : null;
+      const role = stored ? (JSON.parse(stored).role as string) : null;
+      if (role === "foc") {
+        router.push(`/dashboard/foc?task=${taskId}`);
+      } else {
+        router.push(`/dashboard/tasks?highlight=${taskId}`);
+      }
+    }
   };
 
   const handleMarkAllRead = async () => {
     await markAllNotificationsRead(userId);
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     onCountChange?.(0);
-    toast.success("All notifications marked as read");
+    toast.success(COPY.notifications.markAllRead);
   };
 
   const getIcon = (type: Notification["type"]) => {
@@ -123,7 +147,7 @@ export function NotificationsPanel({ userId, onCountChange }: NotificationsPanel
         className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-tunet-text-muted hover:bg-tunet-surface-hover cursor-pointer relative w-full"
       >
         <Bell className="w-5 h-5 flex-shrink-0" />
-        <span className="text-sm">{COPY.notifications.title}</span>
+        <span className="text-sm">{(COPY.notifications as { title: string }).title || "Notifikasi"}</span>
         {unreadCount > 0 && (
           <span className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 bg-tunet-green text-white text-xs rounded-full flex items-center justify-center">
             {unreadCount > 9 ? "9+" : unreadCount}
@@ -153,7 +177,7 @@ export function NotificationsPanel({ userId, onCountChange }: NotificationsPanel
             <div className="overflow-y-auto flex-1">
               {loading ? (
                 <div className="p-4 text-center text-tunet-text-muted text-xs">
-                  {COPY.loading.notifications}
+                  Memuat notifikasi...
                 </div>
               ) : notifications.length === 0 ? (
                 <div className="p-4">
@@ -171,31 +195,39 @@ export function NotificationsPanel({ userId, onCountChange }: NotificationsPanel
                       <div className="sticky top-0 bg-tunet-surface px-4 py-1.5 text-[10px] font-medium text-tunet-text-muted uppercase tracking-wide border-b border-tunet-border">
                         {group.label}
                       </div>
-                      {group.items.map((notification) => (
-                        <div
-                          key={notification.id}
-                          onClick={() => !notification.read && handleMarkRead(notification.id)}
-                          className={`flex items-start gap-3 px-4 py-3 border-b border-tunet-border cursor-pointer hover:bg-tunet-surface-hover transition-colors ${
-                            !notification.read ? "bg-tunet-green/5" : ""
-                          }`}
-                        >
-                          <div className="mt-0.5">{getIcon(notification.type)}</div>
-                          <div className="flex-1 min-w-0">
-                            <p className={`text-xs font-medium ${notification.read ? "text-tunet-text-muted" : "text-tunet-text"}`}>
-                              {notification.title}
-                            </p>
-                            <p className="text-xs text-tunet-text-muted mt-0.5 line-clamp-2">
-                              {notification.message}
-                            </p>
-                            <p className="text-[10px] text-tunet-text-muted mt-1">
-                              {getRelativeTime(notification.created_at)}
-                            </p>
+                      {group.items.map((notification) => {
+                        const hasTaskLink = !!(notification.task_id || notification.metadata?.task_id);
+                        return (
+                          <div
+                            key={notification.id}
+                            onClick={() => handleNotificationClick(notification)}
+                            className={`flex items-start gap-3 px-4 py-3 border-b border-tunet-border cursor-pointer hover:bg-tunet-surface-hover transition-colors ${
+                              !notification.read ? "bg-tunet-green/5" : ""
+                            }`}
+                          >
+                            <div className="mt-0.5">{getIcon(notification.type)}</div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <p className={`text-xs font-medium ${notification.read ? "text-tunet-text-muted" : "text-tunet-text"}`}>
+                                  {notification.title}
+                                </p>
+                                {hasTaskLink && (
+                                  <ExternalLink className="w-3 h-3 text-tunet-text-muted flex-shrink-0" />
+                                )}
+                              </div>
+                              <p className="text-xs text-tunet-text-muted mt-0.5 line-clamp-2">
+                                {notification.message}
+                              </p>
+                              <p className="text-[10px] text-tunet-text-muted mt-1">
+                                {getRelativeTime(notification.created_at)}
+                              </p>
+                            </div>
+                            {!notification.read && (
+                              <div className="w-2 h-2 rounded-full bg-tunet-green flex-shrink-0 mt-1" />
+                            )}
                           </div>
-                          {!notification.read && (
-                            <div className="w-2 h-2 rounded-full bg-tunet-green flex-shrink-0 mt-1" />
-                          )}
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   ))}
                 </div>
@@ -207,3 +239,4 @@ export function NotificationsPanel({ userId, onCountChange }: NotificationsPanel
     </div>
   );
 }
+
