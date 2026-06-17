@@ -205,6 +205,9 @@ export const COPY = {
       nocCount: (n: number) => `NOC (${n})`,
       inOffice: "Di Kantor",
       neverReported: "Belum pernah",
+      currentPositionNote: "Posisi saat ini (bukan tanggal yang dipilih)",
+      noDataTitle: "Tidak ada data lokasi",
+      noDataForDate: (date: string) => `untuk tanggal ${date}`,
     },
     tasks: {
       title: "Daftar Tugas",

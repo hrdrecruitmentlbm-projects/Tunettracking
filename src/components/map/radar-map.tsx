@@ -8,6 +8,8 @@ import { fetchLocations, fetchTasks, fetchVisits, fetchPings, getFocColor, getSe
 import { supabase } from "@/lib/supabase";
 import { getRelativeTime } from "@/lib/time";
 import { useIncrementalLocations } from "@/hooks/use-incremental-locations";
+import { MapPinOff } from "lucide-react";
+import { COPY } from "@/lib/copy";
 import "leaflet/dist/leaflet.css";
 
 delete (L.Icon.Default.prototype as { _getIconUrl?: unknown })._getIconUrl;
@@ -357,7 +359,18 @@ export function RadarMap({
   }
 
   return (
-    <div style={{ height }} className="rounded-xl overflow-hidden border border-tunet-border">
+    <div style={{ height }} className="rounded-xl overflow-hidden border border-tunet-border relative">
+      {isHistorical && pings.length === 0 && visits.length === 0 && (
+        <div className="absolute inset-0 z-[400] flex items-center justify-center bg-black/50 pointer-events-none">
+          <div className="text-center space-y-2 px-6 py-4 rounded-lg bg-tunet-surface/80 border border-tunet-border">
+            <MapPinOff className="w-8 h-8 text-tunet-text-muted mx-auto" />
+            <p className="text-sm font-medium text-tunet-text">{COPY.pages.map.noDataTitle}</p>
+            <p className="text-xs text-tunet-text-muted">
+              {COPY.pages.map.noDataForDate(effectiveSessionDate)}
+            </p>
+          </div>
+        </div>
+      )}
       <MapContainer center={center} zoom={13} style={{ height: "100%", width: "100%" }}>
         <MapFocusController locations={visibleLocations} focusUserId={focusUserId} />
         <TileLayer

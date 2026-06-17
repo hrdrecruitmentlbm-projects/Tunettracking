@@ -237,9 +237,16 @@ export default function MapPage() {
         <div className="w-80 border-l border-tunet-border flex flex-col">
           <div className="p-4 border-b border-tunet-border space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-medium text-tunet-text">
-                {COPY.pages.map.focCount(filteredFoc.length)}
-              </h2>
+              <div>
+                <h2 className="text-sm font-medium text-tunet-text">
+                  {COPY.pages.map.focCount(filteredFoc.length)}
+                </h2>
+                {selectedDate !== getSessionDate() && (
+                  <p className="text-[10px] text-tunet-text-muted mt-0.5">
+                    {COPY.pages.map.currentPositionNote}
+                  </p>
+                )}
+              </div>
             </div>
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-tunet-text-muted" />
