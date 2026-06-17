@@ -1,11 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { updateUser, deleteUser } from "@/lib/db";
+import { getApiSession, requireRole } from "@/lib/api-auth";
 
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = getApiSession(request);
+    if (!requireRole(session, ["admin"])) {
+      return NextResponse.json(
+        { error: "Only admins can update users" },
+        { status: 403 }
+      );
+    }
+
     const { id } = await params;
     const body = await request.json();
     const { name, role, phone, pin, telegram_id } = body;
@@ -42,6 +51,14 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = getApiSession(request);
+    if (!requireRole(session, ["admin"])) {
+      return NextResponse.json(
+        { error: "Only admins can delete users" },
+        { status: 403 }
+      );
+    }
+
     const { id } = await params;
     const success = await deleteUser(id);
 
@@ -49,7 +66,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Failed to delete user" }, { status: 500 });
     }
 
-    return NextResponse.json({ message: "User deleted" });
+    return NextResponse.json({ message: "User deactivated" });
   } catch (error) {
     console.error("DELETE /api/users/[id] error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

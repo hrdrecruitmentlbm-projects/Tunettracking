@@ -1,8 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
 import { bulkCreateUsers, CreateUserInput } from "@/lib/db";
+import { getApiSession, requireRole } from "@/lib/api-auth";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 export async function POST(request: NextRequest) {
   try {
+    const session = getApiSession(request);
+    if (!requireRole(session, ["admin"])) {
+      return NextResponse.json(
+        { error: "Only admins can bulk create users" },
+        { status: 403 }
+      );
+    }
+
+    const ip = getClientIp(request);
+    const rateLimit = checkRateLimit(`bulk-users:${ip}`, {
+      windowMs: 60 * 1000,
+      maxRequests: 10,
+    });
+
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again later." },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
     const users = body?.users;
     const autoGeneratePins = body?.auto_generate_pins !== false;

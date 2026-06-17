@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { loginByPin } from "@/lib/db";
 import { Wifi } from "lucide-react";
 import { COPY } from "@/lib/copy";
 
@@ -19,10 +18,31 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
 
-    const user = await loginByPin(pin);
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin }),
+      });
 
-    if (user) {
-      localStorage.setItem("tunetops-user", JSON.stringify(user));
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast.error(data.error || COPY.auth.invalidPin);
+        setPin("");
+        return;
+      }
+
+      const user = data.user;
+      localStorage.setItem(
+        "tunetops-user",
+        JSON.stringify({
+          id: user.id,
+          name: user.name,
+          role: user.role,
+        })
+      );
+
       toast.success(COPY.auth.welcome(user.name));
 
       switch (user.role) {
@@ -38,12 +58,13 @@ export default function LoginPage() {
         default:
           router.push("/dashboard/noc");
       }
-    } else {
+    } catch (error) {
+      console.error("Login error:", error);
       toast.error(COPY.auth.invalidPin);
       setPin("");
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   return (

@@ -130,6 +130,31 @@ Format: Reverse chronological log (newest entries first).
 - For automated daily cleanup, use an external cron service (e.g., cron-job.org) to call `POST /api/cleanup` daily
 - Monitor storage with: `SELECT * FROM data_retention_status;`
 
+## Authentication & Authorization
+
+- **Session-based auth**: Login creates a signed JWT-like token in an httpOnly cookie
+- **Token library**: `src/lib/auth.ts` — `createSessionToken()`, `verifySessionToken()`, `getSessionTokenFromRequest()`
+- **API helper**: `src/lib/api-auth.ts` — `getApiSession()`, `requireRole()`
+- **Middleware**: `src/middleware.ts` — protects all `/api/*` routes except:
+  - `/api/auth/login` (public)
+  - `/api/auth/logout` (public)
+  - `/api/telegram/webhook` (public — Telegram calls this)
+  - `/api/telegram/setup` (public)
+  - `/api/cleanup` (public — uses its own secret)
+  - `/api/webhooks/*` (public — uses WEBHOOK_SECRET)
+- **Session secret**: Set `SESSION_SECRET` in `.env.local` (generate with crypto.randomBytes)
+- **Role checks**: All `/api/users/*` routes require admin role
+- **Login rate limit**: 5 attempts per minute per IP (in-memory, resets on restart)
+- **Bulk user rate limit**: 10 requests per minute per IP
+
+## Atomic Operations (RPC)
+
+- Location writes use PostgreSQL RPC functions to avoid race conditions
+- SQL migration: `supabase/atomic-operations.sql`
+- `record_ping(user_id, session_date, lat, lng, source, accuracy)` — atomic ping insert
+- `record_location_update(user_id, lat, lng, source, accuracy, threshold, min_minutes)` — full stay/visit/ping logic in one transaction
+- Client code in `db.ts` calls these via `supabase.rpc()` — no more client-side SELECT MAX + INSERT
+
 ## Gotchas
 
 - Supabase requires `.env.local` with `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`
@@ -139,3 +164,6 @@ Format: Reverse chronological log (newest entries first).
 - `next.config.ts` is empty — no custom webpack or env config
 - `.next/` build output exists but may be stale after dependency changes
 - Location pings grow fast (~9,600 rows/day for 10 FOC) — data retention is critical
+- Session tokens are stored in httpOnly cookies — client JS cannot read them
+- `loginByPin()` still returns `pin` field — login route strips it before sending to client
+- `fetchUsers()` and `fetchLocations()` no longer return `pin` field

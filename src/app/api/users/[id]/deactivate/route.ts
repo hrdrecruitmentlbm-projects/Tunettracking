@@ -1,11 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { deactivateUser } from "@/lib/db";
+import { getApiSession, requireRole } from "@/lib/api-auth";
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const session = getApiSession(request);
+    if (!requireRole(session, ["admin"])) {
+      return NextResponse.json(
+        { error: "Only admins can deactivate users" },
+        { status: 403 }
+      );
+    }
+
     const { id } = await params;
     const success = await deactivateUser(id);
 

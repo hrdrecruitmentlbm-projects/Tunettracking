@@ -1,8 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createUser } from "@/lib/db";
+import { getApiSession, requireRole } from "@/lib/api-auth";
 
 export async function POST(request: NextRequest) {
   try {
+    const session = getApiSession(request);
+    if (!requireRole(session, ["admin"])) {
+      return NextResponse.json(
+        { error: "Only admins can create users" },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const { name, role, phone, pin, telegram_id } = body;
 

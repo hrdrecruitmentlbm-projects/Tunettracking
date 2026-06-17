@@ -54,7 +54,12 @@ export function Sidebar({ user }: SidebarProps) {
 
   const navItems = NAV_ITEMS[user.role] || NAV_ITEMS.noc;
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
     localStorage.removeItem("tunetops-user");
     window.location.href = "/";
   };

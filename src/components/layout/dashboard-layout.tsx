@@ -19,8 +19,15 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     const stored = localStorage.getItem("tunetops-user");
     if (stored) {
       try {
+        const parsed = JSON.parse(stored);
+
+        if (!parsed.id || !parsed.role || !parsed.name) {
+          router.push("/");
+          return;
+        }
+
         // eslint-disable-next-line react-hooks/set-state-in-effect
-        setUser(JSON.parse(stored));
+        setUser(parsed as User);
       } catch {
         router.push("/");
       }

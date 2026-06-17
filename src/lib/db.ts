@@ -1,5 +1,5 @@
 import { supabase } from "./supabase";
-import { User, Task, Location, Tag, Notification } from "@/types";
+import { User, Task, Location, Tag, Notification, TaskStatus } from "@/types";
 
 export async function loginByPin(pin: string): Promise<User | null> {
   const { data, error } = await supabase
@@ -32,7 +32,7 @@ export async function getCurrentUser(id: string): Promise<User | null> {
 export async function fetchUsers(): Promise<User[]> {
   const { data, error } = await supabase
     .from("users")
-    .select("*")
+    .select("id, name, role, phone, telegram_id, is_active, created_at")
     .order("name");
 
   if (error) {
@@ -59,12 +59,20 @@ export function normalizeTaskRow(row: any): Task {
 const TASK_SELECT = `
   *,
   priority:priorities(name),
-  assignee:users!tasks_assigned_to_fkey(id, name, pin, role, phone, telegram_id, is_active, created_at),
-  creator:users!tasks_created_by_fkey(id, name, pin, role, phone, telegram_id, is_active, created_at),
+  assignee:users!tasks_assigned_to_fkey(id, name, role, phone, telegram_id, is_active, created_at),
+  creator:users!tasks_created_by_fkey(id, name, role, phone, telegram_id, is_active, created_at),
   tags:task_tags(tag:tags(id, name, color))
 `;
 
-export async function fetchTasks(options: { includeDeleted?: boolean } = {}): Promise<Task[]> {
+export interface FetchTasksOptions {
+  includeDeleted?: boolean;
+  status?: TaskStatus;
+  assignedTo?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export async function fetchTasks(options: FetchTasksOptions = {}): Promise<Task[]> {
   let query = supabase
     .from("tasks")
     .select(TASK_SELECT)
@@ -72,6 +80,22 @@ export async function fetchTasks(options: { includeDeleted?: boolean } = {}): Pr
 
   if (!options.includeDeleted) {
     query = query.is("deleted_at", null);
+  }
+
+  if (options.status) {
+    query = query.eq("status", options.status);
+  }
+
+  if (options.assignedTo) {
+    query = query.eq("assigned_to", options.assignedTo);
+  }
+
+  // Default limit to prevent unbounded fetches
+  const limit = options.limit ?? 100;
+  query = query.limit(limit);
+
+  if (options.offset) {
+    query = query.range(options.offset, options.offset + limit - 1);
   }
 
   const { data, error } = await query;
@@ -89,7 +113,7 @@ export async function fetchLocations(): Promise<Location[]> {
     .from("locations")
     .select(`
       *,
-      user:users(id, name, pin, role, phone, telegram_id, is_active, created_at)
+      user:users(id, name, role, phone, telegram_id, is_active, created_at)
     `)
     .order("updated_at", { ascending: false });
 
@@ -425,10 +449,15 @@ export async function deactivateUser(id: string): Promise<boolean> {
 }
 
 export async function deleteUser(id: string): Promise<boolean> {
-  const { error } = await supabase.from("users").delete().eq("id", id);
+  // Soft delete: deactivate the user instead of hard deleting.
+  // This preserves referential integrity for tasks, locations, and history.
+  const { error } = await supabase
+    .from("users")
+    .update({ is_active: false })
+    .eq("id", id);
 
   if (error) {
-    console.error("Error deleting user:", error);
+    console.error("Error deleting (deactivating) user:", error);
     return false;
   }
   return true;
@@ -811,8 +840,6 @@ export function getFocColor(userId: string): string {
   return FOC_PALETTE[Math.abs(hash) % FOC_PALETTE.length];
 }
 
-const STAY_THRESHOLD_METERS = 100;
-const MIN_STAY_DURATION_MINUTES = 10;
 const DAY_RESET_HOUR_JAKARTA = 6;
 
 export function getSessionDate(date: Date = new Date()): string {
@@ -825,22 +852,6 @@ export function getSessionDate(date: Date = new Date()): string {
   const m = String(jakarta.getMonth() + 1).padStart(2, "0");
   const d = String(jakarta.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}`;
-}
-
-function haversineDistance(
-  lat1: number,
-  lng1: number,
-  lat2: number,
-  lng2: number
-): number {
-  const R = 6371000;
-  const toRad = (deg: number) => (deg * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 export interface LocationVisit {
@@ -876,25 +887,15 @@ async function recordPing(
   sessionDate: string,
   accuracy?: number
 ): Promise<void> {
-  const { data: maxRow } = await supabase
-    .from("location_pings")
-    .select("ping_number")
-    .eq("user_id", userId)
-    .eq("session_date", sessionDate)
-    .order("ping_number", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  const nextNumber = (maxRow?.ping_number ?? 0) + 1;
-
-  const { error } = await supabase.from("location_pings").insert({
-    user_id: userId,
-    session_date: sessionDate,
-    ping_number: nextNumber,
-    lat,
-    lng,
-    accuracy: accuracy ?? null,
-    source,
+  // Use atomic RPC function to avoid race conditions
+  // (was: SELECT MAX + INSERT, which could produce duplicate ping_number)
+  const { error } = await supabase.rpc("record_ping", {
+    p_user_id: userId,
+    p_session_date: sessionDate,
+    p_lat: lat,
+    p_lng: lng,
+    p_source: source,
+    p_accuracy: accuracy ?? null,
   });
 
   if (error) {
@@ -913,127 +914,29 @@ export async function recordLocationUpdate(
   source: "telegram_live" | "telegram_request" | "web_app",
   accuracy?: number
 ): Promise<RecordResult> {
-  const now = new Date().toISOString();
-  const sessionDate = getSessionDate();
+  // Use atomic RPC function (consolidates 3-5 sequential queries into 1)
+  // Fixes race conditions in read-modify-write patterns
+  const { data, error } = await supabase.rpc("record_location_update", {
+    p_user_id: userId,
+    p_lat: lat,
+    p_lng: lng,
+    p_source: source,
+    p_accuracy: accuracy ?? null,
+  });
 
-  const { data: existing, error: existingError } = await supabase
-    .from("locations")
-    .select("id, lat, lng, arrived_at, session_date, updated_at")
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (existingError) {
-    return { ok: false, error: existingError.message };
+  if (error) {
+    return { ok: false, error: error.message };
   }
 
-  if (!existing) {
-    const { error } = await supabase.from("locations").insert({
-      user_id: userId,
-      lat,
-      lng,
-      accuracy: accuracy ?? null,
-      updated_at: now,
-      arrived_at: now,
-      session_date: sessionDate,
-    });
-    if (error) return { ok: false, error: error.message };
-    await recordPing(userId, lat, lng, source, sessionDate, accuracy);
-    return { ok: true, stayedAt: { lat, lng } };
+  if (!data || !data.ok) {
+    return { ok: false, error: "RPC returned ok=false" };
   }
 
-  // Compare to current stay's ARRIVAL point (not last position)
-  const arrivalLat = Number(existing.lat);
-  const arrivalLng = Number(existing.lng);
-  const distance = haversineDistance(arrivalLat, arrivalLng, lat, lng);
-
-  if (distance < STAY_THRESHOLD_METERS) {
-    // Same stay, just refresh the timestamp
-    const { error } = await supabase
-      .from("locations")
-      .update({ lat, lng, accuracy: accuracy ?? null, updated_at: now })
-      .eq("id", existing.id);
-    if (error) return { ok: false, error: error.message };
-    await recordPing(userId, lat, lng, source, sessionDate, accuracy);
-    return { ok: true, stayedAt: { lat: arrivalLat, lng: arrivalLng } };
-  }
-
-  // FOC moved >= 100m from the arrival. Check if previous stay qualifies.
-  const arrivedAt = existing.arrived_at
-    ? new Date(existing.arrived_at)
-    : new Date(existing.updated_at);
-  const stayMinutes = (Date.now() - arrivedAt.getTime()) / 60000;
-
-  if (stayMinutes >= MIN_STAY_DURATION_MINUTES) {
-    // Save the previous stay as a visit
-    const { data: maxRow } = await supabase
-      .from("location_visits")
-      .select("visit_number")
-      .eq("user_id", userId)
-      .eq("session_date", sessionDate)
-      .order("visit_number", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    const nextNumber = (maxRow?.visit_number ?? 0) + 1;
-
-    const { data: visit, error: visitError } = await supabase
-      .from("location_visits")
-      .insert({
-        user_id: userId,
-        session_date: sessionDate,
-        visit_number: nextNumber,
-        lat: arrivalLat,
-        lng: arrivalLng,
-        arrived_at: arrivedAt.toISOString(),
-        departed_at: now,
-        duration_minutes: Math.round(stayMinutes),
-        source,
-      })
-      .select()
-      .single();
-
-    if (visitError) {
-      console.error("Error inserting location_visit:", visitError);
-    }
-
-    // Update the location row to reflect the NEW stay
-    const { error } = await supabase
-      .from("locations")
-      .update({
-        lat,
-        lng,
-        accuracy: accuracy ?? null,
-        updated_at: now,
-        arrived_at: now,
-        session_date: sessionDate,
-      })
-      .eq("id", existing.id);
-    if (error) return { ok: false, error: error.message };
-
-    await recordPing(userId, lat, lng, source, sessionDate, accuracy);
-
-    return {
-      ok: true,
-      newVisit: visit as LocationVisit | undefined,
-      stayedAt: { lat, lng },
-    };
-  }
-
-  // Previous stay too short — discard, start new stay
-  const { error } = await supabase
-    .from("locations")
-    .update({
-      lat,
-      lng,
-      accuracy: accuracy ?? null,
-      updated_at: now,
-      arrived_at: now,
-      session_date: sessionDate,
-    })
-    .eq("id", existing.id);
-  if (error) return { ok: false, error: error.message };
-  await recordPing(userId, lat, lng, source, sessionDate, accuracy);
-  return { ok: true, stayedAt: { lat, lng } };
+  return {
+    ok: true,
+    newVisit: data.newVisit ?? undefined,
+    stayedAt: data.stayedAt,
+  };
 }
 
 export async function fetchVisits(
