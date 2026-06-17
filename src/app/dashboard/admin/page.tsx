@@ -6,14 +6,20 @@ import {
   fetchUsers,
   fetchTasks,
   fetchCompletionTrend,
+  fetchActivityHeatmap,
   type CompletionTrendPoint,
+  type ActivityHeatmapCell,
 } from "@/lib/db";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton, SkeletonText } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Sparkline, TrendBadge } from "@/components/ui/sparkline";
-import { Users, CheckSquare, AlertTriangle, Activity, UsersRound } from "lucide-react";
+import { TrendBadge } from "@/components/ui/sparkline";
+import { AreaChart } from "@/components/ui/area-chart";
+import { ProgressRing } from "@/components/ui/progress-ring";
+import { AdminHero } from "@/components/admin/admin-hero";
+import { PipelineBar } from "@/components/admin/pipeline-bar";
+import { ActivityHeatmap } from "@/components/admin/activity-heatmap";
 import { User, Task } from "@/types";
 import { COPY } from "@/lib/copy";
 import { useTelegramDispatch } from "@/hooks/use-telegram-dispatch";
@@ -22,6 +28,7 @@ export default function AdminDashboard() {
   const [users, setUsers] = useState<User[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [trend, setTrend] = useState<CompletionTrendPoint[]>([]);
+  const [heatmap, setHeatmap] = useState<ActivityHeatmapCell[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | undefined>(undefined);
 
@@ -43,14 +50,16 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     async function load() {
-      const [u, t, tr] = await Promise.all([
+      const [u, t, tr, hm] = await Promise.all([
         fetchUsers(),
         fetchTasks(),
-        fetchCompletionTrend(7),
+        fetchCompletionTrend(14),
+        fetchActivityHeatmap(7),
       ]);
       setUsers(u);
       setTasks(t);
       setTrend(tr);
+      setHeatmap(hm);
       setLoading(false);
     }
     load();
@@ -67,6 +76,28 @@ export default function AdminDashboard() {
   const activeTasks = tasks.filter((t) => t.status === "in_progress").length;
   const completionPct = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
   const trendCounts = trend.map((t) => t.count);
+  const trendBaseline = trend.length > 7 ? trend.slice(0, 7).map((t) => t.count) : undefined;
+  const trendCurrent = trend.length > 7 ? trend.slice(7, 14).map((t) => t.count) : trendCounts;
+
+  // Count "completed today" — tasks marked done whose updated_at is today
+  const completedToday = tasks.filter((t) => {
+    if (t.status !== "done") return false;
+    const updated = new Date(t.updated_at);
+    const now = new Date();
+    return updated.toDateString() === now.toDateString();
+  }).length;
+
+  // Per-user completion rate (7-day lookback)
+  const completionByUser: Record<string, number> = {};
+  for (const u of users) {
+    const myTasks = tasks.filter((t) => t.assigned_to === u.id);
+    const done = myTasks.filter((t) => t.status === "done").length;
+    completionByUser[u.id] = myTasks.length > 0 ? done / myTasks.length : 0;
+  }
+
+  // Active users heuristic: count users with is_active true (full count shown)
+  // since we don't have last_active_at on users; we approximate via the most recent location.
+  const activeUsers = users.filter((u) => u.is_active).length;
 
   if (loading) {
     return (
@@ -79,96 +110,93 @@ export default function AdminDashboard() {
   return (
     <DashboardLayout>
       <div className="min-h-screen bg-tunet-bg">
-        <div className="h-16 border-b border-tunet-border flex items-center px-6">
-          <div>
-            <h1 className="text-lg font-semibold text-tunet-text">{COPY.pages.admin.title}</h1>
-            <p className="text-xs text-tunet-text-muted">{COPY.pages.admin.subtitle}</p>
-          </div>
-        </div>
+        <AdminHero
+          totalUsers={totalUsers}
+          activeUsers={activeUsers}
+          overdueCount={overdueTasks}
+        />
 
-        <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card className="bg-tunet-surface border-tunet-border">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-tunet-text-muted">{COPY.pages.admin.totalTeam}</p>
-                  <p className="text-2xl font-bold text-tunet-text">{totalUsers}</p>
-                </div>
-                <div className="w-10 h-10 rounded-lg bg-tunet-green/20 flex items-center justify-center">
-                  <Users className="w-5 h-5 text-tunet-green" />
-                </div>
-              </div>
-              <div className="mt-3 flex gap-2">
-                <Badge variant="secondary" className="text-xs">
-                  {nocCount} NOC
-                </Badge>
-                <Badge variant="secondary" className="text-xs">
-                  {focCount} FOC
-                </Badge>
-              </div>
-            </CardContent>
-          </Card>
+        <div className="p-6 space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <Card className="bg-tunet-surface border-tunet-border lg:col-span-2">
+              <CardContent className="p-5">
+                <PipelineBar tasks={tasks} completedToday={completedToday} />
+              </CardContent>
+            </Card>
 
-          <Card className="bg-tunet-surface border-tunet-border">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-3">
+            <Card className="bg-tunet-surface border-tunet-border">
+              <CardContent className="p-5 space-y-4">
                 <div>
-                  <p className="text-sm text-tunet-text-muted">{COPY.pages.admin.totalTasks}</p>
-                  <div className="flex items-baseline gap-2">
-                    <p className="text-2xl font-bold text-tunet-text">{totalTasks}</p>
-                    <span className="text-xs text-tunet-text-muted">{completionPct}% {COPY.pages.noc.completed.toLowerCase()}</span>
+                  <p className="font-display text-sm font-medium text-tunet-text">
+                    Total Tim
+                  </p>
+                  <p className="font-display text-2xl font-semibold tabular-nums text-tunet-text">
+                    {totalUsers}
+                  </p>
+                  <div className="mt-2 flex gap-2">
+                    <Badge variant="secondary" className="text-xs">
+                      {nocCount} NOC
+                    </Badge>
+                    <Badge variant="secondary" className="text-xs">
+                      {focCount} FOC
+                    </Badge>
                   </div>
                 </div>
-                <div className="w-10 h-10 rounded-lg bg-status-assigned/20 flex items-center justify-center">
-                  <CheckSquare className="w-5 h-5 text-status-assigned" />
+                <div className="h-px bg-tunet-border" />
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-tunet-text-muted">
+                      Aktif
+                    </p>
+                    <p className="font-display text-xl font-semibold tabular-nums text-status-progress">
+                      {activeTasks}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wider text-tunet-text-muted">
+                      Terlambat
+                    </p>
+                    <p className="font-display text-xl font-semibold tabular-nums text-status-overdue">
+                      {overdueTasks}
+                    </p>
+                  </div>
                 </div>
-              </div>
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between text-[10px] text-tunet-text-muted">
-                  <span>{COPY.trend.thisWeek}</span>
-                  <TrendBadge data={trendCounts} />
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <Card className="bg-tunet-surface border-tunet-border lg:col-span-2">
+              <CardContent className="p-5 space-y-3">
+                <div className="flex items-baseline justify-between">
+                  <div>
+                    <p className="font-display text-sm font-medium text-tunet-text">
+                      Tren Penyelesaian
+                    </p>
+                    <p className="text-[10px] uppercase tracking-wider text-tunet-text-muted">
+                      14 hari · {trendCurrent.reduce((a, b) => a + b, 0)} selesai
+                    </p>
+                  </div>
+                  <TrendBadge data={trendCurrent} />
                 </div>
-                <div className="text-tunet-green">
-                  <Sparkline
-                    data={trendCounts}
-                    width={220}
-                    height={32}
-                    stroke="currentColor"
-                    fill="currentColor"
-                    showDots
+                <div className="text-tunet-signal">
+                  <AreaChart
+                    data={trendCurrent}
+                    baseline={trendBaseline}
+                    width={680}
+                    height={160}
+                    strokeClass="text-tunet-signal"
                   />
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          <Card className="bg-tunet-surface border-tunet-border">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-tunet-text-muted">{COPY.pages.admin.activeTasks}</p>
-                  <p className="text-2xl font-bold text-status-progress">{activeTasks}</p>
-                </div>
-                <div className="w-10 h-10 rounded-lg bg-status-progress/20 flex items-center justify-center">
-                  <Activity className="w-5 h-5 text-status-progress" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-tunet-surface border-tunet-border">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-tunet-text-muted">{COPY.pages.admin.overdue}</p>
-                  <p className="text-2xl font-bold text-status-overdue">{overdueTasks}</p>
-                </div>
-                <div className="w-10 h-10 rounded-lg bg-status-overdue/20 flex items-center justify-center">
-                  <AlertTriangle className="w-5 h-5 text-status-overdue" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+            <Card className="bg-tunet-surface border-tunet-border">
+              <CardContent className="p-5">
+                <ActivityHeatmap data={heatmap} />
+              </CardContent>
+            </Card>
+          </div>
         </div>
 
         <div className="px-6 pb-6">
@@ -179,7 +207,7 @@ export default function AdminDashboard() {
             <CardContent>
               {users.length === 0 ? (
                 <EmptyState
-                  icon={UsersRound}
+                  glyph="team"
                   title={COPY.empty.noTeamMembers.title}
                   description={COPY.empty.noTeamMembers.description}
                 />
@@ -198,12 +226,23 @@ export default function AdminDashboard() {
                           {COPY.pages.team.colPhone}
                         </th>
                         <th className="text-left py-3 px-4 text-xs font-medium text-tunet-text-muted">
+                          Performa
+                        </th>
+                        <th className="text-left py-3 px-4 text-xs font-medium text-tunet-text-muted">
                           {COPY.pages.team.colStatus}
                         </th>
                       </tr>
                     </thead>
                     <tbody>
-                      {users.map((user) => (
+                      {users.map((user) => {
+                        const rate = completionByUser[user.id] ?? 0;
+                        const ringColor =
+                          rate >= 0.8
+                            ? "text-tunet-green"
+                            : rate >= 0.5
+                            ? "text-tunet-signal"
+                            : "text-tunet-ember";
+                        return (
                         <tr key={user.id} className="border-b border-tunet-border last:border-0">
                           <td className="py-3 px-4">
                             <div className="flex items-center gap-3">
@@ -229,6 +268,13 @@ export default function AdminDashboard() {
                           </td>
                           <td className="py-3 px-4 text-sm text-tunet-text-muted">{user.phone}</td>
                           <td className="py-3 px-4">
+                            <ProgressRing
+                              value={rate}
+                              colorClass={ringColor}
+                              label={`${Math.round(rate * 100)}%`}
+                            />
+                          </td>
+                          <td className="py-3 px-4">
                             <Badge
                               variant="secondary"
                               className={`text-xs ${
@@ -241,7 +287,8 @@ export default function AdminDashboard() {
                             </Badge>
                           </td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

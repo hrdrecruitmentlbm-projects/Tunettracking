@@ -256,6 +256,7 @@ export const COPY = {
     start: "Mulai",
     submitReview: "Sedang Ditinjau",
     complete: "Selesai",
+    advanceTo: "Lanjut ke",
   },
   taskDetail: {
     title: "Detail dan riwayat tugas",

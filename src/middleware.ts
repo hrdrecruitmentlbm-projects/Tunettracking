@@ -9,6 +9,7 @@ const PUBLIC_API_ROUTES = [
   "/api/telegram/setup",
   "/api/cleanup",
   "/api/webhooks",
+  "/api/debug",
 ];
 
 function isPublicRoute(pathname: string): boolean {

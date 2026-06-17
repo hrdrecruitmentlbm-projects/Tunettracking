@@ -12,11 +12,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Task, STATUS_CONFIG, PRIORITY_CONFIG } from "@/types";
-import { MapPin, Clock, User, AlertTriangle, Trash2 } from "lucide-react";
+import { Task, TaskStatus, STATUS_CONFIG, PRIORITY_CONFIG } from "@/types";
+import { MapPin, Clock, User, AlertTriangle, Trash2, ArrowUpRight } from "lucide-react";
 import { getTimeRemaining } from "@/lib/time";
 import { COPY } from "@/lib/copy";
 import { softDeleteTask } from "@/lib/db";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 interface TaskCardProps {
@@ -27,6 +28,22 @@ interface TaskCardProps {
   canDelete?: boolean;
   onDeleted?: (taskId: string) => void;
 }
+
+const NEXT_STATUS: Record<TaskStatus, TaskStatus | null> = {
+  todo: "assigned",
+  assigned: "in_progress",
+  in_progress: "review",
+  review: "done",
+  done: null,
+};
+
+const NEXT_STATUS_LABEL: Record<TaskStatus, string | null> = {
+  todo: COPY.taskCard.start,
+  assigned: COPY.taskCard.start,
+  in_progress: COPY.taskCard.submitReview,
+  review: COPY.taskCard.complete,
+  done: null,
+};
 
 export function TaskCard({
   task,
@@ -74,18 +91,35 @@ export function TaskCard({
     setDeleting(false);
   };
 
+  const handleAdvance = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const dest = NEXT_STATUS[task.status];
+    if (dest && onStatusChange) {
+      onStatusChange(task.id, dest);
+    }
+  };
+
+  const showAdvance = onStatusChange && task.status !== "done" && !isDeleted;
+
   return (
     <Card
-      className="group relative bg-tunet-surface border-tunet-border hover:border-tunet-green/50 transition-colors cursor-pointer"
+      className={cn(
+        "group relative bg-tunet-surface border border-tunet-border overflow-hidden",
+        "transition-all duration-200 ease-out cursor-pointer",
+        "hover:-translate-y-px hover:shadow-[inset_0_0_0_1px_rgba(34,211,238,0.35),0_4px_12px_-6px_rgba(0,0,0,0.5)]"
+      )}
       onClick={() => onClick?.(task)}
     >
+      {/* Top status rail — 2px full-width bar matching the status color */}
+      <div className="h-0.5 w-full" style={{ backgroundColor: statusConfig.color }} />
+
       {canDelete && !isDeleted && (
         <button
           onClick={(e) => {
             e.stopPropagation();
             setDeleteOpen(true);
           }}
-          className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 p-1.5 rounded hover:bg-status-overdue/10 text-tunet-text-muted hover:text-status-overdue transition-opacity"
+          className="absolute top-3 right-3 z-10 opacity-0 group-hover:opacity-100 p-1.5 rounded hover:bg-status-overdue/10 text-tunet-text-muted hover:text-status-overdue transition-opacity"
           aria-label={COPY.actions.delete}
         >
           <Trash2 className="w-3.5 h-3.5" />
@@ -94,7 +128,7 @@ export function TaskCard({
 
       <CardContent className="p-4">
         <div className="flex items-start gap-2 mb-3">
-          <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${priorityConfig.dot}`} />
+          <div className={`w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${priorityConfig.dot}`} />
           <h3 className="font-medium text-tunet-text text-sm leading-tight pr-6">{task.title}</h3>
         </div>
 
@@ -103,7 +137,7 @@ export function TaskCard({
           <span className="text-xs truncate">{task.location_name}</span>
         </div>
 
-        <div className="flex items-center gap-2 mb-3 flex-wrap">
+        <div className="flex items-center gap-1.5 mb-3 flex-wrap">
           <Badge
             variant="secondary"
             className="text-xs"
@@ -148,56 +182,30 @@ export function TaskCard({
           </div>
           <div className="flex items-center gap-1.5">
             <Clock className="w-3.5 h-3.5" />
-            <span>{getAge(task.created_at)}</span>
+            <span className="font-mono tabular-nums">{getAge(task.created_at)}</span>
           </div>
         </div>
 
-        {onStatusChange && (
-          <div className="mt-3 pt-3 border-t border-tunet-border space-y-2">
-            <div className="flex gap-2">
-              {task.status === "assigned" && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onStatusChange(task.id, "in_progress");
-                  }}
-                  disabled={!canChangeStatus}
-                  className="flex-1 text-xs py-1.5 rounded bg-tunet-green/20 text-tunet-green hover:bg-tunet-green/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-tunet-green/20"
-                >
-                  {COPY.taskCard.start}
-                </button>
-              )}
-              {task.status === "in_progress" && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onStatusChange(task.id, "review");
-                  }}
-                  disabled={!canChangeStatus}
-                  className="flex-1 text-xs py-1.5 rounded bg-status-review/20 text-status-review hover:bg-status-review/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-status-review/20"
-                >
-                  {COPY.taskCard.submitReview}
-                </button>
-              )}
-              {task.status === "review" && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onStatusChange(task.id, "done");
-                  }}
-                  disabled={!canChangeStatus}
-                  className="flex-1 text-xs py-1.5 rounded bg-status-done/20 text-status-done hover:bg-status-done/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-status-done/20"
-                >
-                  {COPY.taskCard.complete}
-                </button>
-              )}
-            </div>
-            {!canChangeStatus && (
-              <p className="text-[10px] text-tunet-text-muted text-center">
-                Status hanya bisa diubah oleh NOC
-              </p>
-            )}
+        {showAdvance && (
+          <div className="mt-3 pt-3 border-t border-tunet-border/60 flex items-center justify-between">
+            <span className="text-[10px] uppercase tracking-wider text-tunet-text-muted">
+              {COPY.taskCard.advanceTo}
+            </span>
+            <button
+              onClick={handleAdvance}
+              disabled={!canChangeStatus}
+              className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md bg-tunet-signal/15 text-tunet-signal hover:bg-tunet-signal/25 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-tunet-signal/15"
+            >
+              {NEXT_STATUS_LABEL[task.status]}
+              <ArrowUpRight className="w-3 h-3" />
+            </button>
           </div>
+        )}
+
+        {!canChangeStatus && showAdvance && (
+          <p className="text-[10px] text-tunet-text-muted text-center mt-2">
+            Status hanya bisa diubah oleh NOC
+          </p>
         )}
       </CardContent>
 

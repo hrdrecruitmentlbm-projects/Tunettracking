@@ -10,6 +10,7 @@ import { getRelativeTime } from "@/lib/time";
 import { useIncrementalLocations } from "@/hooks/use-incremental-locations";
 import { MapPinOff } from "lucide-react";
 import { COPY } from "@/lib/copy";
+import { CoordsHUD } from "./coords-hud";
 import "leaflet/dist/leaflet.css";
 
 delete (L.Icon.Default.prototype as { _getIconUrl?: unknown })._getIconUrl;
@@ -31,6 +32,7 @@ function createCustomIcon(
     className: "custom-marker",
     html: `
       <div style="position: relative; display: flex; flex-direction: column; align-items: center;">
+        ${pulsing ? '<span class="radar-pulse"></span><span class="radar-pulse radar-pulse-delayed"></span>' : ""}
         <div style="
           width: ${highlighted ? 48 : 40}px;
           height: ${highlighted ? 48 : 40}px;
@@ -43,7 +45,6 @@ function createCustomIcon(
           font-weight: bold;
           font-size: 14px;
           box-shadow: 0 2px 8px rgba(0,0,0,0.3)${highlighted ? `, 0 0 0 4px rgba(16, 185, 129, 0.4)` : ""};
-          ${pulsing ? `animation: pulse 2s infinite;` : ""}
           transition: all 0.2s ease;
         ">${initials}</div>
         <div style="
@@ -373,6 +374,7 @@ export function RadarMap({
       )}
       <MapContainer center={center} zoom={13} style={{ height: "100%", width: "100%" }}>
         <MapFocusController locations={visibleLocations} focusUserId={focusUserId} />
+        <CoordsHUD />
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
           url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"

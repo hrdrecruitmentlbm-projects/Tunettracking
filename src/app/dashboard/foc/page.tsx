@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
+import { SignalTower } from "@/components/icons/brand-icons";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { TaskCard } from "@/components/tasks/task-card";
 import { TaskDetail } from "@/components/tasks/task-detail";
@@ -15,8 +16,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   MapPin,
-  Radio,
-  RadioOff,
   CheckCircle,
   RefreshCw,
   Navigation,
@@ -280,9 +279,9 @@ function FOCDashboard() {
                     }`}
                   >
                     {locationEnabled ? (
-                      <Radio className="w-6 h-6 animate-pulse" />
+                      <SignalTower className="w-6 h-6 animate-pulse" />
                     ) : (
-                      <RadioOff className="w-6 h-6" />
+                      <SignalTower className="w-6 h-6" />
                     )}
                   </div>
                   <div className="min-w-0 flex-1">

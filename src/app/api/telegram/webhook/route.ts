@@ -26,7 +26,9 @@ export async function POST(request: NextRequest) {
         await upsertLocation(
           user.id,
           editedMessage.location.latitude,
-          editedMessage.location.longitude
+          editedMessage.location.longitude,
+          undefined,
+          "telegram_live"
         );
       }
       return NextResponse.json({ ok: true });
@@ -167,7 +169,9 @@ export async function POST(request: NextRequest) {
       const success = await upsertLocation(
         user.id,
         location.latitude,
-        location.longitude
+        location.longitude,
+        undefined,
+        "telegram_request"
       );
 
       if (success) {

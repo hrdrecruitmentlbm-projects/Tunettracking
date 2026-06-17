@@ -1106,3 +1106,58 @@ export async function fetchPings(
   });
   return rows;
 }
+
+export interface ActivityHeatmapCell {
+  /** 0=Mon, 6=Sun (Indonesian week) */
+  day: number;
+  /** 0..23 hour of day in Asia/Jakarta */
+  hour: number;
+  count: number;
+}
+
+/**
+ * Fetches pings from the last `daysBack` days and groups them by
+ * day-of-week (0=Mon) and hour-of-day (0-23) in Asia/Jakarta timezone.
+ * Returns up to 168 cells.
+ */
+export async function fetchActivityHeatmap(
+  daysBack: number = 7
+): Promise<ActivityHeatmapCell[]> {
+  const start = new Date();
+  start.setDate(start.getDate() - daysBack);
+
+  const { data, error } = await supabase
+    .from("location_pings")
+    .select("created_at")
+    .gte("created_at", start.toISOString())
+    .limit(5000);
+
+  if (error) {
+    console.error("[fetchActivityHeatmap] error:", error);
+    return [];
+  }
+
+  const buckets: ActivityHeatmapCell[] = [];
+  for (let d = 0; d < 7; d++) {
+    for (let h = 0; h < 24; h++) {
+      buckets.push({ day: d, hour: h, count: 0 });
+    }
+  }
+
+  for (const row of data ?? []) {
+    const created = new Date((row as { created_at: string }).created_at);
+    if (Number.isNaN(created.getTime())) continue;
+    // Convert to Jakarta time, then read hour
+    const jakartaStr = created.toLocaleString("en-US", { timeZone: "Asia/Jakarta" });
+    const j = new Date(jakartaStr);
+    const hour = j.getHours();
+    // Postgres DOW: 0=Sun, 6=Sat. We want 0=Mon, 6=Sun.
+    const jsDay = j.getDay(); // 0=Sun, 6=Sat
+    const day = (jsDay + 6) % 7; // 0=Mon, 6=Sun
+    const cell = buckets.find((b) => b.day === day && b.hour === hour);
+    if (cell) cell.count += 1;
+  }
+
+  return buckets;
+}
+

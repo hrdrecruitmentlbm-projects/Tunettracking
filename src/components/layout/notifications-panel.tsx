@@ -201,8 +201,10 @@ export function NotificationsPanel({ userId, onCountChange }: NotificationsPanel
                           <div
                             key={notification.id}
                             onClick={() => handleNotificationClick(notification)}
-                            className={`flex items-start gap-3 px-4 py-3 border-b border-tunet-border cursor-pointer hover:bg-tunet-surface-hover transition-colors ${
-                              !notification.read ? "bg-tunet-green/5" : ""
+                            className={`notif-row flex items-start gap-3 px-4 py-3 border-b border-tunet-border cursor-pointer transition-colors ${
+                              !notification.read
+                                ? "bg-gradient-to-r from-tunet-signal/10 via-tunet-signal/5 to-transparent hover:from-tunet-signal/15"
+                                : "hover:bg-tunet-surface-hover"
                             }`}
                           >
                             <div className="mt-0.5">{getIcon(notification.type)}</div>
