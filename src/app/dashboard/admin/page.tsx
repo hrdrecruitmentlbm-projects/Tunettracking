@@ -23,6 +23,7 @@ import { ActivityHeatmap } from "@/components/admin/activity-heatmap";
 import { User, Task } from "@/types";
 import { COPY } from "@/lib/copy";
 import { useTelegramDispatch } from "@/hooks/use-telegram-dispatch";
+import { useHeartbeat } from "@/hooks/use-heartbeat";
 
 export default function AdminDashboard() {
   const [users, setUsers] = useState<User[]>([]);
@@ -95,9 +96,11 @@ export default function AdminDashboard() {
     completionByUser[u.id] = myTasks.length > 0 ? done / myTasks.length : 0;
   }
 
-  // Active users heuristic: count users with is_active true (full count shown)
-  // since we don't have last_active_at on users; we approximate via the most recent location.
-  const activeUsers = users.filter((u) => u.is_active).length;
+  // Active users via heartbeat (replaces static is_active filter)
+  const { activeCount } = useHeartbeat({
+    userId: currentUserId,
+    watchCount: true,
+  });
 
   if (loading) {
     return (
@@ -112,7 +115,7 @@ export default function AdminDashboard() {
       <div className="min-h-screen bg-tunet-bg">
         <AdminHero
           totalUsers={totalUsers}
-          activeUsers={activeUsers}
+          activeUsers={activeCount}
           overdueCount={overdueTasks}
         />
 

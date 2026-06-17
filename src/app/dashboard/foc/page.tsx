@@ -26,6 +26,7 @@ import { toast } from "sonner";
 import { COPY } from "@/lib/copy";
 import { useTelegramDispatch } from "@/hooks/use-telegram-dispatch";
 import { useIncrementalTasks } from "@/hooks/use-incremental-tasks";
+import { useHeartbeat } from "@/hooks/use-heartbeat";
 
 const LOCATION_INTERVAL = 2 * 60 * 1000;
 const TELEGRAM_BOT_USERNAME = "TunetOpsTrackingBot";
@@ -63,6 +64,8 @@ function FOCDashboard() {
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useTelegramDispatch(currentUser?.id);
+
+  useHeartbeat({ userId: currentUser?.id });
 
   useEffect(() => {
     const stored = typeof window !== "undefined" ? localStorage.getItem("tunetops-user") : null;

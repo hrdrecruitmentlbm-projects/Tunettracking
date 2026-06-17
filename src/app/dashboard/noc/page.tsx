@@ -12,6 +12,7 @@ import { COPY } from "@/lib/copy";
 import { toast } from "sonner";
 import { useTelegramDispatch } from "@/hooks/use-telegram-dispatch";
 import { useIncrementalTasks } from "@/hooks/use-incremental-tasks";
+import { useHeartbeat } from "@/hooks/use-heartbeat";
 
 const RadarMap = dynamic(() => import("@/components/map/radar-map").then((m) => m.RadarMap), {
   ssr: false,
@@ -30,6 +31,8 @@ export default function NOCDashboard() {
   const [currentUserId, setCurrentUserId] = useState<string | undefined>(undefined);
 
   useTelegramDispatch(currentUserId);
+
+  useHeartbeat({ userId: currentUserId });
 
   useEffect(() => {
     if (typeof window !== "undefined") {

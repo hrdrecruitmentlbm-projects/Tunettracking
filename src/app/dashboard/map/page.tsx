@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Wifi, ArrowLeft, Search, MapPin, Users as UsersIcon, Calendar } from "lucide-react";
 import { getRelativeTime } from "@/lib/time";
 import { COPY } from "@/lib/copy";
+import { useHeartbeat } from "@/hooks/use-heartbeat";
 
 const RadarMap = dynamic(() => import("@/components/map/radar-map").then((m) => m.RadarMap), {
   ssr: false,
@@ -42,6 +43,9 @@ export default function MapPage() {
   const [focusUserId, setFocusUserId] = useState<string | null>(null);
   const [showRoles, setShowRoles] = useState<VisibleRole[]>(["foc"]);
   const [selectedDate, setSelectedDate] = useState<string>(() => getSessionDate());
+  const [currentUserId, setCurrentUserId] = useState<string | undefined>(undefined);
+
+  useHeartbeat({ userId: currentUserId });
 
   useEffect(() => {
     const stored = localStorage.getItem("tunetops-user");
@@ -49,6 +53,8 @@ export default function MapPage() {
       const user: User = JSON.parse(stored);
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setDashboardPath(DASHBOARD_ROUTES[user.role] || DASHBOARD_ROUTES.noc);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setCurrentUserId(user.id);
     }
   }, []);
   useEffect(() => {

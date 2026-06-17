@@ -1161,3 +1161,38 @@ export async function fetchActivityHeatmap(
   return buckets;
 }
 
+// =====================================================
+// User Sessions (heartbeat-based online tracking)
+// =====================================================
+
+// Must match ACTIVE_THRESHOLD_MS in /api/heartbeat/route.ts (1 min)
+const HEARTBEAT_ACTIVE_THRESHOLD_MS = 60 * 1000;
+
+export async function recordHeartbeat(userId: string): Promise<void> {
+  if (!userId) return;
+  const { error } = await supabase
+    .from("user_sessions")
+    .upsert({ user_id: userId, last_seen: new Date().toISOString() });
+
+  if (error) {
+    console.error("[recordHeartbeat] error:", error);
+  }
+}
+
+export async function fetchActiveCount(): Promise<number> {
+  const thresholdIso = new Date(
+    Date.now() - HEARTBEAT_ACTIVE_THRESHOLD_MS
+  ).toISOString();
+
+  const { count, error } = await supabase
+    .from("user_sessions")
+    .select("user_id", { count: "exact", head: true })
+    .gt("last_seen", thresholdIso);
+
+  if (error) {
+    console.error("[fetchActiveCount] error:", error);
+    return 0;
+  }
+  return count ?? 0;
+}
+

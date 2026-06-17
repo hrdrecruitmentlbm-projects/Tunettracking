@@ -18,6 +18,7 @@ import { Plus, Search, LayoutGrid, List, Loader2, Inbox, Trash2 } from "lucide-r
 import { COPY } from "@/lib/copy";
 import { toast } from "sonner";
 import { useIncrementalTasks } from "@/hooks/use-incremental-tasks";
+import { useHeartbeat } from "@/hooks/use-heartbeat";
 
 export default function TasksPage() {
   return (
@@ -79,6 +80,8 @@ function TasksPageContent() {
 
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const canChangeStatus = currentUser?.role !== "foc";
+
+  useHeartbeat({ userId: currentUser?.id });
 
   useEffect(() => {
     const stored = localStorage.getItem("tunetops-user");
