@@ -1,20 +1,44 @@
 "use client";
 
+import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Task, STATUS_CONFIG, PRIORITY_CONFIG } from "@/types";
-import { MapPin, Clock, User, AlertTriangle } from "lucide-react";
+import { MapPin, Clock, User, AlertTriangle, Trash2 } from "lucide-react";
 import { getTimeRemaining } from "@/lib/time";
 import { COPY } from "@/lib/copy";
+import { softDeleteTask } from "@/lib/db";
+import { toast } from "sonner";
 
 interface TaskCardProps {
   task: Task;
   onStatusChange?: (taskId: string, status: Task["status"]) => void;
   onClick?: (task: Task) => void;
   canChangeStatus?: boolean;
+  canDelete?: boolean;
+  onDeleted?: (taskId: string) => void;
 }
 
-export function TaskCard({ task, onStatusChange, onClick, canChangeStatus = true }: TaskCardProps) {
+export function TaskCard({
+  task,
+  onStatusChange,
+  onClick,
+  canChangeStatus = true,
+  canDelete = false,
+  onDeleted,
+}: TaskCardProps) {
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
   const statusConfig = STATUS_CONFIG[task.status];
   const priorityConfig = PRIORITY_CONFIG[task.priority];
 
@@ -31,26 +55,54 @@ export function TaskCard({ task, onStatusChange, onClick, canChangeStatus = true
   const isOverdue =
     task.deadline && new Date(task.deadline) < new Date() && task.status !== "done";
   const timeRemaining = getTimeRemaining(task.deadline);
+  const isDeleted = !!task.deleted_at;
+
+  const handleDelete = async () => {
+    if (typeof window === "undefined") return;
+    const stored = localStorage.getItem("tunetops-user");
+    if (!stored) return;
+    const currentUser = JSON.parse(stored);
+    setDeleting(true);
+    const ok = await softDeleteTask(task.id, currentUser.id);
+    if (ok) {
+      toast.success(COPY.taskDetail.deleteSuccess);
+      onDeleted?.(task.id);
+      setDeleteOpen(false);
+    } else {
+      toast.error(COPY.taskDetail.deleteFailedDefault);
+    }
+    setDeleting(false);
+  };
 
   return (
     <Card
-      className="bg-tunet-surface border-tunet-border hover:border-tunet-green/50 transition-colors cursor-pointer"
+      className="group relative bg-tunet-surface border-tunet-border hover:border-tunet-green/50 transition-colors cursor-pointer"
       onClick={() => onClick?.(task)}
     >
+      {canDelete && !isDeleted && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setDeleteOpen(true);
+          }}
+          className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 p-1.5 rounded hover:bg-status-overdue/10 text-tunet-text-muted hover:text-status-overdue transition-opacity"
+          aria-label={COPY.actions.delete}
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
+      )}
+
       <CardContent className="p-4">
-        {/* Priority dot + Title */}
         <div className="flex items-start gap-2 mb-3">
           <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${priorityConfig.dot}`} />
-          <h3 className="font-medium text-tunet-text text-sm leading-tight">{task.title}</h3>
+          <h3 className="font-medium text-tunet-text text-sm leading-tight pr-6">{task.title}</h3>
         </div>
 
-        {/* Location */}
         <div className="flex items-center gap-1.5 mb-3 text-tunet-text-muted">
           <MapPin className="w-3.5 h-3.5" />
           <span className="text-xs truncate">{task.location_name}</span>
         </div>
 
-        {/* Status badge */}
         <div className="flex items-center gap-2 mb-3 flex-wrap">
           <Badge
             variant="secondary"
@@ -64,11 +116,11 @@ export function TaskCard({ task, onStatusChange, onClick, canChangeStatus = true
               {COPY.taskCard.overdue}
             </Badge>
           )}
-            {task.deleted_at && (
-              <Badge variant="destructive" className="text-xs">
-                Deleted
-              </Badge>
-            )}
+          {isDeleted && (
+            <Badge variant="destructive" className="text-xs">
+              Deleted
+            </Badge>
+          )}
           {timeRemaining && !isOverdue && timeRemaining.isUrgent && task.status !== "done" && (
             <Badge
               variant="secondary"
@@ -89,7 +141,6 @@ export function TaskCard({ task, onStatusChange, onClick, canChangeStatus = true
           )}
         </div>
 
-        {/* Assignee + Age */}
         <div className="flex items-center justify-between text-xs text-tunet-text-muted">
           <div className="flex items-center gap-1.5">
             <User className="w-3.5 h-3.5" />
@@ -101,7 +152,6 @@ export function TaskCard({ task, onStatusChange, onClick, canChangeStatus = true
           </div>
         </div>
 
-        {/* Quick actions */}
         {onStatusChange && (
           <div className="mt-3 pt-3 border-t border-tunet-border space-y-2">
             <div className="flex gap-2">
@@ -150,6 +200,35 @@ export function TaskCard({ task, onStatusChange, onClick, canChangeStatus = true
           </div>
         )}
       </CardContent>
+
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent className="bg-tunet-surface border-tunet-border">
+          <DialogHeader>
+            <DialogTitle className="text-tunet-text">
+              {COPY.taskDetail.deleteConfirmTitle}
+            </DialogTitle>
+            <DialogDescription className="text-tunet-text-muted">
+              {COPY.taskDetail.deleteConfirmDesc(task.title)}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDeleteOpen(false)}
+              className="border-tunet-border text-tunet-text"
+            >
+              {COPY.actions.cancel}
+            </Button>
+            <Button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="bg-status-overdue hover:bg-status-overdue/90 text-white"
+            >
+              {deleting ? COPY.taskDetail.deleting : COPY.actions.delete}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

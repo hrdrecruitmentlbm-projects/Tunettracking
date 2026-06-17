@@ -212,6 +212,12 @@ export const COPY = {
       newTask: "Tugas Baru",
       viewKanban: "Tampilan Kanban",
       viewList: "Tampilan Daftar",
+      trash: "Sampah",
+      trashEmpty: {
+        title: "Tidak ada tugas yang dihapus",
+        description: "Tugas yang dihapus akan muncul di sini.",
+      },
+      showActive: "Tampilkan tugas aktif",
     },
     settings: {
       title: "Pengaturan",
@@ -274,6 +280,13 @@ export const COPY = {
     unassigned: "Belum Ditugaskan",
     unknown: "Tidak Diketahui",
     noDeadline: "Tanpa tenggat",
+    deleteConfirmTitle: "Hapus Tugas",
+    deleteConfirmDesc: (title: string) =>
+      `Yakin ingin menghapus "${title}"? Tugas akan dipindahkan ke sampah.`,
+    deleteSuccess: "Tugas dipindahkan ke sampah",
+    deleteFailedNoc: "Anda hanya dapat menghapus tugas yang Anda buat",
+    deleteFailedDefault: "Gagal menghapus tugas",
+    deleting: "Menghapus...",
   },
   taskForm: {
     createTitle: "Buat Tugas Baru",

@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Search, LayoutGrid, List, Loader2, Inbox } from "lucide-react";
+import { Plus, Search, LayoutGrid, List, Loader2, Inbox, Trash2 } from "lucide-react";
 import { COPY } from "@/lib/copy";
 import { toast } from "sonner";
 import { useIncrementalTasks } from "@/hooks/use-incremental-tasks";
@@ -277,6 +277,23 @@ function TasksPageContent() {
               </button>
             </div>
 
+            <button
+              onClick={() => setShowDeleted(!showDeleted)}
+              className={`p-1.5 border border-tunet-border rounded-md transition-colors ${
+                showDeleted
+                  ? "bg-status-overdue/20 text-status-overdue border-status-overdue/40"
+                  : "text-tunet-text-muted hover:bg-tunet-surface-hover"
+              }`}
+              aria-label={
+                showDeleted
+                  ? COPY.pages.tasks.showActive
+                  : COPY.pages.tasks.trash
+              }
+              title={showDeleted ? COPY.pages.tasks.showActive : COPY.pages.tasks.trash}
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+
             <Button
               onClick={() => setFormOpen(true)}
               className="bg-tunet-green hover:bg-tunet-green-dark text-white"
@@ -295,17 +312,31 @@ function TasksPageContent() {
               <EmptyState
                 icon={Inbox}
                 title={
-                  hasActiveFilters
+                  showDeleted
+                    ? COPY.pages.tasks.trashEmpty.title
+                    : hasActiveFilters
                     ? COPY.empty.noMatchingTasks.title
                     : COPY.empty.noTasks.title
                 }
                 description={
-                  hasActiveFilters
+                  showDeleted
+                    ? COPY.pages.tasks.trashEmpty.description
+                    : hasActiveFilters
                     ? COPY.empty.noMatchingTasks.description
                     : COPY.empty.noTasks.description
                 }
                 action={
-                  hasActiveFilters ? (
+                  showDeleted ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowDeleted(false)}
+                      className="border-tunet-border text-tunet-text-muted"
+                    >
+                      <LayoutGrid className="w-3.5 h-3.5 mr-1.5" />
+                      {COPY.pages.tasks.showActive}
+                    </Button>
+                  ) : hasActiveFilters ? (
                     <Button
                       variant="outline"
                       size="sm"
@@ -317,15 +348,6 @@ function TasksPageContent() {
                       className="border-tunet-border text-tunet-text-muted"
                     >
                       {COPY.filters.clearAll}
-                    </Button>
-                  ) : showDeleted ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowDeleted(false)}
-                      className="border-tunet-border text-tunet-text-muted"
-                    >
-                      Back to Active
                     </Button>
                   ) : (
                     <Button
@@ -345,6 +367,8 @@ function TasksPageContent() {
               onStatusChange={handleStatusChange}
               onTaskClick={handleTaskClick}
               canChangeStatus={canChangeStatus}
+              canDelete={canChangeStatus}
+              onDeleted={handleTaskDeleted}
             />
           ) : (
             <TaskListView tasks={filteredTasks} onTaskClick={handleTaskClick} />

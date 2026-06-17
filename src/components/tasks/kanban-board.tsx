@@ -29,11 +29,20 @@ interface KanbanBoardProps {
   onStatusChange?: (taskId: string, status: TaskStatus) => void;
   onTaskClick?: (task: Task) => void;
   canChangeStatus?: boolean;
+  canDelete?: boolean;
+  onDeleted?: (taskId: string) => void;
 }
 
 const COLUMNS: TaskStatus[] = ["todo", "assigned", "in_progress", "review", "done"];
 
-export function KanbanBoard({ tasks, onStatusChange, onTaskClick, canChangeStatus = true }: KanbanBoardProps) {
+export function KanbanBoard({
+  tasks,
+  onStatusChange,
+  onTaskClick,
+  canChangeStatus = true,
+  canDelete = false,
+  onDeleted,
+}: KanbanBoardProps) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
@@ -94,6 +103,8 @@ export function KanbanBoard({ tasks, onStatusChange, onTaskClick, canChangeStatu
             onStatusChange={onStatusChange}
             onTaskClick={onTaskClick}
             canChangeStatus={canChangeStatus}
+            canDelete={canDelete}
+            onDeleted={onDeleted}
           />
         ))}
       </div>
@@ -107,9 +118,19 @@ interface KanbanColumnProps {
   onStatusChange?: (taskId: string, status: TaskStatus) => void;
   onTaskClick?: (task: Task) => void;
   canChangeStatus: boolean;
+  canDelete: boolean;
+  onDeleted?: (taskId: string) => void;
 }
 
-function KanbanColumn({ status, tasks, onStatusChange, onTaskClick, canChangeStatus }: KanbanColumnProps) {
+function KanbanColumn({
+  status,
+  tasks,
+  onStatusChange,
+  onTaskClick,
+  canChangeStatus,
+  canDelete,
+  onDeleted,
+}: KanbanColumnProps) {
   const config = STATUS_CONFIG[status];
   const { setNodeRef, isOver } = useDroppable({ id: status });
 
@@ -139,6 +160,8 @@ function KanbanColumn({ status, tasks, onStatusChange, onTaskClick, canChangeSta
                 onStatusChange={onStatusChange}
                 onClick={onTaskClick}
                 canChangeStatus={canChangeStatus}
+                canDelete={canDelete}
+                onDeleted={onDeleted}
               />
             ))}
             {tasks.length === 0 && (
@@ -160,9 +183,18 @@ interface SortableTaskCardProps {
   onStatusChange?: (taskId: string, status: TaskStatus) => void;
   onClick?: (task: Task) => void;
   canChangeStatus: boolean;
+  canDelete: boolean;
+  onDeleted?: (taskId: string) => void;
 }
 
-function SortableTaskCard({ task, onStatusChange, onClick, canChangeStatus }: SortableTaskCardProps) {
+function SortableTaskCard({
+  task,
+  onStatusChange,
+  onClick,
+  canChangeStatus,
+  canDelete,
+  onDeleted,
+}: SortableTaskCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
   });
@@ -180,6 +212,8 @@ function SortableTaskCard({ task, onStatusChange, onClick, canChangeStatus }: So
         onStatusChange={onStatusChange}
         onClick={onClick}
         canChangeStatus={canChangeStatus}
+        canDelete={canDelete}
+        onDeleted={onDeleted}
       />
     </div>
   );

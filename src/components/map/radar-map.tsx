@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-leaflet";
 import L from "leaflet";
 import { Location, Task } from "@/types";
-import { fetchLocations, fetchTasks, fetchVisits, fetchPings, getFocColor, LocationVisit, LocationPing } from "@/lib/db";
+import { fetchLocations, fetchTasks, fetchVisits, fetchPings, getFocColor, getSessionDate, LocationVisit, LocationPing } from "@/lib/db";
 import { supabase } from "@/lib/supabase";
 import { getRelativeTime } from "@/lib/time";
 import { useIncrementalLocations } from "@/hooks/use-incremental-locations";
@@ -258,6 +258,104 @@ export function RadarMap({
     pingsByUser.set(p.user_id, list);
   }
 
+  // When viewing a past date, the `locations` table reflects TODAY's position
+  // (not the historical one), so we suppress the live markers and use the
+  // last ping/visit of the selected session as the endpoint instead.
+  const effectiveSessionDate = sessionDate || getSessionDate();
+  const isHistorical = effectiveSessionDate !== getSessionDate();
+
+  // For historical dates, render a marker at the last known position of
+  // each user for that session — derived from visits (preferred) or pings.
+  // This avoids showing today's position while still giving the user a
+  // visual anchor of where they ended their day.
+  function renderHistoricalEndpoints() {
+    const endpoints: Array<{
+      key: string;
+      userId: string;
+      userName: string;
+      userRole: string;
+      lat: number;
+      lng: number;
+      when: string;
+      via: "visit" | "ping";
+    }> = [];
+
+    // Prefer visits (they have explicit departure times and represent stops).
+    for (const [userId, userVisits] of visitsByUser.entries()) {
+      const user = visibleLocations.find((l) => l.user_id === userId)?.user;
+      if (!user) continue;
+      const last = [...userVisits].sort((a, b) => a.visit_number - b.visit_number).at(-1);
+      if (!last) continue;
+      endpoints.push({
+        key: `endpoint-visit-${last.id}`,
+        userId,
+        userName: user.name,
+        userRole: user.role,
+        lat: last.lat,
+        lng: last.lng,
+        when: last.departed_at ?? last.arrived_at,
+        via: "visit",
+      });
+    }
+
+    // For users with pings but no visits (short sessions), fall back to last ping.
+    for (const [userId, userPings] of pingsByUser.entries()) {
+      if (endpoints.some((e) => e.userId === userId)) continue;
+      const user = visibleLocations.find((l) => l.user_id === userId)?.user;
+      if (!user) continue;
+      const last = [...userPings].sort((a, b) => a.ping_number - b.ping_number).at(-1);
+      if (!last) continue;
+      endpoints.push({
+        key: `endpoint-ping-${last.id}`,
+        userId,
+        userName: user.name,
+        userRole: user.role,
+        lat: last.lat,
+        lng: last.lng,
+        when: last.created_at,
+        via: "ping",
+      });
+    }
+
+    return endpoints
+      .filter((e) => showRoles.includes(e.userRole as "foc" | "noc"))
+      .map((e) => {
+        const initials = e.userName
+          .split(" ")
+          .map((n) => n[0])
+          .join("")
+          .slice(0, 2)
+          .toUpperCase();
+        const color = getFocColor(e.userId);
+        const isHighlighted = focusUserId === e.userId;
+
+        return (
+          <Marker
+            key={e.key}
+            position={[e.lat, e.lng]}
+            icon={createCustomIcon(color, initials, false, isHighlighted)}
+            zIndexOffset={isHighlighted ? 1000 : 0}
+          >
+            <Popup>
+              <div className="p-1">
+                <p className="font-bold">{e.userName}</p>
+                <p className="text-sm text-gray-600 uppercase">{e.userRole}</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Posisi terakhir: {formatTimeWIB(e.when)} WIB
+                </p>
+                <p className="text-xs text-gray-500">
+                  Sesi: {effectiveSessionDate}
+                </p>
+                <p className="text-xs text-gray-500">
+                  Sumber: {e.via === "visit" ? "Stop terakhir" : "Ping terakhir"}
+                </p>
+              </div>
+            </Popup>
+          </Marker>
+        );
+      });
+  }
+
   return (
     <div style={{ height }} className="rounded-xl overflow-hidden border border-tunet-border">
       <MapContainer center={center} zoom={13} style={{ height: "100%", width: "100%" }}>
@@ -273,9 +371,13 @@ export function RadarMap({
           const currentLoc = visibleLocations.find((l) => l.user_id === userId);
           const sortedPings = [...userPings].sort((a, b) => a.ping_number - b.ping_number);
 
-          // Polyline: ping 1 → ping 2 → ... → current position
+          // Polyline: ping 1 -> ping 2 -> ... -> endpoint
+          // For today, endpoint is the current (live) position.
+          // For historical dates, endpoint is the last ping of that day.
           const points: [number, number][] = sortedPings.map((p) => [p.lat, p.lng]);
-          if (currentLoc) points.push([Number(currentLoc.lat), Number(currentLoc.lng)]);
+          if (currentLoc && !isHistorical) {
+            points.push([Number(currentLoc.lat), Number(currentLoc.lng)]);
+          }
 
           return (
             <div key={`pings-${userId}`}>
@@ -313,10 +415,21 @@ export function RadarMap({
         {Array.from(visitsByUser.entries()).map(([userId, userVisits]) => {
           const color = getFocColor(userId);
           const currentLoc = visibleLocations.find((l) => l.user_id === userId);
+          const userPings = pingsByUser.get(userId) ?? [];
+          const lastPing = userPings.length
+            ? [...userPings].sort((a, b) => a.ping_number - b.ping_number).at(-1)
+            : null;
 
-          // Polyline: visit 1 → visit 2 → visit 3 → ... → current position
+          // Polyline: visit 1 -> visit 2 -> visit 3 -> ... -> endpoint
+          // For today, endpoint is the current (live) position.
+          // For historical dates, endpoint is the last visit (or last ping as fallback).
           const points: [number, number][] = userVisits.map((v) => [v.lat, v.lng]);
-          if (currentLoc) points.push([Number(currentLoc.lat), Number(currentLoc.lng)]);
+          if (!isHistorical && currentLoc) {
+            points.push([Number(currentLoc.lat), Number(currentLoc.lng)]);
+          } else if (isHistorical && userVisits.length === 0 && lastPing) {
+            // No visits, but we have pings — show a single point for context.
+            points.push([lastPing.lat, lastPing.lng]);
+          }
 
           return (
             <div key={`route-${userId}`}>
@@ -355,52 +468,57 @@ export function RadarMap({
           );
         })}
 
-        {/* Render current position markers (existing behavior) */}
-        {visibleLocations.map((location) => {
-          const user = location.user;
-          if (!user) return null;
+        {/* Render endpoint markers:
+             - Today: current live position markers (from `locations` table).
+             - Historical: the last visit/ping of that day (so the marker
+               reflects where the user actually was, not where they are now). */}
+        {isHistorical
+          ? renderHistoricalEndpoints()
+          : visibleLocations.map((location) => {
+              const user = location.user;
+              if (!user) return null;
 
-          const initials = user.name
-            .split(" ")
-            .map((n) => n[0])
-            .join("")
-            .slice(0, 2)
-            .toUpperCase();
+              const initials = user.name
+                .split(" ")
+                .map((n) => n[0])
+                .join("")
+                .slice(0, 2)
+                .toUpperCase();
 
-          const color = getMarkerColor(location);
-          const hasOverdue = tasks.some(
-            (t) =>
-              t.assigned_to === location.user_id &&
-              t.deadline &&
-              new Date(t.deadline) < new Date() &&
-              t.status !== "done"
-          );
-          const isHighlighted = focusUserId === location.user_id;
+              const color = getMarkerColor(location);
+              const hasOverdue = tasks.some(
+                (t) =>
+                  t.assigned_to === location.user_id &&
+                  t.deadline &&
+                  new Date(t.deadline) < new Date() &&
+                  t.status !== "done"
+              );
+              const isHighlighted = focusUserId === location.user_id;
 
-          return (
-            <Marker
-              key={location.id}
-              position={[location.lat, location.lng]}
-              icon={createCustomIcon(color, initials, hasOverdue, isHighlighted)}
-              zIndexOffset={isHighlighted ? 1000 : 0}
-            >
-              <Popup>
-                <div className="p-1">
-                  <p className="font-bold">{user.name}</p>
-                  <p className="text-sm text-gray-600 uppercase">{user.role}</p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Update: {getRelativeTime(location.updated_at)}
-                  </p>
-                  {location.accuracy && (
-                    <p className="text-xs text-gray-500">
-                      Akurasi: ±{Math.round(location.accuracy)}m
-                    </p>
-                  )}
-                </div>
-              </Popup>
-            </Marker>
-          );
-        })}
+              return (
+                <Marker
+                  key={location.id}
+                  position={[location.lat, location.lng]}
+                  icon={createCustomIcon(color, initials, hasOverdue, isHighlighted)}
+                  zIndexOffset={isHighlighted ? 1000 : 0}
+                >
+                  <Popup>
+                    <div className="p-1">
+                      <p className="font-bold">{user.name}</p>
+                      <p className="text-sm text-gray-600 uppercase">{user.role}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Update: {getRelativeTime(location.updated_at)}
+                      </p>
+                      {location.accuracy && (
+                        <p className="text-xs text-gray-500">
+                          Akurasi: ±{Math.round(location.accuracy)}m
+                        </p>
+                      )}
+                    </div>
+                  </Popup>
+                </Marker>
+              );
+            })}
       </MapContainer>
     </div>
   );

@@ -10,6 +10,14 @@ import {
 } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Task, STATUS_CONFIG, PRIORITY_CONFIG, User } from "@/types";
 import {
   fetchTaskHistory,
@@ -29,6 +37,7 @@ import {
   ArrowRight,
   History,
   Pencil,
+  Trash2,
 } from "lucide-react";
 import { COPY } from "@/lib/copy";
 import { formatLongDate } from "@/lib/time";
@@ -125,15 +134,15 @@ export function TaskDetail({
     setDeleting(true);
     const ok = await softDeleteTask(task.id, currentUser.id);
     if (ok) {
-      toast.success("Tugas dipindahkan ke sampah");
+      toast.success(COPY.taskDetail.deleteSuccess);
       onDeleted?.(task.id);
       setDeleteOpen(false);
       onOpenChange(false);
     } else {
       toast.error(
         currentUser.role === "noc"
-          ? "Anda hanya dapat menghapus tugas yang Anda buat"
-          : "Gagal menghapus tugas"
+          ? COPY.taskDetail.deleteFailedNoc
+          : COPY.taskDetail.deleteFailedDefault
       );
     }
     setDeleting(false);
@@ -178,18 +187,58 @@ export function TaskDetail({
         </SheetHeader>
 
         {canEdit && !isDeleted && (
-          <div className="px-4">
+          <div className="px-4 flex gap-2">
             <Button
               size="sm"
               variant="outline"
               onClick={() => setEditOpen(true)}
-              className="w-full border-tunet-border text-tunet-text hover:bg-tunet-surface-hover"
+              className="flex-1 border-tunet-border text-tunet-text hover:bg-tunet-surface-hover"
             >
               <Pencil className="w-3.5 h-3.5 mr-1.5" />
               {COPY.actions.edit}
             </Button>
+            {canDelete && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setDeleteOpen(true)}
+                className="flex-1 border-tunet-border text-status-overdue hover:bg-status-overdue/10"
+              >
+                <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+                {COPY.actions.delete}
+              </Button>
+            )}
           </div>
         )}
+
+        <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+          <DialogContent className="bg-tunet-surface border-tunet-border">
+            <DialogHeader>
+              <DialogTitle className="text-tunet-text">
+                {COPY.taskDetail.deleteConfirmTitle}
+              </DialogTitle>
+              <DialogDescription className="text-tunet-text-muted">
+                {COPY.taskDetail.deleteConfirmDesc(task.title)}
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setDeleteOpen(false)}
+                className="border-tunet-border text-tunet-text"
+              >
+                {COPY.actions.cancel}
+              </Button>
+              <Button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="bg-status-overdue hover:bg-status-overdue/90 text-white"
+              >
+                {deleting ? COPY.taskDetail.deleting : COPY.actions.delete}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <div className="px-4 pb-4 space-y-5 overflow-y-auto">
           <div className="flex items-center gap-2 flex-wrap">
