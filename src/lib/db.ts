@@ -971,25 +971,53 @@ async function recordLocationUpdateDirect(
   const sessionDate = getSessionDate();
   const now = new Date().toISOString();
 
-  // 1. Upsert location
-  const { error: locError } = await supabase
+  // 1. Check if a location row already exists for this user.
+  //    We can't use upsert + onConflict:"user_id" because the locations
+  //    table has no UNIQUE constraint on user_id (only a non-unique index),
+  //    and Supabase JS requires a unique constraint to resolve conflicts.
+  const { data: existing, error: selectError } = await supabase
     .from("locations")
-    .upsert(
-      {
-        user_id: userId,
+    .select("id")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (selectError) {
+    console.error("[recordLocationUpdateDirect] locations select failed:", selectError);
+    return { ok: false, error: selectError.message };
+  }
+
+  if (!existing) {
+    // First-ever location for this user — INSERT
+    const { error: insertError } = await supabase.from("locations").insert({
+      user_id: userId,
+      lat,
+      lng,
+      accuracy: accuracy ?? null,
+      updated_at: now,
+      arrived_at: now,
+      session_date: sessionDate,
+    });
+    if (insertError) {
+      console.error("[recordLocationUpdateDirect] locations insert failed:", insertError);
+      return { ok: false, error: insertError.message };
+    }
+  } else {
+    // Existing row — UPDATE
+    const { error: updateError } = await supabase
+      .from("locations")
+      .update({
         lat,
         lng,
         accuracy: accuracy ?? null,
         updated_at: now,
         arrived_at: now,
         session_date: sessionDate,
-      },
-      { onConflict: "user_id" }
-    );
-
-  if (locError) {
-    console.error("[recordLocationUpdateDirect] locations upsert failed:", locError);
-    return { ok: false, error: locError.message };
+      })
+      .eq("id", existing.id);
+    if (updateError) {
+      console.error("[recordLocationUpdateDirect] locations update failed:", updateError);
+      return { ok: false, error: updateError.message };
+    }
   }
 
   // 2. Insert ping (with next ping_number for this session)
