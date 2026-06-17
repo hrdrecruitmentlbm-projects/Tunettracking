@@ -44,7 +44,11 @@ tunet-ops/src/
 │   │   ├── map/page.tsx         # Full-screen radar with role filters + search
 │   │   ├── tasks/page.tsx       # Kanban board (DnD) + list, URL-persisted filters
 │   │   └── settings/page.tsx
-│   └── api/                     # API routes
+│   └── api/
+│       ├── cleanup/route.ts     # Data retention cleanup endpoint
+│       ├── telegram/            # Telegram bot integration
+│       ├── users/               # User CRUD
+│       └── webhooks/            # Supabase webhooks
 ├── components/
 │   ├── layout/                  # DashboardLayout, Sidebar, NotificationsPanel (day-grouped)
 │   ├── map/                     # RadarMap (Leaflet, showRoles, focusUserId)
@@ -115,6 +119,17 @@ Format: Reverse chronological log (newest entries first).
 **Summary:** Brief description of what was accomplished.
 ```
 
+## Data Retention
+
+- **Location data** (`location_pings`, `location_visits`) is automatically cleaned up after 30 days
+- **Notifications** that are read are also cleaned up after 30 days (unread ones are kept)
+- SQL migration: `supabase/data-retention.sql` — run this FIRST in Supabase SQL Editor
+- API endpoint: `POST /api/cleanup` — triggers cleanup (requires `x-cleanup-secret` header)
+- API endpoint: `GET /api/cleanup` — returns current storage stats
+- Set `CLEANUP_SECRET` in `.env.local` to secure the cleanup endpoint
+- For automated daily cleanup, use an external cron service (e.g., cron-job.org) to call `POST /api/cleanup` daily
+- Monitor storage with: `SELECT * FROM data_retention_status;`
+
 ## Gotchas
 
 - Supabase requires `.env.local` with `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`
@@ -123,3 +138,4 @@ Format: Reverse chronological log (newest entries first).
 - Leaflet components must be wrapped in `"use client"` and dynamic imports
 - `next.config.ts` is empty — no custom webpack or env config
 - `.next/` build output exists but may be stale after dependency changes
+- Location pings grow fast (~9,600 rows/day for 10 FOC) — data retention is critical

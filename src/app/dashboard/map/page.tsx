@@ -198,6 +198,10 @@ export default function MapPage() {
             <div className="w-4 h-0.5 bg-[#94A3B8]" />
             <span className="text-xs text-tunet-text-muted">{COPY.pages.map.legendRoute}</span>
           </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full bg-tunet-bg border-2 border-tunet-green" />
+            <span className="text-xs text-tunet-text-muted">{COPY.pages.map.legendPing}</span>
+          </div>
           <div className="w-px h-4 bg-tunet-border" />
           <div className="flex items-center gap-2">
             <Calendar className="w-3.5 h-3.5 text-tunet-text-muted" />

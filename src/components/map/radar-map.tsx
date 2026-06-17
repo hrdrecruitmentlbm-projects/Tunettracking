@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-leaflet";
 import L from "leaflet";
 import { Location, Task } from "@/types";
-import { fetchLocations, fetchTasks, fetchVisits, getFocColor, LocationVisit } from "@/lib/db";
+import { fetchLocations, fetchTasks, fetchVisits, fetchPings, getFocColor, LocationVisit, LocationPing } from "@/lib/db";
 import { supabase } from "@/lib/supabase";
 import { getRelativeTime } from "@/lib/time";
 import "leaflet/dist/leaflet.css";
@@ -83,6 +83,31 @@ function createVisitIcon(color: string, number: number) {
   });
 }
 
+function createPingIcon(color: string, number: number) {
+  return L.divIcon({
+    className: "ping-marker",
+    html: `
+      <div style="
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        background: #0f172a;
+        border: 2px solid ${color};
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: ${color};
+        font-weight: bold;
+        font-size: 11px;
+        box-shadow: 0 0 0 1px rgba(0,0,0,0.4);
+      ">${number}</div>
+    `,
+    iconSize: [22, 22],
+    iconAnchor: [11, 11],
+    popupAnchor: [0, -11],
+  });
+}
+
 function MapFocusController({
   locations,
   focusUserId,
@@ -136,10 +161,16 @@ export function RadarMap({
   const [locations, setLocations] = useState<Location[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [visits, setVisits] = useState<LocationVisit[]>([]);
+  const [pings, setPings] = useState<LocationPing[]>([]);
 
   async function reloadVisits() {
     const v = await fetchVisits(sessionDate || new Date().toISOString().split("T")[0]);
     setVisits(v);
+  }
+
+  async function reloadPings() {
+    const p = await fetchPings(sessionDate || new Date().toISOString().split("T")[0]);
+    setPings(p);
   }
 
   useEffect(() => {
@@ -148,6 +179,7 @@ export function RadarMap({
       setLocations(locs);
       setTasks(tks);
       await reloadVisits();
+      await reloadPings();
     }
     load();
 
@@ -174,10 +206,18 @@ export function RadarMap({
       })
       .subscribe();
 
+    const pingChannel = supabase
+      .channel("pings-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "location_pings" }, () => {
+        reloadPings();
+      })
+      .subscribe();
+
     return () => {
       supabase.removeChannel(locChannel);
       supabase.removeChannel(taskChannel);
       supabase.removeChannel(visitChannel);
+      supabase.removeChannel(pingChannel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionDate]);
@@ -217,6 +257,14 @@ export function RadarMap({
     visitsByUser.set(v.user_id, list);
   }
 
+  // Group pings by user
+  const pingsByUser = new Map<string, LocationPing[]>();
+  for (const p of pings) {
+    const list = pingsByUser.get(p.user_id) ?? [];
+    list.push(p);
+    pingsByUser.set(p.user_id, list);
+  }
+
   return (
     <div style={{ height }} className="rounded-xl overflow-hidden border border-tunet-border">
       <MapContainer center={center} zoom={13} style={{ height: "100%", width: "100%" }}>
@@ -225,6 +273,48 @@ export function RadarMap({
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
           url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
         />
+
+        {/* Render ping polylines + numbered ping markers per user */}
+        {Array.from(pingsByUser.entries()).map(([userId, userPings]) => {
+          const color = getFocColor(userId);
+          const currentLoc = visibleLocations.find((l) => l.user_id === userId);
+          const sortedPings = [...userPings].sort((a, b) => a.ping_number - b.ping_number);
+
+          // Polyline: ping 1 → ping 2 → ... → current position
+          const points: [number, number][] = sortedPings.map((p) => [p.lat, p.lng]);
+          if (currentLoc) points.push([Number(currentLoc.lat), Number(currentLoc.lng)]);
+
+          return (
+            <div key={`pings-${userId}`}>
+              {points.length >= 2 && (
+                <Polyline
+                  positions={points}
+                  pathOptions={{ color: ROUTE_LINE_COLOR, weight: 2, opacity: 0.7, dashArray: "4 6" }}
+                />
+              )}
+              {sortedPings.map((p) => (
+                <Marker
+                  key={p.id}
+                  position={[p.lat, p.lng]}
+                  icon={createPingIcon(color, p.ping_number)}
+                >
+                  <Popup>
+                    <div className="p-1">
+                      <p className="font-bold">Ping #{p.ping_number}</p>
+                      <p className="text-xs text-gray-600">📍 {p.lat.toFixed(5)}, {p.lng.toFixed(5)}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {formatTimeWIB(p.created_at)} WIB
+                      </p>
+                      {p.source && (
+                        <p className="text-xs text-gray-500">via {p.source}</p>
+                      )}
+                    </div>
+                  </Popup>
+                </Marker>
+              ))}
+            </div>
+          );
+        })}
 
         {/* Render visit polylines + numbered stop markers per user */}
         {Array.from(visitsByUser.entries()).map(([userId, userVisits]) => {

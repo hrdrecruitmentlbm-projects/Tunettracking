@@ -197,6 +197,7 @@ export const COPY = {
       legendIdle: "Menganggur",
       legendOverdue: "Terlambat",
       legendRoute: "Rute",
+      legendPing: "Ping",
       roleFoc: "FOC",
       roleNoc: "NOC",
       searchPlaceholder: "Cari anggota...",

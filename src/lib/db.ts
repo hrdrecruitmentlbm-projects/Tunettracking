@@ -762,6 +762,52 @@ export interface LocationVisit {
   source: string | null;
 }
 
+export interface LocationPing {
+  id: string;
+  user_id: string;
+  session_date: string;
+  ping_number: number;
+  lat: number;
+  lng: number;
+  accuracy: number | null;
+  source: string | null;
+  created_at: string;
+}
+
+async function recordPing(
+  userId: string,
+  lat: number,
+  lng: number,
+  source: "telegram_live" | "telegram_request" | "web_app",
+  sessionDate: string,
+  accuracy?: number
+): Promise<void> {
+  const { data: maxRow } = await supabase
+    .from("location_pings")
+    .select("ping_number")
+    .eq("user_id", userId)
+    .eq("session_date", sessionDate)
+    .order("ping_number", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const nextNumber = (maxRow?.ping_number ?? 0) + 1;
+
+  const { error } = await supabase.from("location_pings").insert({
+    user_id: userId,
+    session_date: sessionDate,
+    ping_number: nextNumber,
+    lat,
+    lng,
+    accuracy: accuracy ?? null,
+    source,
+  });
+
+  if (error) {
+    console.error("Error inserting location_ping:", error);
+  }
+}
+
 export type RecordResult =
   | { ok: true; newVisit?: LocationVisit; stayedAt: { lat: number; lng: number } }
   | { ok: false; error: string };
@@ -797,6 +843,7 @@ export async function recordLocationUpdate(
       session_date: sessionDate,
     });
     if (error) return { ok: false, error: error.message };
+    await recordPing(userId, lat, lng, source, sessionDate, accuracy);
     return { ok: true, stayedAt: { lat, lng } };
   }
 
@@ -812,6 +859,7 @@ export async function recordLocationUpdate(
       .update({ lat, lng, accuracy: accuracy ?? null, updated_at: now })
       .eq("id", existing.id);
     if (error) return { ok: false, error: error.message };
+    await recordPing(userId, lat, lng, source, sessionDate, accuracy);
     return { ok: true, stayedAt: { lat: arrivalLat, lng: arrivalLng } };
   }
 
@@ -868,6 +916,8 @@ export async function recordLocationUpdate(
       .eq("id", existing.id);
     if (error) return { ok: false, error: error.message };
 
+    await recordPing(userId, lat, lng, source, sessionDate, accuracy);
+
     return {
       ok: true,
       newVisit: visit as LocationVisit | undefined,
@@ -888,6 +938,7 @@ export async function recordLocationUpdate(
     })
     .eq("id", existing.id);
   if (error) return { ok: false, error: error.message };
+  await recordPing(userId, lat, lng, source, sessionDate, accuracy);
   return { ok: true, stayedAt: { lat, lng } };
 }
 
@@ -911,4 +962,26 @@ export async function fetchVisits(
     return [];
   }
   return (data || []) as LocationVisit[];
+}
+
+export async function fetchPings(
+  sessionDate: string,
+  userIds?: string[]
+): Promise<LocationPing[]> {
+  let query = supabase
+    .from("location_pings")
+    .select("*")
+    .eq("session_date", sessionDate)
+    .order("ping_number", { ascending: true });
+
+  if (userIds && userIds.length > 0) {
+    query = query.in("user_id", userIds);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    console.error("Error fetching pings:", error);
+    return [];
+  }
+  return (data || []) as LocationPing[];
 }
