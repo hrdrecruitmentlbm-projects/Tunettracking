@@ -190,9 +190,10 @@ export async function upsertLocation(
   userId: string,
   lat: number,
   lng: number,
-  accuracy?: number
+  accuracy?: number,
+  source: "telegram_live" | "telegram_request" | "web_app" = "web_app"
 ): Promise<boolean> {
-  const result = await recordLocationUpdate(userId, lat, lng, "web_app", accuracy);
+  const result = await recordLocationUpdate(userId, lat, lng, source, accuracy);
   return result.ok;
 }
 
@@ -843,15 +844,34 @@ export function getFocColor(userId: string): string {
 const DAY_RESET_HOUR_JAKARTA = 6;
 
 export function getSessionDate(date: Date = new Date()): string {
-  const jakartaStr = date.toLocaleString("en-US", { timeZone: "Asia/Jakarta" });
-  const jakarta = new Date(jakartaStr);
-  if (jakarta.getHours() < DAY_RESET_HOUR_JAKARTA) {
-    jakarta.setDate(jakarta.getDate() - 1);
+  // Compute Jakarta wall-clock time using pure UTC arithmetic.
+  // Avoids `toLocaleString` + `new Date()` round-trips, which re-interpret
+  // the formatted string in the browser's local timezone and can shift
+  // the date by 1 day near the 06:00 WIB boundary.
+  const jakartaOffsetMs = 7 * 60 * 60 * 1000; // Asia/Jakarta = UTC+7 (no DST)
+  const jakartaMs = date.getTime() + jakartaOffsetMs;
+  const j = new Date(jakartaMs);
+
+  const year = j.getUTCFullYear();
+  const month = j.getUTCMonth();
+  const day = j.getUTCDate();
+  const hour = j.getUTCHours();
+
+  // If Jakarta hour is before 06:00, the operational day still belongs to
+  // the previous calendar date (day resets at 06:00 WIB).
+  let sessionYear = year;
+  let sessionMonth = month;
+  let sessionDay = day;
+  if (hour < DAY_RESET_HOUR_JAKARTA) {
+    const prev = new Date(Date.UTC(year, month, day - 1));
+    sessionYear = prev.getUTCFullYear();
+    sessionMonth = prev.getUTCMonth();
+    sessionDay = prev.getUTCDate();
   }
-  const y = jakarta.getFullYear();
-  const m = String(jakarta.getMonth() + 1).padStart(2, "0");
-  const d = String(jakarta.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+
+  const m = String(sessionMonth + 1).padStart(2, "0");
+  const d = String(sessionDay).padStart(2, "0");
+  return `${sessionYear}-${m}-${d}`;
 }
 
 export interface LocationVisit {
@@ -925,17 +945,85 @@ export async function recordLocationUpdate(
   });
 
   if (error) {
-    return { ok: false, error: error.message };
+    console.error("[recordLocationUpdate] RPC failed, falling back to direct queries:", error);
+    return await recordLocationUpdateDirect(userId, lat, lng, source, accuracy);
   }
 
   if (!data || !data.ok) {
-    return { ok: false, error: "RPC returned ok=false" };
+    console.error("[recordLocationUpdate] RPC returned ok=false, falling back:", data);
+    return await recordLocationUpdateDirect(userId, lat, lng, source, accuracy);
   }
 
   return {
     ok: true,
     newVisit: data.newVisit ?? undefined,
     stayedAt: data.stayedAt,
+  };
+}
+
+async function recordLocationUpdateDirect(
+  userId: string,
+  lat: number,
+  lng: number,
+  source: "telegram_live" | "telegram_request" | "web_app",
+  accuracy?: number
+): Promise<RecordResult> {
+  const sessionDate = getSessionDate();
+  const now = new Date().toISOString();
+
+  // 1. Upsert location
+  const { error: locError } = await supabase
+    .from("locations")
+    .upsert(
+      {
+        user_id: userId,
+        lat,
+        lng,
+        accuracy: accuracy ?? null,
+        updated_at: now,
+        arrived_at: now,
+        session_date: sessionDate,
+      },
+      { onConflict: "user_id" }
+    );
+
+  if (locError) {
+    console.error("[recordLocationUpdateDirect] locations upsert failed:", locError);
+    return { ok: false, error: locError.message };
+  }
+
+  // 2. Insert ping (with next ping_number for this session)
+  const { data: maxPing } = await supabase
+    .from("location_pings")
+    .select("ping_number")
+    .eq("user_id", userId)
+    .eq("session_date", sessionDate)
+    .order("ping_number", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const nextPingNumber = (maxPing?.ping_number ?? 0) + 1;
+
+  const { error: pingError } = await supabase
+    .from("location_pings")
+    .insert({
+      user_id: userId,
+      session_date: sessionDate,
+      ping_number: nextPingNumber,
+      lat,
+      lng,
+      accuracy: accuracy ?? null,
+      source,
+    });
+
+  if (pingError) {
+    console.error("[recordLocationUpdateDirect] location_pings insert failed:", pingError);
+    // Don't fail — the location was saved
+  }
+
+  return {
+    ok: true,
+    stayedAt: { lat, lng },
   };
 }
 
@@ -955,10 +1043,14 @@ export async function fetchVisits(
 
   const { data, error } = await query;
   if (error) {
-    console.error("Error fetching visits:", error);
+    console.error("[fetchVisits] error:", error, { sessionDate, userIds });
     return [];
   }
-  return (data || []) as LocationVisit[];
+  const rows = (data || []) as LocationVisit[];
+  console.log(`[fetchVisits] date=${sessionDate} → ${rows.length} rows`, {
+    first: rows[0],
+  });
+  return rows;
 }
 
 export async function fetchPings(
@@ -977,8 +1069,12 @@ export async function fetchPings(
 
   const { data, error } = await query;
   if (error) {
-    console.error("Error fetching pings:", error);
+    console.error("[fetchPings] error:", error, { sessionDate, userIds });
     return [];
   }
-  return (data || []) as LocationPing[];
+  const rows = (data || []) as LocationPing[];
+  console.log(`[fetchPings] date=${sessionDate} → ${rows.length} rows`, {
+    first: rows[0],
+  });
+  return rows;
 }

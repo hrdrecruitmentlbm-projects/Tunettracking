@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { fetchUsers, fetchLocations, fetchTasks, getSessionDate } from "@/lib/db";
+import { supabase } from "@/lib/supabase";
 import { User, Location, Task, UserRole } from "@/types";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -59,6 +60,25 @@ export default function MapPage() {
       setLoading(false);
     }
     load();
+
+    // Live-update sidebar timestamps when a FOC reports a new location.
+    // The RadarMap component has its own internal Realtime subscription;
+    // this one keeps the sidebar in sync without a page refresh.
+    const channel = supabase
+      .channel(`map-sidebar-locations-${Date.now()}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "locations" },
+        async () => {
+          const l = await fetchLocations();
+          setLocations(l);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const focUsers = useMemo(

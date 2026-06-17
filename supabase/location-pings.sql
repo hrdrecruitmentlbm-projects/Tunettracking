@@ -24,6 +24,7 @@ CREATE INDEX IF NOT EXISTS idx_location_pings_user_date
 -- B) RLS: this app uses custom PIN auth (not Supabase Auth), so
 --      auth.uid() is always NULL. Disable RLS to allow anon-key access.
 ALTER TABLE location_pings DISABLE ROW LEVEL SECURITY;
+ALTER TABLE location_visits DISABLE ROW LEVEL SECURITY;
 
 -- C) Enable realtime so the radar map updates live when new pings arrive
 DO $$ BEGIN
