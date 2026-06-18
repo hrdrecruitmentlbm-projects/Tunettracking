@@ -6,8 +6,10 @@ import {
   findUserByTelegramUsername,
   findUserByTelegramChatId,
   upsertLocation,
+  recordPing,
   fetchTasks,
   createNotification,
+  getSessionDate,
 } from "@/lib/db";
 import { User, STATUS_CONFIG, TaskStatus } from "@/types";
 import { cacheTelegramChat, cacheUserChat } from "@/lib/telegram-cache";
@@ -29,6 +31,14 @@ export async function POST(request: NextRequest) {
           editedMessage.location.longitude,
           undefined,
           "telegram_live"
+        );
+        // Create numbered ping for route history (ON CONFLICT prevents duplicates)
+        await recordPing(
+          user.id,
+          editedMessage.location.latitude,
+          editedMessage.location.longitude,
+          "telegram_live",
+          getSessionDate()
         );
       }
       return NextResponse.json({ ok: true });
@@ -172,6 +182,15 @@ export async function POST(request: NextRequest) {
         location.longitude,
         undefined,
         "telegram_request"
+      );
+
+      // Create numbered ping for route history (ON CONFLICT prevents duplicates)
+      await recordPing(
+        user.id,
+        location.latitude,
+        location.longitude,
+        "telegram_request",
+        getSessionDate()
       );
 
       if (success) {

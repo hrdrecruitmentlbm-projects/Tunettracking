@@ -21,6 +21,12 @@ CREATE TABLE IF NOT EXISTS location_pings (
 CREATE INDEX IF NOT EXISTS idx_location_pings_user_date
   ON location_pings(user_id, session_date);
 
+-- Unique constraint: prevents duplicate pings when recordPing() is called
+-- alongside upsertLocation() (which also creates pings via RPC)
+ALTER TABLE location_pings
+  ADD CONSTRAINT unique_user_session_ping
+  UNIQUE (user_id, session_date, ping_number);
+
 -- B) RLS: this app uses custom PIN auth (not Supabase Auth), so
 --      auth.uid() is always NULL. Disable RLS to allow anon-key access.
 ALTER TABLE location_pings DISABLE ROW LEVEL SECURITY;

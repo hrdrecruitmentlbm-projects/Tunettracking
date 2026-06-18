@@ -917,7 +917,7 @@ export interface LocationPing {
   created_at: string;
 }
 
-async function recordPing(
+export async function recordPing(
   userId: string,
   lat: number,
   lng: number,
@@ -926,7 +926,7 @@ async function recordPing(
   accuracy?: number
 ): Promise<void> {
   // Use atomic RPC function to avoid race conditions
-  // (was: SELECT MAX + INSERT, which could produce duplicate ping_number)
+  // ON CONFLICT DO NOTHING prevents duplicates when called alongside upsertLocation()
   const { error } = await supabase.rpc("record_ping", {
     p_user_id: userId,
     p_session_date: sessionDate,

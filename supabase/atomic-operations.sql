@@ -26,6 +26,7 @@ AS $$
   INSERT INTO location_pings (user_id, session_date, ping_number, lat, lng, accuracy, source)
   SELECT p_user_id, p_session_date, next_num.ping_number, p_lat, p_lng, p_accuracy, p_source
   FROM next_num
+  ON CONFLICT (user_id, session_date, ping_number) DO NOTHING
   RETURNING *;
 $$;
 
