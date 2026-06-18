@@ -9,9 +9,9 @@ import {
   recordPing,
   fetchTasks,
   createNotification,
-  uploadTaskAttachment,
   getSessionDate,
 } from "@/lib/db";
+import { uploadTaskAttachment } from "@/lib/db-attachments";
 import { supabase } from "@/lib/supabase";
 import { User, STATUS_CONFIG, TaskStatus } from "@/types";
 import { cacheTelegramChat, cacheUserChat } from "@/lib/telegram-cache";
