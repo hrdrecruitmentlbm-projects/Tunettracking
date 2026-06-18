@@ -45,7 +45,6 @@ import {
 import { COPY } from "@/lib/copy";
 import { formatLongDate } from "@/lib/time";
 import { TaskForm } from "./task-form";
-import { getSignedUrl } from "@/lib/storage";
 
 interface TaskDetailProps {
   task: Task | null;
@@ -207,12 +206,9 @@ export function TaskDetail({
     }
   };
 
-  const handleOpenLightbox = async (filePath: string) => {
-    try {
-      const url = await getSignedUrl(filePath);
+  const handleOpenLightbox = (url: string | undefined) => {
+    if (url) {
       setLightboxUrl(url);
-    } catch {
-      toast.error("Gagal memuat foto");
     }
   };
 
@@ -467,7 +463,7 @@ export function TaskDetail({
                   <div key={att.id} className="relative group">
                     <button
                       type="button"
-                      onClick={() => handleOpenLightbox(att.file_path)}
+                      onClick={() => handleOpenLightbox(att.signed_url)}
                       className="w-full aspect-square rounded-lg overflow-hidden bg-tunet-bg border border-tunet-border"
                     >
                       <div className="w-full h-full flex items-center justify-center text-tunet-text-muted">

@@ -48,6 +48,7 @@ export interface Attachment {
   upload_phase: "in_progress" | "completed";
   caption?: string;
   created_at: string;
+  signed_url?: string;
 }
 
 export interface Tag {

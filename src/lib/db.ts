@@ -236,7 +236,11 @@ export async function uploadTaskAttachment(
     return null;
   }
 
-  return data as Attachment;
+  // Generate signed URL for the uploaded file
+  const { getSignedUrl } = await import("./storage");
+  const signed_url = await getSignedUrl(filePath);
+
+  return { ...data, signed_url } as Attachment;
 }
 
 export async function deleteTaskAttachment(
@@ -296,7 +300,22 @@ export async function fetchTaskAttachments(taskId: string): Promise<Attachment[]
     return [];
   }
 
-  return (data || []) as Attachment[];
+  if (!data || data.length === 0) return [];
+
+  // Generate signed URLs for all attachments
+  const { getSignedUrl } = await import("./storage");
+  const attachments = await Promise.all(
+    (data as Attachment[]).map(async (att) => {
+      try {
+        const signed_url = await getSignedUrl(att.file_path);
+        return { ...att, signed_url };
+      } catch {
+        return att;
+      }
+    })
+  );
+
+  return attachments;
 }
 
 export async function upsertLocation(
