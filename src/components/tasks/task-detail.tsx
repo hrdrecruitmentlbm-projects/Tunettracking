@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Sheet,
   SheetContent,
@@ -18,7 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Task, STATUS_CONFIG, PRIORITY_CONFIG, User } from "@/types";
+import { Task, STATUS_CONFIG, PRIORITY_CONFIG, User, Attachment } from "@/types";
 import {
   fetchTaskHistory,
   updateTaskStatus,
@@ -38,10 +38,14 @@ import {
   History,
   Pencil,
   Trash2,
+  Camera,
+  Upload,
+  X,
 } from "lucide-react";
 import { COPY } from "@/lib/copy";
 import { formatLongDate } from "@/lib/time";
 import { TaskForm } from "./task-form";
+import { getSignedUrl } from "@/lib/storage";
 
 interface TaskDetailProps {
   task: Task | null;
@@ -77,6 +81,10 @@ export function TaskDetail({
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [attachments, setAttachments] = useState<Attachment[]>(task?.attachments || []);
+  const [uploading, setUploading] = useState(false);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const canReassign = currentUser?.role === "admin" || currentUser?.role === "noc";
   const isDeleted = !!task?.deleted_at;
@@ -146,6 +154,66 @@ export function TaskDetail({
       );
     }
     setDeleting(false);
+  };
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0 || !task) return;
+
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      for (const file of Array.from(files)) {
+        formData.append("photos", file);
+      }
+
+      const res = await fetch(`/api/tasks/${task.id}/attachments`, {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (data.ok && data.attachments) {
+        setAttachments((prev) => [...prev, ...data.attachments]);
+        toast.success(`${data.attachments.length} foto berhasil diunggah`);
+      } else {
+        toast.error(data.error || "Gagal mengunggah foto");
+      }
+    } catch {
+      toast.error("Gagal mengunggah foto");
+    }
+    setUploading(false);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleDeleteAttachment = async (attachmentId: string) => {
+    if (!task) return;
+    try {
+      const res = await fetch(`/api/tasks/${task.id}/attachments`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ attachmentId }),
+      });
+
+      const data = await res.json();
+      if (data.ok) {
+        setAttachments((prev) => prev.filter((a) => a.id !== attachmentId));
+        toast.success("Foto dihapus");
+      } else {
+        toast.error(data.error || "Gagal menghapus foto");
+      }
+    } catch {
+      toast.error("Gagal menghapus foto");
+    }
+  };
+
+  const handleOpenLightbox = async (filePath: string) => {
+    try {
+      const url = await getSignedUrl(filePath);
+      setLightboxUrl(url);
+    } catch {
+      toast.error("Gagal memuat foto");
+    }
   };
 
   if (!task) return null;
@@ -352,6 +420,93 @@ export function TaskDetail({
                 ))}
               </div>
             </div>
+          )}
+
+          {/* Photo Gallery Section */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-1.5 text-tunet-text-muted">
+                <Camera className="w-3.5 h-3.5" />
+                <span className="text-xs font-medium">
+                  Foto ({attachments.length})
+                </span>
+                {attachments.length > 0 && (
+                  <span className="text-xs text-tunet-text-muted">
+                    — {attachments.filter((a) => a.upload_phase === "in_progress").length} proses,{" "}
+                    {attachments.filter((a) => a.upload_phase === "completed").length} selesai
+                  </span>
+                )}
+              </div>
+              {task.status !== "done" && (
+                <>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    multiple
+                    className="hidden"
+                    onChange={handleUpload}
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                    className="h-7 text-xs border-tunet-border text-tunet-text"
+                  >
+                    <Upload className="w-3 h-3 mr-1" />
+                    {uploading ? "Mengunggah..." : "Add Photo"}
+                  </Button>
+                </>
+              )}
+            </div>
+
+            {attachments.length > 0 ? (
+              <div className="grid grid-cols-3 gap-2">
+                {attachments.map((att) => (
+                  <div key={att.id} className="relative group">
+                    <button
+                      type="button"
+                      onClick={() => handleOpenLightbox(att.file_path)}
+                      className="w-full aspect-square rounded-lg overflow-hidden bg-tunet-bg border border-tunet-border"
+                    >
+                      <div className="w-full h-full flex items-center justify-center text-tunet-text-muted">
+                        <Camera className="w-6 h-6" />
+                      </div>
+                    </button>
+                    {task.status !== "done" && (
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteAttachment(att.id)}
+                        className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-500/80 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                    <div className="absolute bottom-0 left-0 right-0 px-1 py-0.5 bg-black/60 text-white text-[9px] text-center rounded-b-lg">
+                      {att.upload_phase === "completed" ? "Selesai" : "Proses"}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-tunet-text-muted">
+                Belum ada foto. Unggah bukti kerja melalui Telegram atau web app.
+              </p>
+            )}
+          </div>
+
+          {/* Lightbox Dialog */}
+          {lightboxUrl && (
+            <Dialog open onOpenChange={() => setLightboxUrl(null)}>
+              <DialogContent className="bg-black border-none max-w-2xl p-2">
+                <img
+                  src={lightboxUrl}
+                  alt="Photo attachment"
+                  className="w-full h-auto rounded"
+                />
+              </DialogContent>
+            </Dialog>
           )}
 
           <div>

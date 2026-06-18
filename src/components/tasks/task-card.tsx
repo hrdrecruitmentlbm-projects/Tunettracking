@@ -13,7 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Task, TaskStatus, STATUS_CONFIG, PRIORITY_CONFIG } from "@/types";
-import { MapPin, Clock, User, AlertTriangle, Trash2, ArrowUpRight } from "lucide-react";
+import { MapPin, Clock, User, AlertTriangle, Trash2, ArrowUpRight, Camera } from "lucide-react";
 import { getTimeRemaining } from "@/lib/time";
 import { COPY } from "@/lib/copy";
 import { softDeleteTask } from "@/lib/db";
@@ -171,6 +171,15 @@ export function TaskCard({
             >
               <AlertTriangle className="w-3 h-3 mr-1" />
               {timeRemaining.label}
+            </Badge>
+          )}
+          {task.attachments && task.attachments.length > 0 && (
+            <Badge
+              variant="secondary"
+              className="text-xs bg-tunet-surface text-tunet-text-muted"
+            >
+              <Camera className="w-3 h-3 mr-1" />
+              {task.attachments.length}
             </Badge>
           )}
         </div>

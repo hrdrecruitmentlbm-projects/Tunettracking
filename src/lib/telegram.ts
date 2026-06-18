@@ -25,10 +25,17 @@ export interface TelegramMessage {
   };
   date: number;
   text?: string;
+  caption?: string;
   location?: {
     latitude: number;
     longitude: number;
   };
+  photo?: Array<{
+    file_id: string;
+    width: number;
+    height: number;
+    file_size?: number;
+  }>;
 }
 
 export interface TelegramUpdate {
@@ -88,6 +95,34 @@ export async function getWebhookInfo(): Promise<{ url: string; ok: boolean } | n
     }
     return null;
   } catch {
+    return null;
+  }
+}
+
+export async function downloadFile(fileId: string): Promise<Buffer | null> {
+  try {
+    const token = getBotToken();
+
+    // Get file info
+    const fileRes = await fetch(`${TELEGRAM_API}${token}/getFile?file_id=${fileId}`);
+    const fileData = await fileRes.json();
+    if (!fileData.ok || !fileData.result?.file_path) {
+      console.error("Telegram getFile failed:", fileData);
+      return null;
+    }
+
+    // Download the file
+    const url = `https://api.telegram.org/file/bot${token}/${fileData.result.file_path}`;
+    const downloadRes = await fetch(url);
+    if (!downloadRes.ok) {
+      console.error("Telegram file download failed:", downloadRes.status);
+      return null;
+    }
+
+    const arrayBuffer = await downloadRes.arrayBuffer();
+    return Buffer.from(arrayBuffer);
+  } catch (error) {
+    console.error("Telegram downloadFile error:", error);
     return null;
   }
 }

@@ -1,5 +1,5 @@
 import { supabase } from "./supabase";
-import { User, Task, Location, Tag, Notification, TaskStatus } from "@/types";
+import { User, Task, Location, Tag, Notification, TaskStatus, Attachment } from "@/types";
 
 export async function loginByPin(pin: string): Promise<User | null> {
   const { data, error } = await supabase
@@ -32,7 +32,7 @@ export async function getCurrentUser(id: string): Promise<User | null> {
 export async function fetchUsers(): Promise<User[]> {
   const { data, error } = await supabase
     .from("users")
-    .select("id, name, role, phone, telegram_id, is_active, created_at")
+    .select("id, name, role, phone, pin, telegram_id, is_active, created_at")
     .order("name");
 
   if (error) {
@@ -53,6 +53,7 @@ export function normalizeTaskRow(row: any): Task {
       ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
         row.tags.map((t: any) => t.tag)
       : [],
+    attachments: Array.isArray(row.attachments) ? row.attachments : [],
   };
 }
 
@@ -61,7 +62,8 @@ const TASK_SELECT = `
   priority:priorities(name),
   assignee:users!tasks_assigned_to_fkey(id, name, role, phone, telegram_id, is_active, created_at),
   creator:users!tasks_created_by_fkey(id, name, role, phone, telegram_id, is_active, created_at),
-  tags:task_tags(tag:tags(id, name, color))
+  tags:task_tags(tag:tags(id, name, color)),
+  attachments:task_attachments(id, task_id, uploaded_by, file_path, file_name, file_size, mime_type, upload_phase, caption, created_at)
 `;
 
 export interface FetchTasksOptions {
@@ -184,6 +186,117 @@ export async function softDeleteTask(
   }
 
   return true;
+}
+
+// --- Task Attachments ---
+
+export async function uploadTaskAttachment(
+  taskId: string,
+  userId: string,
+  fileBuffer: Buffer,
+  fileName: string,
+  phase?: "in_progress" | "completed"
+): Promise<Attachment | null> {
+  // Auto-detect phase from task status if not provided
+  if (!phase) {
+    const { data: task } = await supabase
+      .from("tasks")
+      .select("status")
+      .eq("id", taskId)
+      .maybeSingle();
+    if (task) {
+      const status = task.status as TaskStatus;
+      phase = status === "done" || status === "review" ? "completed" : "in_progress";
+    } else {
+      phase = "in_progress";
+    }
+  }
+
+  // Upload to storage (compresses to WebP, generates thumbnail)
+  const { uploadToStorage } = await import("./storage");
+  const { filePath, fileSize } = await uploadToStorage(taskId, fileBuffer);
+
+  // Insert metadata
+  const { data, error } = await supabase
+    .from("task_attachments")
+    .insert({
+      task_id: taskId,
+      uploaded_by: userId,
+      file_path: filePath,
+      file_name: fileName,
+      file_size: fileSize,
+      mime_type: "image/webp",
+      upload_phase: phase,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error("[uploadTaskAttachment] insert failed:", error);
+    return null;
+  }
+
+  return data as Attachment;
+}
+
+export async function deleteTaskAttachment(
+  attachmentId: string,
+  userId: string,
+  isAdminOrNoc: boolean
+): Promise<boolean> {
+  // Fetch the attachment
+  const { data: attachment } = await supabase
+    .from("task_attachments")
+    .select("id, task_id, file_path, uploaded_by")
+    .eq("id", attachmentId)
+    .maybeSingle();
+
+  if (!attachment) return false;
+
+  // Check task status — cannot delete if task is done
+  const { data: task } = await supabase
+    .from("tasks")
+    .select("status")
+    .eq("id", attachment.task_id)
+    .maybeSingle();
+
+  if (task?.status === "done") return false;
+
+  // Check ownership — only uploader or admin/noc can delete
+  if (!isAdminOrNoc && attachment.uploaded_by !== userId) return false;
+
+  // Delete from storage
+  const { deleteFromStorage } = await import("./storage");
+  const thumbPath = attachment.file_path.replace(".webp", "-thumb.webp");
+  await deleteFromStorage([attachment.file_path, thumbPath]);
+
+  // Delete from DB
+  const { error } = await supabase
+    .from("task_attachments")
+    .delete()
+    .eq("id", attachmentId);
+
+  if (error) {
+    console.error("[deleteTaskAttachment] delete failed:", error);
+    return false;
+  }
+
+  return true;
+}
+
+export async function fetchTaskAttachments(taskId: string): Promise<Attachment[]> {
+  const { data, error } = await supabase
+    .from("task_attachments")
+    .select("*")
+    .eq("task_id", taskId)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    console.error("[fetchTaskAttachments] error:", error);
+    return [];
+  }
+
+  return (data || []) as Attachment[];
 }
 
 export async function upsertLocation(

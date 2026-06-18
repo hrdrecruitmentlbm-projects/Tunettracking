@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sendMessage, TelegramUpdate } from "@/lib/telegram";
+import { sendMessage, downloadFile, TelegramUpdate } from "@/lib/telegram";
 import {
   findUserByPin,
   bindTelegramChat,
@@ -9,8 +9,10 @@ import {
   recordPing,
   fetchTasks,
   createNotification,
+  uploadTaskAttachment,
   getSessionDate,
 } from "@/lib/db";
+import { supabase } from "@/lib/supabase";
 import { User, STATUS_CONFIG, TaskStatus } from "@/types";
 import { cacheTelegramChat, cacheUserChat } from "@/lib/telegram-cache";
 import { COPY } from "@/lib/copy";
@@ -207,6 +209,84 @@ export async function POST(request: NextRequest) {
       } else {
         await sendMessage(chatId, COPY.telegram.failedToSaveLocation);
       }
+      return NextResponse.json({ ok: true });
+    }
+
+    // Handle photo messages (task attachment)
+    if (message.photo && message.photo.length > 0) {
+      const caption = message.caption || "";
+
+      // Extract task ID from caption (UUID pattern or short 6-char hex)
+      const uuidMatch = caption.match(
+        /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i
+      );
+      const shortIdMatch = caption.match(/\b([0-9a-f]{6,})\b/i);
+      const taskId = uuidMatch?.[1] || shortIdMatch?.[1];
+
+      if (!taskId) {
+        await sendMessage(
+          chatId,
+          "Tidak dapat menemukan ID tugas. Kirim foto dengan caption berisi ID tugas.\nContoh: abc123 ini bukti"
+        );
+        return NextResponse.json({ ok: true });
+      }
+
+      // Look up the task
+      const { data: task } = await supabase
+        .from("tasks")
+        .select("id, title, status, assigned_to")
+        .or(`id.eq.${taskId},id.ilike.${taskId}%`)
+        .maybeSingle();
+
+      if (!task) {
+        await sendMessage(chatId, `Tugas dengan ID "${taskId}" tidak ditemukan.`);
+        return NextResponse.json({ ok: true });
+      }
+
+      // Verify user is assigned to this task or is admin/noc
+      const isAdminOrNoc = user.role === "admin" || user.role === "noc";
+      if (!isAdminOrNoc && task.assigned_to !== user.id) {
+        await sendMessage(chatId, "Anda tidak ditugaskan untuk tugas ini.");
+        return NextResponse.json({ ok: true });
+      }
+
+      // Get the largest photo (last in array)
+      const largestPhoto = message.photo[message.photo.length - 1];
+
+      // Download from Telegram
+      const fileBuffer = await downloadFile(largestPhoto.file_id);
+      if (!fileBuffer) {
+        await sendMessage(chatId, "Gagal mengunduh foto dari Telegram.");
+        return NextResponse.json({ ok: true });
+      }
+
+      // Upload to storage + create attachment record
+      const attachment = await uploadTaskAttachment(
+        task.id,
+        user.id,
+        fileBuffer,
+        `telegram_${Date.now()}.jpg`
+      );
+
+      if (attachment) {
+        const phaseLabel = attachment.upload_phase === "completed" ? "selesai" : "proses";
+
+        // Count total attachments for this task
+        const { count } = await supabase
+          .from("task_attachments")
+          .select("id", { count: "exact", head: true })
+          .eq("task_id", task.id);
+
+        await sendMessage(
+          chatId,
+          `Foto berhasil diunggah untuk "${task.title}"\n` +
+            `Total: ${count ?? 1} foto\n` +
+            `Phase: ${phaseLabel}`
+        );
+      } else {
+        await sendMessage(chatId, "Gagal menyimpan foto. Silakan coba lagi.");
+      }
+
       return NextResponse.json({ ok: true });
     }
 

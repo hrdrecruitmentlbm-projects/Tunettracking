@@ -34,6 +34,20 @@ export interface Task {
   tags?: Tag[];
   assignee?: User;
   creator?: User;
+  attachments?: Attachment[];
+}
+
+export interface Attachment {
+  id: string;
+  task_id: string;
+  uploaded_by: string;
+  file_path: string;
+  file_name: string;
+  file_size: number;
+  mime_type: string;
+  upload_phase: "in_progress" | "completed";
+  caption?: string;
+  created_at: string;
 }
 
 export interface Tag {
