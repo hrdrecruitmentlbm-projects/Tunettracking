@@ -5,7 +5,8 @@ import { supabase } from "@/lib/supabase";
 import { Location } from "@/types";
 
 export function useIncrementalLocations(
-  setLocations: (updater: (prev: Location[]) => Location[]) => void
+  setLocations: (updater: (prev: Location[]) => Location[]) => void,
+  enabled: boolean = true
 ) {
   const applyChange = useCallback(
     (eventType: "INSERT" | "UPDATE" | "DELETE", row: Location | { id: string }) => {
@@ -28,6 +29,8 @@ export function useIncrementalLocations(
   );
 
   useEffect(() => {
+    if (!enabled) return;
+
     const channel = supabase
       .channel(`locations-incremental-${Date.now()}`)
       .on(
@@ -62,5 +65,5 @@ export function useIncrementalLocations(
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [applyChange]);
+  }, [applyChange, enabled]);
 }

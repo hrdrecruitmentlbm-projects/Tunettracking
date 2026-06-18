@@ -204,7 +204,13 @@ export function RadarMap({
   const [pings, setPings] = useState<LocationPing[]>([]);
   const [routes, setRoutes] = useState<Map<string, [number, number][]>>(new Map());
 
-  useIncrementalLocations(setLocations);
+  // When viewing a past date, the `locations` table reflects TODAY's position
+  // (not the historical one), so we suppress the live markers and use the
+  // last ping/visit of the selected session as the endpoint instead.
+  const effectiveSessionDate = sessionDate || getSessionDate();
+  const isHistorical = effectiveSessionDate !== getSessionDate();
+
+  useIncrementalLocations(setLocations, !isHistorical);
 
   const reloadVisits = useCallback(async () => {
     const v = await fetchVisits(sessionDate || new Date().toISOString().split("T")[0]);
@@ -217,8 +223,16 @@ export function RadarMap({
   }, [sessionDate]);
 
   useEffect(() => {
+    let cancelled = false;
+
     async function load() {
+      // Clear stale data to prevent flash of wrong-date markers
+      setVisits([]);
+      setPings([]);
+      setRoutes(new Map());
+
       const [locs, tks] = await Promise.all([fetchLocations(), fetchTasks()]);
+      if (cancelled) return;
       setLocations(locs);
       setTasks(tks);
       await reloadVisits();
@@ -249,6 +263,7 @@ export function RadarMap({
       .subscribe();
 
     return () => {
+      cancelled = true;
       supabase.removeChannel(visitChannel);
       supabase.removeChannel(pingChannel);
       supabase.removeChannel(taskChannel);
@@ -349,12 +364,6 @@ export function RadarMap({
     list.push(p);
     pingsByUser.set(p.user_id, list);
   }
-
-  // When viewing a past date, the `locations` table reflects TODAY's position
-  // (not the historical one), so we suppress the live markers and use the
-  // last ping/visit of the selected session as the endpoint instead.
-  const effectiveSessionDate = sessionDate || getSessionDate();
-  const isHistorical = effectiveSessionDate !== getSessionDate();
 
   // For historical dates, render a marker at the last known position of
   // each user for that session — derived from visits (preferred) or pings.
