@@ -21,6 +21,42 @@ L.Icon.Default.mergeOptions({
 });
 
 const ROUTE_LINE_COLOR = "#94A3B8"; // slate-400 — non-monochrome, light enough to read on dark map
+const OSRM_BASE = "https://router.project-osrm.org/route/v1/driving";
+
+// Module-level route cache: key = sorted lat,lng pairs joined → OSRM route coords
+// Prevents redundant API calls when the map re-renders with the same points.
+const routeCache = new Map<string, [number, number][]>();
+
+function cacheKey(points: [number, number][]): string {
+  return points.map((p) => `${p[0].toFixed(5)},${p[1].toFixed(5)}`).join(";");
+}
+
+async function fetchOSRMRoute(points: [number, number][]): Promise<[number, number][]> {
+  if (points.length < 2) return points;
+
+  const key = cacheKey(points);
+  const cached = routeCache.get(key);
+  if (cached) return cached;
+
+  // OSRM expects lng,lat pairs
+  const coords = points.map((p) => `${p[1]},${p[0]}`).join(";");
+  const url = `${OSRM_BASE}/${coords}?overview=full&geometries=geojson`;
+
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) return points;
+    const data = await res.json();
+    if (data.code !== "Ok" || !data.routes?.length) return points;
+
+    // GeoJSON coords are [lng, lat]; convert to Leaflet [lat, lng]
+    const coordsGeoJSON: [number, number][] = data.routes[0].geometry.coordinates;
+    const route: [number, number][] = coordsGeoJSON.map((c) => [c[1], c[0]]);
+    routeCache.set(key, route);
+    return route;
+  } catch {
+    return points; // fallback to straight line
+  }
+}
 
 function createCustomIcon(
   color: string,
@@ -166,6 +202,7 @@ export function RadarMap({
   const [tasks, setTasks] = useState<Task[]>([]);
   const [visits, setVisits] = useState<LocationVisit[]>([]);
   const [pings, setPings] = useState<LocationPing[]>([]);
+  const [routes, setRoutes] = useState<Map<string, [number, number][]>>(new Map());
 
   useIncrementalLocations(setLocations);
 
@@ -217,6 +254,58 @@ export function RadarMap({
       supabase.removeChannel(taskChannel);
     };
   }, [sessionDate, reloadVisits, reloadPings]);
+
+  // Fetch OSRM road-following routes for each user's ping/visit polyline.
+  // Runs whenever pings or visits change. Falls back to straight lines on error.
+  useEffect(() => {
+    const pingsByUser = new Map<string, LocationPing[]>();
+    for (const p of pings) {
+      const list = pingsByUser.get(p.user_id) ?? [];
+      list.push(p);
+      pingsByUser.set(p.user_id, list);
+    }
+
+    const visitsByUser = new Map<string, LocationVisit[]>();
+    for (const v of visits) {
+      const list = visitsByUser.get(v.user_id) ?? [];
+      list.push(v);
+      visitsByUser.set(v.user_id, list);
+    }
+
+    const allUserIds = new Set([...pingsByUser.keys(), ...visitsByUser.keys()]);
+    let cancelled = false;
+
+    async function fetchAllRoutes() {
+      const newRoutes = new Map<string, [number, number][]>();
+
+      for (const userId of allUserIds) {
+        // Ping route: pings sorted by ping_number + current position
+        const userPings = (pingsByUser.get(userId) ?? [])
+          .sort((a, b) => a.ping_number - b.ping_number);
+        const pingPoints: [number, number][] = userPings.map((p) => [p.lat, p.lng]);
+        if (pingPoints.length >= 2) {
+          const route = await fetchOSRMRoute(pingPoints);
+          if (cancelled) return;
+          newRoutes.set(`ping-${userId}`, route);
+        }
+
+        // Visit route: visits sorted by visit_number
+        const userVisits = (visitsByUser.get(userId) ?? [])
+          .sort((a, b) => a.visit_number - b.visit_number);
+        const visitPoints: [number, number][] = userVisits.map((v) => [v.lat, v.lng]);
+        if (visitPoints.length >= 2) {
+          const route = await fetchOSRMRoute(visitPoints);
+          if (cancelled) return;
+          newRoutes.set(`visit-${userId}`, route);
+        }
+      }
+
+      setRoutes(newRoutes);
+    }
+
+    fetchAllRoutes();
+    return () => { cancelled = true; };
+  }, [pings, visits]);
 
   const center: [number, number] = [-7.4833, 109.2333];
 
@@ -394,11 +483,15 @@ export function RadarMap({
             points.push([Number(currentLoc.lat), Number(currentLoc.lng)]);
           }
 
+          // Use OSRM road-following route if available, otherwise straight line
+          const routeKey = `ping-${userId}`;
+          const routeCoords = routes.get(routeKey) ?? points;
+
           return (
             <div key={`pings-${userId}`}>
-              {points.length >= 2 && (
+              {routeCoords.length >= 2 && (
                 <Polyline
-                  positions={points}
+                  positions={routeCoords}
                   pathOptions={{ color: ROUTE_LINE_COLOR, weight: 2, opacity: 0.7, dashArray: "4 6" }}
                 />
               )}
@@ -446,11 +539,15 @@ export function RadarMap({
             points.push([lastPing.lat, lastPing.lng]);
           }
 
+          // Use OSRM road-following route if available, otherwise straight line
+          const routeKey = `visit-${userId}`;
+          const routeCoords = routes.get(routeKey) ?? points;
+
           return (
             <div key={`route-${userId}`}>
-              {points.length >= 2 && (
+              {routeCoords.length >= 2 && (
                 <Polyline
-                  positions={points}
+                  positions={routeCoords}
                   pathOptions={{ color: ROUTE_LINE_COLOR, weight: 3, opacity: 0.8 }}
                 />
               )}

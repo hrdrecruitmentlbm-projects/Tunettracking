@@ -842,6 +842,24 @@ export function getFocColor(userId: string): string {
 }
 
 const DAY_RESET_HOUR_JAKARTA = 6;
+const STAY_THRESHOLD_METERS = 100;
+const MIN_STAY_DURATION_MINUTES = 10;
+
+function haversineDistance(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number
+): number {
+  const R = 6371000;
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
 
 export function getSessionDate(date: Date = new Date()): string {
   // Compute Jakarta wall-clock time using pure UTC arithmetic.
@@ -977,7 +995,7 @@ async function recordLocationUpdateDirect(
   //    and Supabase JS requires a unique constraint to resolve conflicts.
   const { data: existing, error: selectError } = await supabase
     .from("locations")
-    .select("id")
+    .select("id, lat, lng, arrived_at")
     .eq("user_id", userId)
     .maybeSingle();
 
@@ -985,6 +1003,9 @@ async function recordLocationUpdateDirect(
     console.error("[recordLocationUpdateDirect] locations select failed:", selectError);
     return { ok: false, error: selectError.message };
   }
+
+  let newVisit: LocationVisit | undefined;
+  let newStayStarted = false;
 
   if (!existing) {
     // First-ever location for this user — INSERT
@@ -1001,22 +1022,88 @@ async function recordLocationUpdateDirect(
       console.error("[recordLocationUpdateDirect] locations insert failed:", insertError);
       return { ok: false, error: insertError.message };
     }
+    newStayStarted = true;
   } else {
-    // Existing row — UPDATE
-    const { error: updateError } = await supabase
-      .from("locations")
-      .update({
-        lat,
-        lng,
-        accuracy: accuracy ?? null,
-        updated_at: now,
-        arrived_at: now,
-        session_date: sessionDate,
-      })
-      .eq("id", existing.id);
-    if (updateError) {
-      console.error("[recordLocationUpdateDirect] locations update failed:", updateError);
-      return { ok: false, error: updateError.message };
+    // Existing row — check distance from arrival point
+    const arrivalLat = Number(existing.lat);
+    const arrivalLng = Number(existing.lng);
+    const distance = haversineDistance(arrivalLat, arrivalLng, lat, lng);
+
+    if (distance >= STAY_THRESHOLD_METERS) {
+      // Moved >= threshold — check if previous stay qualifies as a visit
+      const arrivedAt: Date = existing.arrived_at
+        ? new Date(String(existing.arrived_at))
+        : new Date();
+      const stayMinutes = (Date.now() - arrivedAt.getTime()) / 60000;
+
+      if (stayMinutes >= MIN_STAY_DURATION_MINUTES) {
+        // Save previous stay as a visit
+        const { data: maxVisit } = await supabase
+          .from("location_visits")
+          .select("visit_number")
+          .eq("user_id", userId)
+          .eq("session_date", sessionDate)
+          .order("visit_number", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        const nextVisitNumber = (maxVisit?.visit_number ?? 0) + 1;
+
+        const { data: visit, error: visitError } = await supabase
+          .from("location_visits")
+          .insert({
+            user_id: userId,
+            session_date: sessionDate,
+            visit_number: nextVisitNumber,
+            lat: arrivalLat,
+            lng: arrivalLng,
+            arrived_at: arrivedAt.toISOString(),
+            departed_at: now,
+            duration_minutes: Math.round(stayMinutes),
+            source,
+          })
+          .select()
+          .single();
+
+        if (visitError) {
+          console.error("[recordLocationUpdateDirect] location_visits insert failed:", visitError);
+        } else {
+          newVisit = visit as LocationVisit;
+        }
+      }
+
+      // Start new stay
+      const { error: updateError } = await supabase
+        .from("locations")
+        .update({
+          lat,
+          lng,
+          accuracy: accuracy ?? null,
+          updated_at: now,
+          arrived_at: now,
+          session_date: sessionDate,
+        })
+        .eq("id", existing.id);
+      if (updateError) {
+        console.error("[recordLocationUpdateDirect] locations update failed:", updateError);
+        return { ok: false, error: updateError.message };
+      }
+      newStayStarted = true;
+    } else {
+      // Same stay — just refresh timestamp, keep arrived_at unchanged
+      const { error: updateError } = await supabase
+        .from("locations")
+        .update({
+          lat,
+          lng,
+          accuracy: accuracy ?? null,
+          updated_at: now,
+        })
+        .eq("id", existing.id);
+      if (updateError) {
+        console.error("[recordLocationUpdateDirect] locations update failed:", updateError);
+        return { ok: false, error: updateError.message };
+      }
     }
   }
 
@@ -1051,7 +1138,8 @@ async function recordLocationUpdateDirect(
 
   return {
     ok: true,
-    stayedAt: { lat, lng },
+    newVisit,
+    stayedAt: newStayStarted ? { lat, lng } : { lat: existing?.lat ?? lat, lng: existing?.lng ?? lng },
   };
 }
 
