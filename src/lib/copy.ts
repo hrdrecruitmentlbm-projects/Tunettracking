@@ -376,6 +376,18 @@ export const COPY = {
     location: "Lokasi",
     deadline: "Tenggat",
     shareLocationPrompt: "📍 Kirim lokasi Anda untuk membagikan posisi real-time Anda.",
+    photoSelectTask: (n: number) =>
+      `📸 <b>Pilih tugas untuk foto ini</b>\n\nAnda memiliki ${n} tugas aktif. Tap salah satu:`,
+    photoNoActiveTasks:
+      "❌ Anda tidak memiliki tugas aktif. Selesaikan tugas yang ada atau tunggu tugas baru.",
+    photoTaskDone:
+      "❌ Tidak ada tugas aktif. Tugas yang sudah selesai tidak bisa menerima foto baru.",
+    photoUploaded: (title: string, count: number, phase: string) =>
+      `✅ Foto berhasil diunggah untuk "<b>${title}</b>"\n\n📊 Total: ${count} foto\n🏷 Phase: ${phase}`,
+    photoUploadFailed: "❌ Gagal menyimpan foto. Silakan coba lagi.",
+    photoDownloadFailed: "❌ Gagal mengunduh foto dari Telegram.",
+    photoExpired: "⏰ Sesi upload foto telah berakhir. Silakan kirim foto lagi.",
+    photoCancelled: "✅ Upload foto dibatalkan.",
   },
   toasts: {
     taskStatusUpdated: "Status tugas diperbarui!",

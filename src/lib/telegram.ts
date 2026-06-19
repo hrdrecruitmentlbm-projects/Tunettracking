@@ -38,10 +38,82 @@ export interface TelegramMessage {
   }>;
 }
 
+export interface TelegramCallbackQuery {
+  id: string;
+  from: {
+    id: number;
+    is_bot: boolean;
+    first_name: string;
+    last_name?: string;
+    username?: string;
+  };
+  chat_instance: string;
+  data?: string;
+  message?: TelegramMessage;
+}
+
 export interface TelegramUpdate {
   update_id: number;
   message?: TelegramMessage;
   edited_message?: TelegramMessage;
+  callback_query?: TelegramCallbackQuery;
+}
+
+export async function sendMessageWithKeyboard(
+  chatId: number | string,
+  text: string,
+  replyMarkup: Record<string, unknown>
+): Promise<boolean> {
+  try {
+    const token = getBotToken();
+    const res = await fetch(`${TELEGRAM_API}${token}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text,
+        parse_mode: "HTML",
+        reply_markup: replyMarkup,
+      }),
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      console.error("Telegram sendMessageWithKeyboard error:", data);
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error("Telegram sendMessageWithKeyboard error:", error);
+    return false;
+  }
+}
+
+export async function answerCallbackQuery(
+  callbackQueryId: string,
+  text?: string,
+  showAlert = false
+): Promise<boolean> {
+  try {
+    const token = getBotToken();
+    const res = await fetch(`${TELEGRAM_API}${token}/answerCallbackQuery`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        callback_query_id: callbackQueryId,
+        text,
+        show_alert: showAlert,
+      }),
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      console.error("Telegram answerCallbackQuery error:", data);
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error("Telegram answerCallbackQuery error:", error);
+    return false;
+  }
 }
 
 export async function sendMessage(chatId: number | string, text: string): Promise<boolean> {

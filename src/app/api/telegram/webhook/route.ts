@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sendMessage, downloadFile, TelegramUpdate } from "@/lib/telegram";
+import {
+  sendMessage,
+  sendMessageWithKeyboard,
+  answerCallbackQuery,
+  downloadFile,
+  TelegramUpdate,
+} from "@/lib/telegram";
 import {
   findUserByPin,
   bindTelegramChat,
@@ -16,6 +22,84 @@ import { supabase } from "@/lib/supabase";
 import { User, STATUS_CONFIG, TaskStatus } from "@/types";
 import { cacheTelegramChat, cacheUserChat } from "@/lib/telegram-cache";
 import { COPY } from "@/lib/copy";
+
+interface PendingPhoto {
+  file_id: string;
+  user_id: string;
+  timestamp: number;
+  message_id?: number;
+}
+
+const PENDING_PHOTOS = new Map<number, PendingPhoto>();
+const PENDING_PHOTO_TTL_MS = 5 * 60 * 1000;
+
+function cleanupPendingPhotos() {
+  const now = Date.now();
+  for (const [chatId, pending] of PENDING_PHOTOS.entries()) {
+    if (now - pending.timestamp > PENDING_PHOTO_TTL_MS) {
+      PENDING_PHOTOS.delete(chatId);
+    }
+  }
+}
+
+async function fetchAndUploadPhoto(
+  chatId: number,
+  userId: string,
+  fileId: string,
+  taskId: string
+): Promise<{ success: boolean; title?: string; count?: number; phase?: string }> {
+  const fileBuffer = await downloadFile(fileId);
+  if (!fileBuffer) {
+    await sendMessage(chatId, COPY.telegram.photoDownloadFailed);
+    return { success: false };
+  }
+
+  const { data: taskInfo } = await supabase
+    .from("tasks")
+    .select("id, title, status, assigned_to")
+    .eq("id", taskId)
+    .maybeSingle();
+
+  if (!taskInfo) {
+    await sendMessage(chatId, `Tugas dengan ID "${taskId}" tidak ditemukan.`);
+    return { success: false };
+  }
+
+  const attachment = await uploadTaskAttachment(
+    taskInfo.id,
+    userId,
+    fileBuffer,
+    `telegram_${Date.now()}.jpg`
+  );
+
+  if (!attachment) {
+    await sendMessage(chatId, COPY.telegram.photoUploadFailed);
+    return { success: false };
+  }
+
+  const phaseLabel = attachment.upload_phase === "completed" ? "selesai" : "proses";
+
+  const { count } = await supabase
+    .from("task_attachments")
+    .select("id", { count: "exact", head: true })
+    .eq("task_id", taskInfo.id);
+
+  await sendMessage(
+    chatId,
+    COPY.telegram.photoUploaded(
+      taskInfo.title,
+      count ?? 1,
+      phaseLabel
+    )
+  );
+
+  return {
+    success: true,
+    title: taskInfo.title,
+    count: count ?? 1,
+    phase: phaseLabel,
+  };
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -34,7 +118,6 @@ export async function POST(request: NextRequest) {
           undefined,
           "telegram_live"
         );
-        // Create numbered ping for route history (ON CONFLICT prevents duplicates)
         await recordPing(
           user.id,
           editedMessage.location.latitude,
@@ -42,6 +125,51 @@ export async function POST(request: NextRequest) {
           "telegram_live",
           getSessionDate()
         );
+      }
+      return NextResponse.json({ ok: true });
+    }
+
+    // Handle callback_query (inline keyboard button taps from photo selection)
+    const callbackQuery = update.callback_query;
+    if (callbackQuery?.data?.startsWith("photo_task:")) {
+      const chatId = callbackQuery.message?.chat.id;
+      if (!chatId) {
+        await answerCallbackQuery(callbackQuery.id, "Error: chat tidak ditemukan");
+        return NextResponse.json({ ok: true });
+      }
+
+      const taskId = callbackQuery.data.slice("photo_task:".length);
+      const pending = PENDING_PHOTOS.get(chatId);
+
+      cleanupPendingPhotos();
+
+      if (!pending) {
+        await answerCallbackQuery(callbackQuery.id, COPY.telegram.photoExpired, true);
+        await sendMessage(chatId, COPY.telegram.photoExpired);
+        return NextResponse.json({ ok: true });
+      }
+
+      const user = await findUserByTelegramChatId(chatId);
+      if (!user) {
+        await answerCallbackQuery(callbackQuery.id, "User tidak ditemukan", true);
+        PENDING_PHOTOS.delete(chatId);
+        return NextResponse.json({ ok: true });
+      }
+
+      await answerCallbackQuery(callbackQuery.id, "⏳ Mengunggah foto...");
+
+      PENDING_PHOTOS.delete(chatId);
+      await fetchAndUploadPhoto(chatId, user.id, pending.file_id, taskId);
+      return NextResponse.json({ ok: true });
+    }
+
+    // Cancel button: "photo_cancel"
+    if (callbackQuery?.data === "photo_cancel") {
+      const chatId = callbackQuery.message?.chat.id;
+      if (chatId) {
+        PENDING_PHOTOS.delete(chatId);
+        await answerCallbackQuery(callbackQuery.id, COPY.telegram.photoCancelled);
+        await sendMessage(chatId, COPY.telegram.photoCancelled);
       }
       return NextResponse.json({ ok: true });
     }
@@ -216,77 +344,92 @@ export async function POST(request: NextRequest) {
     if (message.photo && message.photo.length > 0) {
       const caption = message.caption || "";
 
-      // Extract task ID from caption (UUID pattern or short 6-char hex)
+      // Try to extract task ID from caption first (backward compat)
       const uuidMatch = caption.match(
         /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i
       );
       const shortIdMatch = caption.match(/\b([0-9a-f]{6,})\b/i);
-      const taskId = uuidMatch?.[1] || shortIdMatch?.[1];
+      const captionTaskId = uuidMatch?.[1] || shortIdMatch?.[1];
 
-      if (!taskId) {
-        await sendMessage(
-          chatId,
-          "Tidak dapat menemukan ID tugas. Kirim foto dengan caption berisi ID tugas.\nContoh: abc123 ini bukti"
-        );
-        return NextResponse.json({ ok: true });
-      }
-
-      // Look up the task
-      const { data: task } = await supabase
-        .from("tasks")
-        .select("id, title, status, assigned_to")
-        .or(`id.eq.${taskId},id.ilike.${taskId}%`)
-        .maybeSingle();
-
-      if (!task) {
-        await sendMessage(chatId, `Tugas dengan ID "${taskId}" tidak ditemukan.`);
-        return NextResponse.json({ ok: true });
-      }
-
-      // Verify user is assigned to this task or is admin/noc
-      const isAdminOrNoc = user.role === "admin" || user.role === "noc";
-      if (!isAdminOrNoc && task.assigned_to !== user.id) {
-        await sendMessage(chatId, "Anda tidak ditugaskan untuk tugas ini.");
-        return NextResponse.json({ ok: true });
-      }
-
-      // Get the largest photo (last in array)
+      // Get largest photo file_id
       const largestPhoto = message.photo[message.photo.length - 1];
+      const fileId = largestPhoto.file_id;
 
-      // Download from Telegram
-      const fileBuffer = await downloadFile(largestPhoto.file_id);
-      if (!fileBuffer) {
-        await sendMessage(chatId, "Gagal mengunduh foto dari Telegram.");
+      // If caption has a task ID, use it directly
+      if (captionTaskId) {
+        const { data: task } = await supabase
+          .from("tasks")
+          .select("id, title, status, assigned_to")
+          .or(`id.eq.${captionTaskId},id.ilike.${captionTaskId}%`)
+          .maybeSingle();
+
+        if (!task) {
+          await sendMessage(chatId, `Tugas dengan ID "${captionTaskId}" tidak ditemukan.`);
+          return NextResponse.json({ ok: true });
+        }
+
+        const isAdminOrNoc = user.role === "admin" || user.role === "noc";
+        if (!isAdminOrNoc && task.assigned_to !== user.id) {
+          await sendMessage(chatId, "Anda tidak ditugaskan untuk tugas ini.");
+          return NextResponse.json({ ok: true });
+        }
+
+        await fetchAndUploadPhoto(chatId, user.id, fileId, task.id);
         return NextResponse.json({ ok: true });
       }
 
-      // Upload to storage + create attachment record
-      const attachment = await uploadTaskAttachment(
-        task.id,
-        user.id,
-        fileBuffer,
-        `telegram_${Date.now()}.jpg`
+      // No caption ID: fetch active tasks and show selection
+      const allTasks = await fetchTasks();
+      const myActiveTasks = allTasks.filter(
+        (t) => t.assigned_to === user.id && t.status !== "done"
       );
 
-      if (attachment) {
-        const phaseLabel = attachment.upload_phase === "completed" ? "selesai" : "proses";
-
-        // Count total attachments for this task
-        const { count } = await supabase
-          .from("task_attachments")
-          .select("id", { count: "exact", head: true })
-          .eq("task_id", task.id);
-
-        await sendMessage(
-          chatId,
-          `Foto berhasil diunggah untuk "${task.title}"\n` +
-            `Total: ${count ?? 1} foto\n` +
-            `Phase: ${phaseLabel}`
-        );
-      } else {
-        await sendMessage(chatId, "Gagal menyimpan foto. Silakan coba lagi.");
+      if (myActiveTasks.length === 0) {
+        await sendMessage(chatId, COPY.telegram.photoNoActiveTasks);
+        return NextResponse.json({ ok: true });
       }
 
+      // Single active task: auto-assign
+      if (myActiveTasks.length === 1) {
+        const task = myActiveTasks[0];
+        await fetchAndUploadPhoto(chatId, user.id, fileId, task.id);
+        return NextResponse.json({ ok: true });
+      }
+
+      // Multiple active tasks: store pending photo and show inline keyboard
+      cleanupPendingPhotos();
+      PENDING_PHOTOS.set(chatId, {
+        file_id: fileId,
+        user_id: user.id,
+        timestamp: Date.now(),
+      });
+
+      const inlineKeyboard = myActiveTasks.slice(0, 8).map((task) => {
+        const emoji =
+          task.priority === "critical"
+            ? "🔴"
+            : task.priority === "high"
+            ? "🟠"
+            : task.priority === "medium"
+            ? "🟡"
+            : "⚪";
+        const statusLabel = STATUS_CONFIG[task.status as TaskStatus]?.label || task.status;
+        return [
+          {
+            text: `${emoji} ${task.title} — ${statusLabel}`,
+            callback_data: `photo_task:${task.id}`,
+          },
+        ];
+      });
+
+      // Add cancel button
+      inlineKeyboard.push([{ text: "❌ Batal", callback_data: "photo_cancel" }]);
+
+      await sendMessageWithKeyboard(
+        chatId,
+        COPY.telegram.photoSelectTask(myActiveTasks.length),
+        { inline_keyboard: inlineKeyboard }
+      );
       return NextResponse.json({ ok: true });
     }
 
