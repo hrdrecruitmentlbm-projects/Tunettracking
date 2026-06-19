@@ -1,53 +1,64 @@
 import { supabase } from "./supabase";
 import { Attachment, TaskStatus } from "@/types";
 
+export interface UploadAttachmentResult {
+  attachment: Attachment | null;
+  error?: string;
+}
+
 export async function uploadTaskAttachment(
   taskId: string,
   userId: string,
   fileBuffer: Buffer,
   fileName: string,
   phase?: "in_progress" | "completed"
-): Promise<Attachment | null> {
-  if (!phase) {
-    const { data: task } = await supabase
-      .from("tasks")
-      .select("status")
-      .eq("id", taskId)
-      .maybeSingle();
-    if (task) {
-      const status = task.status as TaskStatus;
-      phase = status === "done" || status === "review" ? "completed" : "in_progress";
-    } else {
-      phase = "in_progress";
+): Promise<UploadAttachmentResult> {
+  try {
+    if (!phase) {
+      const { data: task } = await supabase
+        .from("tasks")
+        .select("status")
+        .eq("id", taskId)
+        .maybeSingle();
+      if (task) {
+        const status = task.status as TaskStatus;
+        phase = status === "done" || status === "review" ? "completed" : "in_progress";
+      } else {
+        phase = "in_progress";
+      }
     }
+
+    const { uploadToStorage } = await import("./storage");
+    const { filePath, fileSize } = await uploadToStorage(taskId, fileBuffer);
+
+    const { data, error } = await supabase
+      .from("task_attachments")
+      .insert({
+        task_id: taskId,
+        uploaded_by: userId,
+        file_path: filePath,
+        file_name: fileName,
+        file_size: fileSize,
+        mime_type: "image/webp",
+        upload_phase: phase,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error("[uploadTaskAttachment] insert failed:", error);
+      return { attachment: null, error: error.message };
+    }
+
+    const { getSignedUrl } = await import("./storage");
+    const signed_url = await getSignedUrl(filePath);
+
+    return { attachment: { ...data, signed_url } as Attachment };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[uploadTaskAttachment] error:", err);
+    return { attachment: null, error: message };
   }
-
-  const { uploadToStorage } = await import("./storage");
-  const { filePath, fileSize } = await uploadToStorage(taskId, fileBuffer);
-
-  const { data, error } = await supabase
-    .from("task_attachments")
-    .insert({
-      task_id: taskId,
-      uploaded_by: userId,
-      file_path: filePath,
-      file_name: fileName,
-      file_size: fileSize,
-      mime_type: "image/webp",
-      upload_phase: phase,
-    })
-    .select()
-    .single();
-
-  if (error) {
-    console.error("[uploadTaskAttachment] insert failed:", error);
-    return null;
-  }
-
-  const { getSignedUrl } = await import("./storage");
-  const signed_url = await getSignedUrl(filePath);
-
-  return { ...data, signed_url } as Attachment;
 }
 
 export async function deleteTaskAttachment(

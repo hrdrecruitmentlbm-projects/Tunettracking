@@ -46,7 +46,7 @@ export async function POST(
       }
 
       const buffer = Buffer.from(await file.arrayBuffer());
-      const attachment = await uploadTaskAttachment(
+      const { attachment, error: uploadError } = await uploadTaskAttachment(
         taskId,
         session.userId,
         buffer,
@@ -55,6 +55,8 @@ export async function POST(
 
       if (attachment) {
         results.push(attachment);
+      } else {
+        console.error("[POST /api/tasks/.../attachments] upload failed:", uploadError);
       }
     }
 
