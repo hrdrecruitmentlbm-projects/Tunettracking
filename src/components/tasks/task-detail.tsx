@@ -91,6 +91,10 @@ export function TaskDetail({
   useEffect(() => {
     if (open && task) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
+      setAttachments(task.attachments || []);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setLightboxUrl(null);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoadingHistory(true);
       fetchTaskHistory(task.id).then((h) => {
         setHistory(h);
