@@ -1,4 +1,4 @@
-import { supabase } from "./supabase";
+import { supabaseAdmin } from "./supabase-admin";
 import { Attachment, TaskStatus } from "@/types";
 
 export interface UploadAttachmentResult {
@@ -15,7 +15,7 @@ export async function uploadTaskAttachment(
 ): Promise<UploadAttachmentResult> {
   try {
     if (!phase) {
-      const { data: task } = await supabase
+      const { data: task } = await supabaseAdmin
         .from("tasks")
         .select("status")
         .eq("id", taskId)
@@ -31,7 +31,7 @@ export async function uploadTaskAttachment(
     const { uploadToStorage } = await import("./storage");
     const { filePath, fileSize } = await uploadToStorage(taskId, fileBuffer);
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from("task_attachments")
       .insert({
         task_id: taskId,
@@ -66,7 +66,7 @@ export async function deleteTaskAttachment(
   userId: string,
   isAdminOrNoc: boolean
 ): Promise<boolean> {
-  const { data: attachment } = await supabase
+  const { data: attachment } = await supabaseAdmin
     .from("task_attachments")
     .select("id, task_id, file_path, uploaded_by")
     .eq("id", attachmentId)
@@ -74,7 +74,7 @@ export async function deleteTaskAttachment(
 
   if (!attachment) return false;
 
-  const { data: task } = await supabase
+  const { data: task } = await supabaseAdmin
     .from("tasks")
     .select("status")
     .eq("id", attachment.task_id)
@@ -88,7 +88,7 @@ export async function deleteTaskAttachment(
   const thumbPath = attachment.file_path.replace(".webp", "-thumb.webp");
   await deleteFromStorage([attachment.file_path, thumbPath]);
 
-  const { error } = await supabase
+  const { error } = await supabaseAdmin
     .from("task_attachments")
     .delete()
     .eq("id", attachmentId);
@@ -102,7 +102,7 @@ export async function deleteTaskAttachment(
 }
 
 export async function fetchTaskAttachments(taskId: string): Promise<Attachment[]> {
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from("task_attachments")
     .select("*")
     .eq("task_id", taskId)

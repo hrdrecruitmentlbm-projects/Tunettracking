@@ -25,7 +25,12 @@ CREATE INDEX IF NOT EXISTS idx_task_attachments_uploaded_by ON task_attachments(
 -- C) RLS: disable for anon-key access (app uses PIN auth, not Supabase Auth)
 ALTER TABLE task_attachments DISABLE ROW LEVEL SECURITY;
 
--- D) Trigger: enforce max 10 attachments per task
+-- D) Grants: ensure anon and authenticated roles can read/write attachments
+-- (service-role key is preferred for writes, but grants keep read paths working)
+GRANT INSERT, SELECT ON task_attachments TO anon;
+GRANT INSERT, SELECT ON task_attachments TO authenticated;
+
+-- E) Trigger: enforce max 10 attachments per task
 CREATE OR REPLACE FUNCTION check_attachment_limit()
 RETURNS TRIGGER AS $$
 BEGIN

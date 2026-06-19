@@ -65,7 +65,7 @@ async function fetchAndUploadPhoto(
     return { success: false };
   }
 
-  const { attachment, error: uploadError } = await uploadTaskAttachment(
+  const { attachment } = await uploadTaskAttachment(
     taskInfo.id,
     userId,
     fileBuffer,
@@ -73,10 +73,7 @@ async function fetchAndUploadPhoto(
   );
 
   if (!attachment) {
-    const diagnosticMsg = uploadError
-      ? `❌ Gagal menyimpan foto: ${uploadError}`
-      : COPY.telegram.photoUploadFailed;
-    await sendMessage(chatId, diagnosticMsg);
+    await sendMessage(chatId, COPY.telegram.photoUploadFailed);
     return { success: false };
   }
 
