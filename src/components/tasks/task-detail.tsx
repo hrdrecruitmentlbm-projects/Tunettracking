@@ -110,6 +110,28 @@ export function TaskDetail({
   }, [open, task]);
 
   useEffect(() => {
+    if (!open || !task) return;
+    let cancelled = false;
+    fetch(`/api/tasks/${task.id}/attachments`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled || !data.ok || !data.attachments) return;
+        setAttachments((prev) => {
+          const byId = new Map(prev.map((a) => [a.id, a]));
+          for (const att of data.attachments as Attachment[]) {
+            const existing = byId.get(att.id);
+            byId.set(att.id, { ...existing, ...att });
+          }
+          return Array.from(byId.values());
+        });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [open, task?.id]);
+
+  useEffect(() => {
     if (typeof window === "undefined") return;
     const stored = localStorage.getItem("tunetops-user");
     if (stored) {
@@ -468,11 +490,21 @@ export function TaskDetail({
                     <button
                       type="button"
                       onClick={() => handleOpenLightbox(att.signed_url)}
-                      className="w-full aspect-square rounded-lg overflow-hidden bg-tunet-bg border border-tunet-border"
+                      className="w-full aspect-square rounded-lg overflow-hidden bg-tunet-bg border border-tunet-border relative"
                     >
-                      <div className="w-full h-full flex items-center justify-center text-tunet-text-muted">
-                        <Camera className="w-6 h-6" />
-                      </div>
+                      {att.signed_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={att.signed_url}
+                          alt={att.caption || "Foto lampiran"}
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-tunet-text-muted">
+                          <Camera className="w-6 h-6" />
+                        </div>
+                      )}
                     </button>
                     {task.status !== "done" && (
                       <button
