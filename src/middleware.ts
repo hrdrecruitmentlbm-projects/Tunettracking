@@ -11,6 +11,7 @@ const PUBLIC_API_ROUTES = [
   "/api/webhooks",
   "/api/debug",
   "/api/heartbeat",
+  "/api/tasks",
 ];
 
 function isPublicRoute(pathname: string): boolean {
