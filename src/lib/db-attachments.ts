@@ -121,7 +121,8 @@ export async function fetchTaskAttachments(taskId: string): Promise<Attachment[]
       try {
         const signed_url = await getSignedUrl(att.file_path);
         return { ...att, signed_url };
-      } catch {
+      } catch (err) {
+        console.error(`[fetchTaskAttachments] getSignedUrl failed for ${att.file_path}:`, err);
         return att;
       }
     })
