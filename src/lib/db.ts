@@ -194,9 +194,12 @@ export async function upsertLocation(
   lng: number,
   accuracy?: number,
   source: "telegram_live" | "telegram_request" | "web_app" = "web_app"
-): Promise<boolean> {
+): Promise<{ ok: boolean; error?: string }> {
   const result = await recordLocationUpdate(userId, lat, lng, source, accuracy);
-  return result.ok;
+  if (result.ok) {
+    return { ok: true };
+  }
+  return { ok: false, error: result.error };
 }
 
 export async function fetchTags(): Promise<Tag[]> {
@@ -926,7 +929,7 @@ export async function recordPing(
   source: "telegram_live" | "telegram_request" | "web_app",
   sessionDate: string,
   accuracy?: number
-): Promise<void> {
+): Promise<{ ok: boolean; error?: string }> {
   // Use atomic RPC function to avoid race conditions
   // ON CONFLICT DO NOTHING prevents duplicates when called alongside upsertLocation()
   const { error } = await supabase.rpc("record_ping", {
@@ -940,7 +943,10 @@ export async function recordPing(
 
   if (error) {
     console.error("Error inserting location_ping:", error);
+    return { ok: false, error: error.message };
   }
+
+  return { ok: true };
 }
 
 export type RecordResult =
@@ -966,11 +972,25 @@ export async function recordLocationUpdate(
 
   if (error) {
     console.error("[recordLocationUpdate] RPC failed, falling back to direct queries:", error);
+    await supabase.from("error_log").insert({
+      source: "recordLocationUpdate",
+      step: "RPC call",
+      user_id: userId,
+      error: error.message,
+      payload: { source, lat, lng },
+    });
     return await recordLocationUpdateDirect(userId, lat, lng, source, accuracy);
   }
 
   if (!data || !data.ok) {
     console.error("[recordLocationUpdate] RPC returned ok=false, falling back:", data);
+    await supabase.from("error_log").insert({
+      source: "recordLocationUpdate",
+      step: "RPC returned ok=false",
+      user_id: userId,
+      error: JSON.stringify(data),
+      payload: { source, lat, lng },
+    });
     return await recordLocationUpdateDirect(userId, lat, lng, source, accuracy);
   }
 
@@ -1040,11 +1060,15 @@ async function recordLocationUpdateDirect(
 
       if (stayMinutes >= MIN_STAY_DURATION_MINUTES) {
         // Save previous stay as a visit
+        // Derive visit session_date from arrived_at (not now), so cross-midnight
+        // stays are attributed to the day the user actually arrived.
+        const visitSessionDate = getSessionDate(arrivedAt);
+
         const { data: maxVisit } = await supabase
           .from("location_visits")
           .select("visit_number")
           .eq("user_id", userId)
-          .eq("session_date", sessionDate)
+          .eq("session_date", visitSessionDate)
           .order("visit_number", { ascending: false })
           .limit(1)
           .maybeSingle();
@@ -1055,7 +1079,7 @@ async function recordLocationUpdateDirect(
           .from("location_visits")
           .insert({
             user_id: userId,
-            session_date: sessionDate,
+            session_date: visitSessionDate,
             visit_number: nextVisitNumber,
             lat: arrivalLat,
             lng: arrivalLng,
@@ -1069,6 +1093,13 @@ async function recordLocationUpdateDirect(
 
         if (visitError) {
           console.error("[recordLocationUpdateDirect] location_visits insert failed:", visitError);
+          await supabase.from("error_log").insert({
+            source: "recordLocationUpdateDirect",
+            step: "location_visits insert",
+            user_id: userId,
+            error: visitError.message,
+            payload: { sessionDate, visitSessionDate, nextVisitNumber },
+          });
         } else {
           newVisit = visit as LocationVisit;
         }
@@ -1135,6 +1166,13 @@ async function recordLocationUpdateDirect(
 
   if (pingError) {
     console.error("[recordLocationUpdateDirect] location_pings insert failed:", pingError);
+    await supabase.from("error_log").insert({
+      source: "recordLocationUpdateDirect",
+      step: "location_pings insert",
+      user_id: userId,
+      error: pingError.message,
+      payload: { sessionDate, nextPingNumber, source },
+    });
     // Don't fail — the location was saved
   }
 

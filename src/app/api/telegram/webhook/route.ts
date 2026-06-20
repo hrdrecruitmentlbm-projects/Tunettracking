@@ -104,6 +104,7 @@ async function fetchAndUploadPhoto(
 export async function POST(request: NextRequest) {
   try {
     const update: TelegramUpdate = await request.json();
+    console.log(`[tg] id=${update.update_id} edited=${!!update.edited_message} loc=${!!update.message?.location}`);
 
     // Handle edited_message (live location updates) BEFORE the early-return on missing message
     const editedMessage = update.edited_message;
@@ -111,20 +112,38 @@ export async function POST(request: NextRequest) {
       const chatId = editedMessage.chat.id;
       const user = await findUserByTelegramChatId(chatId);
       if (user) {
-        await upsertLocation(
+        const upsertResult = await upsertLocation(
           user.id,
           editedMessage.location.latitude,
           editedMessage.location.longitude,
           undefined,
           "telegram_live"
         );
-        await recordPing(
+        if (!upsertResult.ok) {
+          await supabase.from("error_log").insert({
+            source: "telegram-webhook",
+            step: "live upsertLocation",
+            user_id: user.id,
+            error: upsertResult.error || "unknown",
+            payload: { update_id: update.update_id },
+          });
+        }
+        const pingResult = await recordPing(
           user.id,
           editedMessage.location.latitude,
           editedMessage.location.longitude,
           "telegram_live",
           getSessionDate()
         );
+        if (!pingResult.ok) {
+          await supabase.from("error_log").insert({
+            source: "telegram-webhook",
+            step: "live recordPing",
+            user_id: user.id,
+            error: pingResult.error || "unknown",
+            payload: { update_id: update.update_id },
+          });
+        }
       }
       return NextResponse.json({ ok: true });
     }
@@ -306,7 +325,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (location) {
-      const success = await upsertLocation(
+      const upsertResult = await upsertLocation(
         user.id,
         location.latitude,
         location.longitude,
@@ -314,8 +333,18 @@ export async function POST(request: NextRequest) {
         "telegram_request"
       );
 
+      if (!upsertResult.ok) {
+        await supabase.from("error_log").insert({
+          source: "telegram-webhook",
+          step: "one-time upsertLocation",
+          user_id: user.id,
+          error: upsertResult.error || "unknown",
+          payload: { update_id: update.update_id, lat: location.latitude, lng: location.longitude },
+        });
+      }
+
       // Create numbered ping for route history (ON CONFLICT prevents duplicates)
-      await recordPing(
+      const pingResult = await recordPing(
         user.id,
         location.latitude,
         location.longitude,
@@ -323,7 +352,20 @@ export async function POST(request: NextRequest) {
         getSessionDate()
       );
 
-      if (success) {
+      if (!pingResult.ok) {
+        await supabase.from("error_log").insert({
+          source: "telegram-webhook",
+          step: "one-time recordPing",
+          user_id: user.id,
+          error: pingResult.error || "unknown",
+          payload: { update_id: update.update_id, lat: location.latitude, lng: location.longitude },
+        });
+        if (upsertResult.ok) {
+          await sendMessage(chatId, "⚠️ Lokasi tersimpan, tapi gagal membuat ping. Hubungi admin.");
+        }
+      }
+
+      if (upsertResult.ok) {
         await sendMessage(
           chatId,
           COPY.telegram.locationSendSuccess(location.latitude, location.longitude)
