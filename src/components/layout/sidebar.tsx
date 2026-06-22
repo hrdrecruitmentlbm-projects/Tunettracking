@@ -17,6 +17,7 @@ import {
   ChevronLeft,
   Menu,
   X,
+  Clock,
 } from "lucide-react";
 import { COPY } from "@/lib/copy";
 import { useMediaQuery } from "@/hooks/use-media-query";
@@ -30,17 +31,21 @@ const NAV_ITEMS = {
     { href: "/dashboard/admin", labelKey: "dashboard" as const, icon: LayoutDashboard },
     { href: "/dashboard/map", labelKey: "radarMap" as const, icon: Map },
     { href: "/dashboard/tasks", labelKey: "taskBoard" as const, icon: CheckSquare },
+    { href: "/dashboard/attendance", labelKey: "attendance" as const, icon: Clock },
     { href: "/dashboard/admin/users", labelKey: "team" as const, icon: Users },
+    { href: "/dashboard/admin/attendance", labelKey: "attendanceOverview" as const, icon: Users },
     { href: "/dashboard/settings", labelKey: "settings" as const, icon: Settings },
   ],
   noc: [
     { href: "/dashboard/noc", labelKey: "dashboard" as const, icon: LayoutDashboard },
     { href: "/dashboard/map", labelKey: "radarMap" as const, icon: Map },
     { href: "/dashboard/tasks", labelKey: "taskBoard" as const, icon: CheckSquare },
+    { href: "/dashboard/attendance", labelKey: "attendance" as const, icon: Clock },
     { href: "/dashboard/settings", labelKey: "settings" as const, icon: Settings },
   ],
   foc: [
     { href: "/dashboard/foc", labelKey: "myTasks" as const, icon: CheckSquare },
+    { href: "/dashboard/attendance", labelKey: "attendance" as const, icon: Clock },
     { href: "/dashboard/map", labelKey: "map" as const, icon: Map },
     { href: "/dashboard/settings", labelKey: "settings" as const, icon: Settings },
   ],

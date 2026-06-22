@@ -93,3 +93,41 @@ export const PRIORITY_CONFIG: Record<TaskPriority, { label: string; color: strin
   high: { label: "Tinggi", color: "bg-priority-high", dot: "bg-priority-high" },
   critical: { label: "Urgent", color: "bg-priority-critical", dot: "bg-priority-critical" },
 };
+
+export type AttendanceType = "berangkat" | "pulang";
+
+export interface Attendance {
+  id: string;
+  user_id: string;
+  type: AttendanceType;
+  timestamp: string;
+  attendance_date: string;
+  location_lat?: number | null;
+  location_lng?: number | null;
+  notes?: string | null;
+  created_at: string;
+}
+
+export interface AttendanceWithUser extends Attendance {
+  user?: User;
+}
+
+export interface AttendanceStats {
+  thisMonthDays: number;
+  totalDays: number;
+  averageDurationMinutes: number;
+  hadirPercentage: number;
+}
+
+export const ATTENDANCE_TYPE_CONFIG: Record<AttendanceType, { label: string; color: string; bg: string }> = {
+  berangkat: {
+    label: "Berangkat",
+    color: "text-tunet-green",
+    bg: "bg-tunet-green/20 border-tunet-green/40",
+  },
+  pulang: {
+    label: "Pulang",
+    color: "text-tunet-ember",
+    bg: "bg-tunet-ember/20 border-tunet-ember/40",
+  },
+};

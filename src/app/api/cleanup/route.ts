@@ -11,7 +11,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    // Call the cleanup function
+    // 1) Cleanup old location pings, visits, read notifications, expired uploads
     const { data, error } = await supabase.rpc("cleanup_old_location_data");
 
     if (error) {
@@ -22,6 +22,15 @@ export async function POST(request: Request) {
       );
     }
 
+    // 2) Cleanup attendance records older than 60 days
+    const { data: attendanceDeleted, error: attendanceError } = await supabase.rpc(
+      "cleanup_old_attendance"
+    );
+
+    if (attendanceError) {
+      console.error("Attendance cleanup error:", attendanceError);
+    }
+
     // Get storage stats after cleanup
     const { data: stats } = await supabase.rpc("get_storage_stats");
 
@@ -29,6 +38,7 @@ export async function POST(request: Request) {
       ok: true,
       message: "Data retention cleanup completed",
       storageStats: stats,
+      attendanceDeleted: attendanceDeleted ?? 0,
     });
   } catch (error) {
     console.error("Cleanup endpoint error:", error);

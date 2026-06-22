@@ -8,6 +8,7 @@ import {
   CheckSquare,
   Settings,
   Users,
+  Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserRole } from "@/types";
@@ -22,6 +23,7 @@ const NAV_ITEMS = {
     { href: "/dashboard/admin", label: COPY.nav.dashboard, icon: LayoutDashboard },
     { href: "/dashboard/map", label: COPY.nav.radarMap, icon: Map },
     { href: "/dashboard/tasks", label: COPY.nav.taskBoard, icon: CheckSquare },
+    { href: "/dashboard/attendance", label: COPY.nav.attendance, icon: Clock },
     { href: "/dashboard/admin/users", label: COPY.nav.team, icon: Users },
     { href: "/dashboard/settings", label: COPY.nav.settings, icon: Settings },
   ],
@@ -29,10 +31,12 @@ const NAV_ITEMS = {
     { href: "/dashboard/noc", label: COPY.nav.dashboard, icon: LayoutDashboard },
     { href: "/dashboard/map", label: COPY.nav.radarMap, icon: Map },
     { href: "/dashboard/tasks", label: COPY.nav.taskBoard, icon: CheckSquare },
+    { href: "/dashboard/attendance", label: COPY.nav.attendance, icon: Clock },
     { href: "/dashboard/settings", label: COPY.nav.settings, icon: Settings },
   ],
   foc: [
     { href: "/dashboard/foc", label: COPY.nav.myTasks, icon: CheckSquare },
+    { href: "/dashboard/attendance", label: COPY.nav.attendance, icon: Clock },
     { href: "/dashboard/map", label: COPY.nav.map, icon: Map },
     { href: "/dashboard/settings", label: COPY.nav.settings, icon: Settings },
   ],

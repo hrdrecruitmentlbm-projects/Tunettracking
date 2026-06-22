@@ -78,3 +78,48 @@ export function formatLongDate(dateStr: string): string {
     minute: "2-digit",
   });
 }
+
+/**
+ * Format a timestamp string as HH:MM in Asia/Jakarta (WIB) timezone.
+ * Returns "—" if the value is falsy.
+ */
+export function formatTimeWIB(value: string | null | undefined): string {
+  if (!value) return "—";
+  return new Date(value).toLocaleTimeString("id-ID", {
+    timeZone: "Asia/Jakarta",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
+/**
+ * Format an attendance_date (YYYY-MM-DD) as e.g. "Senin, 22 Jun 2026" in id-ID locale.
+ * Uses Asia/Jakarta to ensure the rendered weekday matches the recorded date
+ * even if the user views the page in another timezone.
+ */
+export function formatAttendanceDate(dateStr: string): string {
+  // dateStr is a YYYY-MM-DD string interpreted as a calendar date in WIB.
+  // Construct an ISO string at noon WIB to avoid any DST/tz edge cases.
+  const iso = `${dateStr}T12:00:00+07:00`;
+  return new Date(iso).toLocaleDateString("id-ID", {
+    timeZone: "Asia/Jakarta",
+    weekday: "long",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+/**
+ * Format a duration in minutes as "Xj Ym" / "Xj" / "Ym".
+ */
+export function formatDuration(minutes: number | null | undefined): string {
+  if (minutes == null) return "—";
+  if (minutes < 1) return "0m";
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h === 0) return `${m}m`;
+  if (m === 0) return `${h}j`;
+  return `${h}j ${m}m`;
+}
