@@ -19,27 +19,34 @@ import {
 } from "@/lib/db";
 import { uploadTaskAttachment } from "@/lib/db-attachments";
 import { supabase } from "@/lib/supabase";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 import { User, STATUS_CONFIG, TaskStatus } from "@/types";
 import { cacheTelegramChat, cacheUserChat } from "@/lib/telegram-cache";
 import { COPY } from "@/lib/copy";
 
-interface PendingPhoto {
-  file_id: string;
-  user_id: string;
-  timestamp: number;
-  message_id?: number;
+const PENDING_PHOTO_TTL_MS = 10 * 60 * 1000;
+
+async function storePendingPhoto(chatId: number, userId: string, fileId: string) {
+  await supabaseAdmin.from("pending_photo_uploads").upsert({
+    chat_id: chatId,
+    user_id: userId,
+    file_id: fileId,
+  });
 }
 
-const PENDING_PHOTOS = new Map<number, PendingPhoto>();
-const PENDING_PHOTO_TTL_MS = 5 * 60 * 1000;
+async function getPendingPhoto(chatId: number) {
+  const cutoff = new Date(Date.now() - PENDING_PHOTO_TTL_MS).toISOString();
+  const { data } = await supabaseAdmin
+    .from("pending_photo_uploads")
+    .select("file_id, user_id")
+    .eq("chat_id", chatId)
+    .gt("created_at", cutoff)
+    .maybeSingle();
+  return data;
+}
 
-function cleanupPendingPhotos() {
-  const now = Date.now();
-  for (const [chatId, pending] of PENDING_PHOTOS.entries()) {
-    if (now - pending.timestamp > PENDING_PHOTO_TTL_MS) {
-      PENDING_PHOTOS.delete(chatId);
-    }
-  }
+async function deletePendingPhoto(chatId: number) {
+  await supabaseAdmin.from("pending_photo_uploads").delete().eq("chat_id", chatId);
 }
 
 async function fetchAndUploadPhoto(
@@ -158,9 +165,7 @@ export async function POST(request: NextRequest) {
       }
 
       const taskId = callbackQuery.data.slice("photo_task:".length);
-      const pending = PENDING_PHOTOS.get(chatId);
-
-      cleanupPendingPhotos();
+      const pending = await getPendingPhoto(chatId);
 
       if (!pending) {
         await answerCallbackQuery(callbackQuery.id, COPY.telegram.photoExpired, true);
@@ -171,13 +176,13 @@ export async function POST(request: NextRequest) {
       const user = await findUserByTelegramChatId(chatId);
       if (!user) {
         await answerCallbackQuery(callbackQuery.id, "User tidak ditemukan", true);
-        PENDING_PHOTOS.delete(chatId);
+        await deletePendingPhoto(chatId);
         return NextResponse.json({ ok: true });
       }
 
       await answerCallbackQuery(callbackQuery.id, "⏳ Mengunggah foto...");
 
-      PENDING_PHOTOS.delete(chatId);
+      await deletePendingPhoto(chatId);
       await fetchAndUploadPhoto(chatId, user.id, pending.file_id, taskId);
       return NextResponse.json({ ok: true });
     }
@@ -186,7 +191,7 @@ export async function POST(request: NextRequest) {
     if (callbackQuery?.data === "photo_cancel") {
       const chatId = callbackQuery.message?.chat.id;
       if (chatId) {
-        PENDING_PHOTOS.delete(chatId);
+        await deletePendingPhoto(chatId);
         await answerCallbackQuery(callbackQuery.id, COPY.telegram.photoCancelled);
         await sendMessage(chatId, COPY.telegram.photoCancelled);
       }
@@ -439,12 +444,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Multiple active tasks: store pending photo and show inline keyboard
-      cleanupPendingPhotos();
-      PENDING_PHOTOS.set(chatId, {
-        file_id: fileId,
-        user_id: user.id,
-        timestamp: Date.now(),
-      });
+      await storePendingPhoto(chatId, user.id, fileId);
 
       const inlineKeyboard = myActiveTasks.slice(0, 8).map((task) => {
         const emoji =

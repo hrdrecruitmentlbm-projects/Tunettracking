@@ -41,6 +41,10 @@ BEGIN
   GET DIAGNOSTICS v_notifications_deleted = ROW_COUNT;
   RAISE NOTICE 'Deleted % old read notifications', v_notifications_deleted;
 
+  -- Delete expired pending photo uploads (older than 1 hour)
+  DELETE FROM pending_photo_uploads
+  WHERE created_at < NOW() - INTERVAL '1 hour';
+
   -- Log the cleanup
   RAISE NOTICE 'Data retention cleanup completed. Cutoff date: %', v_cutoff_date;
 END;
@@ -89,9 +93,16 @@ AS $$
   SELECT
     'notifications'::TEXT,
     COUNT(*)::BIGINT,
-    MIN(created_at)::DATE,
-    MAX(created_at)::DATE
-  FROM notifications;
+    MIN(created_at),
+    MAX(created_at)
+  FROM notifications
+  UNION ALL
+  SELECT
+    'pending_photo_uploads'::TEXT,
+    COUNT(*)::BIGINT,
+    MIN(created_at),
+    MAX(created_at)
+  FROM pending_photo_uploads;
 $$;
 
 -- D) Create a function to manually run cleanup (for testing or emergency use)
@@ -173,4 +184,14 @@ SELECT
   MIN(created_at)::DATE AS oldest_date,
   MAX(created_at)::DATE AS newest_date,
   pg_size_pretty(pg_total_relation_size('notifications')) AS table_size
-FROM notifications;
+FROM notifications
+UNION ALL
+SELECT
+  'pending_photo_uploads' AS table_name,
+  COUNT(*) AS total_rows,
+  COUNT(*) FILTER (WHERE created_at < NOW() - INTERVAL '1 hour') AS rows_to_delete,
+  COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '1 hour') AS rows_to_keep,
+  MIN(created_at)::DATE AS oldest_date,
+  MAX(created_at)::DATE AS newest_date,
+  pg_size_pretty(pg_total_relation_size('pending_photo_uploads')) AS table_size
+FROM pending_photo_uploads;
