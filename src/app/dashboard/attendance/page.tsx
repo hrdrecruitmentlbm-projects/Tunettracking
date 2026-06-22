@@ -7,8 +7,7 @@ import { AttendanceStatsCards } from "@/components/attendance/attendance-stats";
 import { AttendanceHistory } from "@/components/attendance/attendance-history";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { COPY } from "@/lib/copy";
-import { Attendance, AttendanceStats } from "@/types";
-import { GroupedDay } from "@/lib/db-attendance";
+import { Attendance, AttendanceStats, GroupedDay } from "@/types";
 import { Clock } from "lucide-react";
 
 interface AttendancePayload {

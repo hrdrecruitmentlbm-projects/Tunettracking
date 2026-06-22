@@ -1,4 +1,4 @@
-import { supabase } from "./supabase";
+import { supabaseAdmin } from "./supabase-admin";
 import { Attendance, AttendanceStats, AttendanceType, AttendanceWithUser } from "@/types";
 
 export interface RecordAttendanceInput {
@@ -15,16 +15,19 @@ export interface RecordAttendanceInput {
  * duplicates within a single WIB day.
  *
  * Returns the inserted row, or null if a duplicate already exists.
+ *
+ * Uses supabaseAdmin (service-role) to bypass RLS — this function is only
+ * called from API routes which authenticate via the session cookie.
  */
 export async function recordAttendance(
   input: RecordAttendanceInput
 ): Promise<Attendance | null> {
-  const attendanceDateResult = await supabase.rpc("attendance_today_jakarta");
+  const attendanceDateResult = await supabaseAdmin.rpc("attendance_today_jakarta");
   const attendanceDate =
     (attendanceDateResult.data as string | null) ??
     new Date().toISOString().slice(0, 10);
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from("attendance")
     .insert({
       user_id: input.user_id,
@@ -53,10 +56,10 @@ export async function recordAttendance(
  * Fetch today's attendance records for a user (0, 1, or 2 entries).
  */
 export async function getTodayAttendance(userId: string): Promise<Attendance[]> {
-  const todayResult = await supabase.rpc("attendance_today_jakarta");
+  const todayResult = await supabaseAdmin.rpc("attendance_today_jakarta");
   const today = (todayResult.data as string | null) ?? new Date().toISOString().slice(0, 10);
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from("attendance")
     .select("*")
     .eq("user_id", userId)
@@ -84,7 +87,7 @@ export async function getAttendanceHistory(
   cutoff.setDate(cutoff.getDate() - days);
   const cutoffStr = cutoff.toISOString().slice(0, 10);
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from("attendance")
     .select("*")
     .eq("user_id", userId)
@@ -100,15 +103,8 @@ export async function getAttendanceHistory(
   return (data || []) as Attendance[];
 }
 
-interface GroupedDay {
-  date: string;
-  berangkat: Attendance | null;
-  pulang: Attendance | null;
-  durationMinutes: number | null;
-}
-
-function groupByDay(rows: Attendance[]): GroupedDay[] {
-  const map = new Map<string, GroupedDay>();
+function groupByDay(rows: Attendance[]): import("@/types").GroupedDay[] {
+  const map = new Map<string, import("@/types").GroupedDay>();
   for (const row of rows) {
     const existing =
       map.get(row.attendance_date) ?? {
@@ -138,7 +134,7 @@ function groupByDay(rows: Attendance[]): GroupedDay[] {
 export async function getAttendanceHistoryGrouped(
   userId: string,
   days = 60
-): Promise<GroupedDay[]> {
+): Promise<import("@/types").GroupedDay[]> {
   const rows = await getAttendanceHistory(userId, days);
   return groupByDay(rows);
 }
@@ -191,7 +187,7 @@ export async function getAllAttendance(
   startDate?: string,
   endDate?: string
 ): Promise<AttendanceWithUser[]> {
-  let query = supabase
+  let query = supabaseAdmin
     .from("attendance")
     .select(
       `*,
@@ -210,5 +206,3 @@ export async function getAllAttendance(
   }
   return (data || []) as AttendanceWithUser[];
 }
-
-export type { GroupedDay };

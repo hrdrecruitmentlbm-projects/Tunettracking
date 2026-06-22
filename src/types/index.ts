@@ -131,3 +131,10 @@ export const ATTENDANCE_TYPE_CONFIG: Record<AttendanceType, { label: string; col
     bg: "bg-tunet-ember/20 border-tunet-ember/40",
   },
 };
+
+export interface GroupedDay {
+  date: string;
+  berangkat: Attendance | null;
+  pulang: Attendance | null;
+  durationMinutes: number | null;
+}

@@ -31,6 +31,12 @@ create index if not exists attendance_date_idx
   on public.attendance (attendance_date desc);
 
 -- E) Row Level Security
+--    The app uses custom PIN-based auth (not Supabase Auth), so auth.uid()
+--    is always NULL when connecting with the anon key. All writes/reads go
+--    through API routes using the service-role client (supabaseAdmin) which
+--    bypasses RLS. Policies below remain as defense-in-depth in case anyone
+--    connects with the anon key directly — they would simply see 0 rows
+--    and be unable to insert.
 alter table public.attendance enable row level security;
 
 -- Users can read their own attendance

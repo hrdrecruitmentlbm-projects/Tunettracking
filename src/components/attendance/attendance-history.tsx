@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
-import { GroupedDay } from "@/lib/db-attendance";
+import { GroupedDay } from "@/types";
 import { formatAttendanceDate, formatTimeWIB, formatDuration } from "@/lib/time";
 import { COPY } from "@/lib/copy";
 import { CalendarOff, Check, AlertTriangle } from "lucide-react";
