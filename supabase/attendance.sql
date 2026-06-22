@@ -94,3 +94,12 @@ immutable
 as $$
   select (now() at time zone 'Asia/Jakarta')::date;
 $$;
+
+-- H) Grant privileges to the service_role.
+--    New tables created via custom migrations do NOT receive automatic
+--    grants on Supabase. The service-role Supabase client (used by
+--    db-attendance.ts) needs SELECT (reads), INSERT (clock-in/out), and
+--    DELETE (60-day cleanup function called via supabase.rpc).
+--    Without these grants, every query returns code 42501
+--    "permission denied for table attendance".
+grant select, insert, delete on public.attendance to service_role;
