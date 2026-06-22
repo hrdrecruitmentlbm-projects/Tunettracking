@@ -27,26 +27,35 @@ import { COPY } from "@/lib/copy";
 const PENDING_PHOTO_TTL_MS = 10 * 60 * 1000;
 
 async function storePendingPhoto(chatId: number, userId: string, fileId: string) {
-  await supabaseAdmin.from("pending_photo_uploads").upsert({
+  const { error } = await supabaseAdmin.from("pending_photo_uploads").upsert({
     chat_id: chatId,
     user_id: userId,
     file_id: fileId,
   });
+  if (error) {
+    console.error("[tg] storePendingPhoto error:", error);
+  }
 }
 
 async function getPendingPhoto(chatId: number) {
   const cutoff = new Date(Date.now() - PENDING_PHOTO_TTL_MS).toISOString();
-  const { data } = await supabaseAdmin
+  const { data, error } = await supabaseAdmin
     .from("pending_photo_uploads")
     .select("file_id, user_id")
     .eq("chat_id", chatId)
     .gt("created_at", cutoff)
     .maybeSingle();
+  if (error) {
+    console.error("[tg] getPendingPhoto error:", error);
+  }
   return data;
 }
 
 async function deletePendingPhoto(chatId: number) {
-  await supabaseAdmin.from("pending_photo_uploads").delete().eq("chat_id", chatId);
+  const { error } = await supabaseAdmin.from("pending_photo_uploads").delete().eq("chat_id", chatId);
+  if (error) {
+    console.error("[tg] deletePendingPhoto error:", error);
+  }
 }
 
 async function fetchAndUploadPhoto(
