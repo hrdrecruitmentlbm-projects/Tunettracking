@@ -110,6 +110,7 @@ export interface Attendance {
 
 export interface AttendanceWithUser extends Attendance {
   user?: User;
+  todos?: AttendanceTodo[];
 }
 
 export interface AttendanceStats {
@@ -137,4 +138,13 @@ export interface GroupedDay {
   berangkat: Attendance | null;
   pulang: Attendance | null;
   durationMinutes: number | null;
+  todos: AttendanceTodo[];
+}
+
+export interface AttendanceTodo {
+  id: string;
+  attendance_id: string;
+  user_id: string;
+  title: string;
+  created_at: string;
 }

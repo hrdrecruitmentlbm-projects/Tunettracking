@@ -1,5 +1,5 @@
 import { supabaseAdmin } from "./supabase-admin";
-import { Attendance, AttendanceStats, AttendanceType, AttendanceWithUser } from "@/types";
+import { Attendance, AttendanceStats, AttendanceTodo, AttendanceType, AttendanceWithUser } from "@/types";
 
 export interface RecordAttendanceInput {
   user_id: string;
@@ -7,6 +7,7 @@ export interface RecordAttendanceInput {
   location_lat?: number | null;
   location_lng?: number | null;
   notes?: string | null;
+  todos?: string[];
 }
 
 /**
@@ -49,6 +50,25 @@ export async function recordAttendance(
     return null;
   }
 
+  // Insert todos if provided (Berangkat only)
+  if (input.todos && input.todos.length > 0 && data) {
+    const todoRows = input.todos
+      .filter((t) => t.trim().length > 0)
+      .map((title) => ({
+        attendance_id: data.id,
+        user_id: input.user_id,
+        title: title.trim(),
+      }));
+    if (todoRows.length > 0) {
+      const { error: todoError } = await supabaseAdmin
+        .from("attendance_todos")
+        .insert(todoRows);
+      if (todoError) {
+        console.error("Error inserting attendance todos:", todoError);
+      }
+    }
+  }
+
   return data as Attendance;
 }
 
@@ -71,7 +91,18 @@ export async function getTodayAttendance(userId: string): Promise<Attendance[]> 
     return [];
   }
 
-  return (data || []) as Attendance[];
+  const rows = (data || []) as Attendance[];
+
+  // Attach todos to each attendance record
+  if (rows.length > 0) {
+    const ids = rows.map((r) => r.id);
+    const todoMap = await getAttendanceTodos(ids);
+    for (const row of rows) {
+      (row as Attendance & { todos: AttendanceTodo[] }).todos = todoMap.get(row.id) ?? [];
+    }
+  }
+
+  return rows;
 }
 
 /**
@@ -103,7 +134,39 @@ export async function getAttendanceHistory(
   return (data || []) as Attendance[];
 }
 
-function groupByDay(rows: Attendance[]): import("@/types").GroupedDay[] {
+/**
+ * Batch-fetch todos for a set of attendance IDs.
+ * Returns a Map keyed by attendance_id for O(1) lookups.
+ */
+async function getAttendanceTodos(
+  attendanceIds: string[]
+): Promise<Map<string, AttendanceTodo[]>> {
+  if (attendanceIds.length === 0) return new Map();
+
+  const { data, error } = await supabaseAdmin
+    .from("attendance_todos")
+    .select("*")
+    .in("attendance_id", attendanceIds)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    console.error("Error fetching attendance todos:", error);
+    return new Map();
+  }
+
+  const map = new Map<string, AttendanceTodo[]>();
+  for (const row of (data || []) as AttendanceTodo[]) {
+    const existing = map.get(row.attendance_id) ?? [];
+    existing.push(row);
+    map.set(row.attendance_id, existing);
+  }
+  return map;
+}
+
+function groupByDay(
+  rows: Attendance[],
+  todoMap: Map<string, AttendanceTodo[]>
+): import("@/types").GroupedDay[] {
   const map = new Map<string, import("@/types").GroupedDay>();
   for (const row of rows) {
     const existing =
@@ -112,9 +175,14 @@ function groupByDay(rows: Attendance[]): import("@/types").GroupedDay[] {
         berangkat: null,
         pulang: null,
         durationMinutes: null,
+        todos: [],
       };
-    if (row.type === "berangkat") existing.berangkat = row;
-    else existing.pulang = row;
+    if (row.type === "berangkat") {
+      existing.berangkat = row;
+      existing.todos = todoMap.get(row.id) ?? [];
+    } else {
+      existing.pulang = row;
+    }
     if (existing.berangkat && existing.pulang) {
       const diff =
         new Date(existing.pulang.timestamp).getTime() -
@@ -136,7 +204,12 @@ export async function getAttendanceHistoryGrouped(
   days = 60
 ): Promise<import("@/types").GroupedDay[]> {
   const rows = await getAttendanceHistory(userId, days);
-  return groupByDay(rows);
+
+  // Fetch todos for all berangkat entries
+  const berangkatIds = rows.filter((r) => r.type === "berangkat").map((r) => r.id);
+  const todoMap = await getAttendanceTodos(berangkatIds);
+
+  return groupByDay(rows, todoMap);
 }
 
 /**
@@ -204,5 +277,19 @@ export async function getAllAttendance(
     console.error("Error fetching all attendance:", error);
     return [];
   }
-  return (data || []) as AttendanceWithUser[];
+
+  const rows = (data || []) as AttendanceWithUser[];
+
+  // Fetch todos for all berangkat entries
+  const berangkatIds = rows.filter((r) => r.type === "berangkat").map((r) => r.id);
+  if (berangkatIds.length > 0) {
+    const todoMap = await getAttendanceTodos(berangkatIds);
+    for (const row of rows) {
+      if (row.type === "berangkat") {
+        row.todos = todoMap.get(row.id) ?? [];
+      }
+    }
+  }
+
+  return rows;
 }

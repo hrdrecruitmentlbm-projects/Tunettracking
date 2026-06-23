@@ -38,6 +38,7 @@ export async function POST(request: NextRequest) {
       location_lat: typeof body.location_lat === "number" ? body.location_lat : null,
       location_lng: typeof body.location_lng === "number" ? body.location_lng : null,
       notes: typeof body.notes === "string" ? body.notes : null,
+      todos: Array.isArray(body.todos) ? body.todos.filter((t: unknown) => typeof t === "string" && t.trim().length > 0) : undefined,
     });
 
     if (!record) {

@@ -5,10 +5,13 @@ import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { AttendanceButtons } from "@/components/attendance/attendance-buttons";
 import { AttendanceStatsCards } from "@/components/attendance/attendance-stats";
 import { AttendanceHistory } from "@/components/attendance/attendance-history";
+import { TodoFormDialog } from "@/components/attendance/todo-form-dialog";
+import { TodoList } from "@/components/attendance/todo-list";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { COPY } from "@/lib/copy";
-import { Attendance, AttendanceStats, GroupedDay } from "@/types";
+import { Attendance, AttendanceStats, AttendanceTodo, GroupedDay } from "@/types";
 import { Clock } from "lucide-react";
+import { toast } from "sonner";
 
 interface AttendancePayload {
   today: Attendance[];
@@ -19,6 +22,7 @@ interface AttendancePayload {
 export default function AttendancePage() {
   const [data, setData] = useState<AttendancePayload | null>(null);
   const [loading, setLoading] = useState(true);
+  const [todoDialogOpen, setTodoDialogOpen] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -40,15 +44,73 @@ export default function AttendancePage() {
     load();
   }, []);
 
+  const hasBerangkat = (data?.today ?? []).some((t) => t.type === "berangkat");
+
   const handleRecorded = (record: Attendance) => {
     setData((prev) => {
       if (!prev) return prev;
       const newToday = [...prev.today.filter((t) => t.type !== record.type), record];
-      // Re-fetch stats from server for accuracy
       load();
       return { ...prev, today: newToday };
     });
   };
+
+  const handleBerangkatClick = () => {
+    setTodoDialogOpen(true);
+  };
+
+  const handleTodoSubmit = async (todos: string[]) => {
+    setTodoDialogOpen(false);
+
+    let lat: number | null = null;
+    let lng: number | null = null;
+
+    if (typeof navigator !== "undefined" && navigator.geolocation) {
+      try {
+        const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            timeout: 8000,
+            maximumAge: 60_000,
+          });
+        });
+        lat = pos.coords.latitude;
+        lng = pos.coords.longitude;
+      } catch {
+        toast.message(COPY.attendance.locationDenied);
+      }
+    }
+
+    try {
+      const res = await fetch("/api/attendance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "berangkat", location_lat: lat, location_lng: lng, todos }),
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        if (res.status === 409) {
+          toast.error(COPY.attendance.duplicate);
+        } else {
+          toast.error(body.error || COPY.attendance.failedRecord);
+        }
+        return;
+      }
+
+      const record = (await res.json()) as Attendance;
+      handleRecorded(record);
+      if (lat != null && lng != null) {
+        toast.success(COPY.attendance.locationSaved(lat, lng));
+      }
+      toast.success(`${COPY.attendance.berangkatLabel} ${COPY.attendance.recorded}`);
+    } catch (err) {
+      console.error("Attendance record error:", err);
+      toast.error(COPY.attendance.failedRecord);
+    }
+  };
+
+  const todayTodos: AttendanceTodo[] =
+    (data?.today.find((t) => t.type === "berangkat") as Attendance & { todos?: AttendanceTodo[] })?.todos ?? [];
 
   return (
     <DashboardLayout>
@@ -76,9 +138,21 @@ export default function AttendancePage() {
               <AttendanceButtons
                 today={data?.today ?? []}
                 onRecorded={handleRecorded}
+                onBerangkatClick={handleBerangkatClick}
               />
             </CardContent>
           </Card>
+
+          {hasBerangkat && (
+            <Card className="bg-tunet-surface border-tunet-border">
+              <CardContent className="pt-6">
+                <TodoList
+                  todos={todayTodos}
+                  onAddClick={!hasBerangkat ? undefined : undefined}
+                />
+              </CardContent>
+            </Card>
+          )}
 
           <div className="space-y-3">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-tunet-text-muted">
@@ -102,6 +176,12 @@ export default function AttendancePage() {
           </Card>
         </div>
       </div>
+
+      <TodoFormDialog
+        open={todoDialogOpen}
+        onOpenChange={setTodoDialogOpen}
+        onSubmit={handleTodoSubmit}
+      />
     </DashboardLayout>
   );
 }

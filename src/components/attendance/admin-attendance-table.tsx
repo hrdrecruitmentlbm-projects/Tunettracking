@@ -19,10 +19,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { AttendanceWithUser, UserRole } from "@/types";
+import { AttendanceWithUser, AttendanceTodo, UserRole } from "@/types";
 import { formatAttendanceDate, formatTimeWIB, formatDuration } from "@/lib/time";
 import { COPY } from "@/lib/copy";
-import { Search, CalendarOff, Check, AlertTriangle, X } from "lucide-react";
+import { Search, CalendarOff, Check, AlertTriangle, X, ChevronDown, ChevronRight, ListTodo } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface AdminAttendanceTableProps {
@@ -39,6 +39,7 @@ interface GroupedRow {
   pulang: string | null;
   durationMinutes: number | null;
   status: "complete" | "incomplete" | "anomali";
+  todos: AttendanceTodo[];
 }
 
 function groupAdminRows(rows: AttendanceWithUser[]): GroupedRow[] {
@@ -56,15 +57,21 @@ function groupAdminRows(rows: AttendanceWithUser[]): GroupedRow[] {
         pulang: null,
         durationMinutes: null,
         status: "incomplete",
+        todos: [],
       };
-    if (r.type === "berangkat") existing.berangkat = r.timestamp;
-    else existing.pulang = r.timestamp;
+    if (r.type === "berangkat") {
+      existing.berangkat = r.timestamp;
+      if (r.todos && r.todos.length > 0) {
+        existing.todos = r.todos;
+      }
+    } else {
+      existing.pulang = r.timestamp;
+    }
 
     if (existing.berangkat && existing.pulang) {
       const diff =
         new Date(existing.pulang).getTime() - new Date(existing.berangkat).getTime();
       existing.durationMinutes = Math.max(0, Math.round(diff / 60000));
-      // Anomali: pulang < berangkat, or duration over 18 hours
       existing.status =
         existing.durationMinutes < 0 || existing.durationMinutes > 18 * 60
           ? "anomali"
@@ -83,6 +90,7 @@ function groupAdminRows(rows: AttendanceWithUser[]): GroupedRow[] {
 export function AdminAttendanceTable({ rows, loading }: AdminAttendanceTableProps) {
   const [roleFilter, setRoleFilter] = useState<"all" | UserRole>("all");
   const [search, setSearch] = useState("");
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
   const grouped = useMemo(() => groupAdminRows(rows), [rows]);
 
@@ -94,6 +102,15 @@ export function AdminAttendanceTable({ rows, loading }: AdminAttendanceTableProp
       return matchRole && matchSearch;
     });
   }, [grouped, roleFilter, search]);
+
+  const toggleRow = (key: string) => {
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
   if (loading) {
     return (
@@ -233,50 +250,97 @@ export function AdminAttendanceTable({ rows, loading }: AdminAttendanceTableProp
                   ? "bg-status-assigned/20 text-status-assigned"
                   : "bg-status-progress/20 text-status-progress";
 
+              const rowKey = `${r.userId}::${r.date}`;
+              const isExpanded = expandedRows.has(rowKey);
+              const hasTodos = r.todos.length > 0;
+
               return (
-                <TableRow key={`${r.userId}::${r.date}`} className="border-tunet-border">
-                  <TableCell>
-                    <div className="flex items-center gap-3">
-                      <div className="w-7 h-7 rounded-full bg-tunet-green/20 flex items-center justify-center text-tunet-green text-xs font-medium">
-                        {r.name.charAt(0)}
+                <>
+                  <TableRow
+                    key={rowKey}
+                    className={cn(
+                      "border-tunet-border",
+                      hasTodos && "cursor-pointer hover:bg-tunet-bg/50"
+                    )}
+                    onClick={hasTodos ? () => toggleRow(rowKey) : undefined}
+                  >
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        {hasTodos && (
+                          <span className="text-tunet-text-muted">
+                            {isExpanded ? (
+                              <ChevronDown className="h-4 w-4" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4" />
+                            )}
+                          </span>
+                        )}
+                        <div className="w-7 h-7 rounded-full bg-tunet-green/20 flex items-center justify-center text-tunet-green text-xs font-medium">
+                          {r.name.charAt(0)}
+                        </div>
+                        <span className="text-sm font-medium text-tunet-text">{r.name}</span>
                       </div>
-                      <span className="text-sm font-medium text-tunet-text">{r.name}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <span
-                      className={cn(
-                        "inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium uppercase",
-                        roleColor
-                      )}
-                    >
-                      {r.role}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-sm text-tunet-text-muted">
-                    {formatAttendanceDate(r.date)}
-                  </TableCell>
-                  <TableCell className="font-mono-data text-sm tabular-nums text-tunet-text">
-                    {formatTimeWIB(r.berangkat)}
-                  </TableCell>
-                  <TableCell className="font-mono-data text-sm tabular-nums text-tunet-text">
-                    {formatTimeWIB(r.pulang)}
-                  </TableCell>
-                  <TableCell className="font-mono-data text-sm tabular-nums text-tunet-text-muted">
-                    {formatDuration(r.durationMinutes)}
-                  </TableCell>
-                  <TableCell>
-                    <span
-                      className={cn(
-                        "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-medium",
-                        statusMeta.cls
-                      )}
-                    >
-                      <statusMeta.Icon className="h-3 w-3" />
-                      {statusMeta.label}
-                    </span>
-                  </TableCell>
-                </TableRow>
+                    </TableCell>
+                    <TableCell>
+                      <span
+                        className={cn(
+                          "inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium uppercase",
+                          roleColor
+                        )}
+                      >
+                        {r.role}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-sm text-tunet-text-muted">
+                      {formatAttendanceDate(r.date)}
+                    </TableCell>
+                    <TableCell className="font-mono-data text-sm tabular-nums text-tunet-text">
+                      {formatTimeWIB(r.berangkat)}
+                    </TableCell>
+                    <TableCell className="font-mono-data text-sm tabular-nums text-tunet-text">
+                      {formatTimeWIB(r.pulang)}
+                    </TableCell>
+                    <TableCell className="font-mono-data text-sm tabular-nums text-tunet-text-muted">
+                      {formatDuration(r.durationMinutes)}
+                    </TableCell>
+                    <TableCell>
+                      <span
+                        className={cn(
+                          "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-medium",
+                          statusMeta.cls
+                        )}
+                      >
+                        <statusMeta.Icon className="h-3 w-3" />
+                        {statusMeta.label}
+                      </span>
+                    </TableCell>
+                  </TableRow>
+                  {isExpanded && hasTodos && (
+                    <TableRow key={`${rowKey}-todos`} className="border-tunet-border bg-tunet-bg/30">
+                      <TableCell colSpan={7} className="px-6 py-3">
+                        <div className="flex items-start gap-2">
+                          <ListTodo className="h-4 w-4 text-tunet-green mt-0.5 shrink-0" />
+                          <div>
+                            <p className="text-xs font-medium text-tunet-text-muted mb-1">
+                              To-Do Hari Itu:
+                            </p>
+                            <ul className="space-y-0.5">
+                              {r.todos.map((todo) => (
+                                <li
+                                  key={todo.id}
+                                  className="flex items-center gap-2 text-sm text-tunet-text"
+                                >
+                                  <span className="h-1 w-1 rounded-full bg-tunet-green shrink-0" />
+                                  {todo.title}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </>
               );
             })}
           </TableBody>

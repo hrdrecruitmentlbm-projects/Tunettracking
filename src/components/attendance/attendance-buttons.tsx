@@ -11,6 +11,7 @@ import { toast } from "sonner";
 interface AttendanceButtonsProps {
   today: Attendance[];
   onRecorded: (record: Attendance) => void;
+  onBerangkatClick?: () => void;
 }
 
 interface ButtonState {
@@ -19,7 +20,7 @@ interface ButtonState {
   disabled: boolean;
 }
 
-export function AttendanceButtons({ today, onRecorded }: AttendanceButtonsProps) {
+export function AttendanceButtons({ today, onRecorded, onBerangkatClick }: AttendanceButtonsProps) {
   const [submitting, setSubmitting] = useState<AttendanceType | null>(null);
 
   const berangkat = today.find((t) => t.type === "berangkat") ?? null;
@@ -30,13 +31,13 @@ export function AttendanceButtons({ today, onRecorded }: AttendanceButtonsProps)
     { type: "pulang", recorded: pulang, disabled: !!pulang },
   ];
 
-  const handleClick = async (type: AttendanceType) => {
-    if (type === "pulang" && !berangkat) {
+  const handlePulang = async () => {
+    if (!berangkat) {
       toast.error("Absen berangkat dulu sebelum absen pulang");
       return;
     }
 
-    setSubmitting(type);
+    setSubmitting("pulang");
 
     let lat: number | null = null;
     let lng: number | null = null;
@@ -53,9 +54,6 @@ export function AttendanceButtons({ today, onRecorded }: AttendanceButtonsProps)
         lng = pos.coords.longitude;
       } catch {
         // Permission denied or unavailable — record without location
-        if (type === "berangkat") {
-          toast.message(COPY.attendance.locationDenied);
-        }
       }
     }
 
@@ -63,7 +61,7 @@ export function AttendanceButtons({ today, onRecorded }: AttendanceButtonsProps)
       const res = await fetch("/api/attendance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type, location_lat: lat, location_lng: lng }),
+        body: JSON.stringify({ type: "pulang", location_lat: lat, location_lng: lng }),
       });
 
       if (!res.ok) {
@@ -81,14 +79,18 @@ export function AttendanceButtons({ today, onRecorded }: AttendanceButtonsProps)
       if (lat != null && lng != null) {
         toast.success(COPY.attendance.locationSaved(lat, lng));
       }
-      toast.success(
-        `${type === "berangkat" ? COPY.attendance.berangkatLabel : COPY.attendance.pulangLabel} ${COPY.attendance.recorded}`
-      );
+      toast.success(`${COPY.attendance.pulangLabel} ${COPY.attendance.recorded}`);
     } catch (err) {
       console.error("Attendance record error:", err);
       toast.error(COPY.attendance.failedRecord);
     } finally {
       setSubmitting(null);
+    }
+  };
+
+  const handleBerangkatClick = () => {
+    if (onBerangkatClick) {
+      onBerangkatClick();
     }
   };
 
@@ -99,7 +101,7 @@ export function AttendanceButtons({ today, onRecorded }: AttendanceButtonsProps)
           key={s.type}
           state={s}
           loading={submitting === s.type}
-          onClick={() => handleClick(s.type)}
+          onClick={s.type === "berangkat" ? handleBerangkatClick : handlePulang}
         />
       ))}
     </div>

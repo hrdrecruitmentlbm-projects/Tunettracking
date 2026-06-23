@@ -466,5 +466,13 @@ export const COPY = {
     adminStatusBelumPulang: "Belum Pulang",
     adminStatusBelumBerangkat: "Belum Berangkat",
     adminStatusAnomali: "Anomali",
+    todoFormTitle: "Daftar Tugas Hari Ini",
+    todoFormDescription: "Isi to-do list sebelum absen berangkat. Anda bisa menambahkan item nanti setelah absen.",
+    todoPlaceholder: "Tugas",
+    todoAddItem: "Tambah Item",
+    todoSubmit: "Absen Berangkat",
+    todoListTitle: "To-Do Hari Ini",
+    todoAddButton: "Tambah",
+    todoEmpty: "Belum ada to-do hari ini.",
   },
 };
