@@ -192,7 +192,9 @@ export async function POST(request: NextRequest) {
       await answerCallbackQuery(callbackQuery.id, "⏳ Mengunggah foto...");
 
       await deletePendingPhoto(chatId);
-      await fetchAndUploadPhoto(chatId, user.id, pending.file_id, taskId);
+      fetchAndUploadPhoto(chatId, user.id, pending.file_id, taskId).catch((err) => {
+        console.error("[tg] background photo upload failed:", err);
+      });
       return NextResponse.json({ ok: true });
     }
 
