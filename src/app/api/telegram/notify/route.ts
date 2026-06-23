@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
         ok: true,
         skipped: true,
         reason:
-          "User hasn't started the bot yet. They need to send /start to @TunetOpsTrackingBot",
+          "User hasn't started the bot yet. They need to send /start to @TuTrackTrackingBot",
       });
     }
 

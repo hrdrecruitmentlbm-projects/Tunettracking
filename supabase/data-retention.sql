@@ -1,5 +1,5 @@
 -- =====================================================
--- TunetOps: Data Retention Policy
+-- TuTrack: Data Retention Policy
 -- Run this AFTER all other migrations
 -- Deletes location data older than 30 days
 -- =====================================================

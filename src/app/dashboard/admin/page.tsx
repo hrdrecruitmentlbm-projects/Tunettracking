@@ -37,7 +37,7 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("tunetops-user");
+      const stored = localStorage.getItem("tutrack-user");
       if (stored) {
         try {
           // eslint-disable-next-line react-hooks/set-state-in-effect

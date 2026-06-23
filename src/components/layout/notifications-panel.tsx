@@ -85,7 +85,7 @@ export function NotificationsPanel({ userId, onCountChange }: NotificationsPanel
     const taskId = notification.task_id || (notification.metadata?.task_id as string | undefined);
     if (taskId) {
       setOpen(false);
-      const stored = typeof window !== "undefined" ? localStorage.getItem("tunetops-user") : null;
+      const stored = typeof window !== "undefined" ? localStorage.getItem("tutrack-user") : null;
       const role = stored ? (JSON.parse(stored).role as string) : null;
       if (role === "foc") {
         router.push(`/dashboard/foc?task=${taskId}`);

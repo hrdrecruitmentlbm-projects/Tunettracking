@@ -1,5 +1,5 @@
 -- =====================================================
--- TunetOps: Task Attachments (photo proof-of-work)
+-- TuTrack: Task Attachments (photo proof-of-work)
 -- Run this AFTER schema.sql, notifications.sql, travel-history.sql, location-pings.sql
 -- =====================================================
 

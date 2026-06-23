@@ -1,5 +1,5 @@
 -- =====================================================
--- TunetOps: Pending Photo Uploads (persistent session)
+-- TuTrack: Pending Photo Uploads (persistent session)
 -- Run this AFTER schema.sql, task-attachments.sql
 -- Replaces in-memory Map to survive Vercel cold starts
 -- =====================================================

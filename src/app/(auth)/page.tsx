@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Wifi } from "lucide-react";
+import { TuTrackMark } from "@/components/icons/brand-icons";
 import { COPY } from "@/lib/copy";
 
 export default function LoginPage() {
@@ -35,7 +35,7 @@ export default function LoginPage() {
 
       const user = data.user;
       localStorage.setItem(
-        "tunetops-user",
+        "tutrack-user",
         JSON.stringify({
           id: user.id,
           name: user.name,
@@ -73,7 +73,7 @@ export default function LoginPage() {
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
             <div className="w-16 h-16 rounded-2xl bg-tunet-green/20 flex items-center justify-center">
-              <Wifi className="w-8 h-8 text-tunet-green" />
+              <TuTrackMark className="w-8 h-8 text-tunet-green" />
             </div>
           </div>
           <CardTitle className="text-2xl font-bold text-tunet-text">{COPY.auth.title}</CardTitle>

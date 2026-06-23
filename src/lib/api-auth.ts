@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { verifySessionToken } from "./auth";
 
-const SESSION_COOKIE_NAME = "tunetops-session";
+const SESSION_COOKIE_NAME = "tutrack-session";
 
 export interface ApiSession {
   userId: string;

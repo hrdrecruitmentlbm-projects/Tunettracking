@@ -1,5 +1,5 @@
 -- =====================================================
--- TunetOps: Error Log
+-- TuTrack: Error Log
 -- Run this to create the error_log table
 -- Used by webhook handlers to surface silent failures
 -- =====================================================

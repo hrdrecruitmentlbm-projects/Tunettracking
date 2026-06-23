@@ -84,7 +84,7 @@ function TasksPageContent() {
   useHeartbeat({ userId: currentUser?.id });
 
   useEffect(() => {
-    const stored = localStorage.getItem("tunetops-user");
+    const stored = localStorage.getItem("tutrack-user");
     if (stored) {
       try {
         // eslint-disable-next-line react-hooks/set-state-in-effect

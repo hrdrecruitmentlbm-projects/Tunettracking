@@ -1,4 +1,4 @@
--- TunetOps Seed Data
+-- TuTrack Seed Data
 -- Run this AFTER schema.sql in Supabase SQL Editor
 
 -- Users (all PINs are 1234)

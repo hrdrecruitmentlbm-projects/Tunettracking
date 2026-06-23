@@ -1,5 +1,5 @@
 -- =====================================================
--- TunetOps: Fix record_location_update RPC
+-- TuTrack: Fix record_location_update RPC
 -- 1. Remove internal ping inserts — pings are now created
 --    exclusively by the explicit recordPing() call in the webhook.
 --    This consolidates to ONE ping creation path, eliminating

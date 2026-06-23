@@ -1,5 +1,5 @@
 -- =====================================================
--- TunetOps: Notifications + Telegram + Reassignment
+-- TuTrack: Notifications + Telegram + Reassignment
 -- Run this AFTER schema.sql in the Supabase SQL Editor
 -- =====================================================
 

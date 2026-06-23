@@ -1,8 +1,8 @@
 import { cookies } from "next/headers";
 import crypto from "crypto";
 
-const SESSION_SECRET = process.env.SESSION_SECRET || "tunetops-dev-secret-change-in-production";
-const SESSION_COOKIE_NAME = "tunetops-session";
+const SESSION_SECRET = process.env.SESSION_SECRET || "tutrack-dev-secret-change-in-production";
+const SESSION_COOKIE_NAME = "tutrack-session";
 const SESSION_TTL_HOURS = 24;
 
 export interface SessionData {

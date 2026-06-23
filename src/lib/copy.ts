@@ -100,7 +100,7 @@ export const COPY = {
     attendanceOverview: "Rekap Absensi",
   },
   auth: {
-    title: "TunetOps",
+    title: "TuTrack",
     subtitle: "Sistem Manajemen Operasi Jaringan",
     pinLabel: "Masukkan PIN",
     pinPlaceholder: "Masukkan PIN 4 digit Anda",
@@ -344,18 +344,18 @@ export const COPY = {
   },
   telegram: {
     welcomeWithUsername: (username: string) =>
-      `👋 Selamat datang di TunetOps!\n\nSaya menemukan nama pengguna Anda: @${username}\n\nUntuk mulai membagikan lokasi Anda kepada tim:\n1. Ketuk 📎 (lampirkan)\n2. Pilih Lokasi\n3. Bagikan lokasi Anda saat ini\n\nAnda akan muncul di peta radar secara real-time!`,
-    welcomeNoUsername: `👋 Selamat datang di TunetOps!\n\nSilakan atur nama pengguna Telegram di pengaturan Telegram Anda, lalu kirim /start lagi.`,
-    welcomeWithPin: `👋 Selamat datang di TunetOps!\n\nUntuk menghubungkan akun Anda:\n1. Kirim PIN 4-digit Anda (contoh: 1234)\n2. Sistem akan otomatis mengikat akun Anda\n3. Anda akan menerima notifikasi tugas di sini\n\nBelum tahu PIN? Hubungi admin Anda.`,
+      `👋 Selamat datang di TuTrack!\n\nSaya menemukan nama pengguna Anda: @${username}\n\nUntuk mulai membagikan lokasi Anda kepada tim:\n1. Ketuk 📎 (lampirkan)\n2. Pilih Lokasi\n3. Bagikan lokasi Anda saat ini\n\nAnda akan muncul di peta radar secara real-time!`,
+    welcomeNoUsername: `👋 Selamat datang di TuTrack!\n\nSilakan atur nama pengguna Telegram di pengaturan Telegram Anda, lalu kirim /start lagi.`,
+    welcomeWithPin: `👋 Selamat datang di TuTrack!\n\nUntuk menghubungkan akun Anda:\n1. Kirim PIN 4-digit Anda (contoh: 1234)\n2. Sistem akan otomatis mengikat akun Anda\n3. Anda akan menerima notifikasi tugas di sini\n\nBelum tahu PIN? Hubungi admin Anda.`,
     linked: (name: string) =>
-      `✅ Terhubung ke TunetOps sebagai ${name}.\n\nAnda akan menerima notifikasi tugas di sini. Untuk share lokasi, tap 📎 → Location → Share.`,
+      `✅ Terhubung ke TuTrack sebagai ${name}.\n\nAnda akan menerima notifikasi tugas di sini. Untuk share lokasi, tap 📎 → Location → Share.`,
     alreadyLinked: (name: string) =>
-      `✅ Anda sudah terhubung ke TunetOps sebagai ${name}.\n\nKirim /help untuk melihat perintah yang tersedia.`,
+      `✅ Anda sudah terhubung ke TuTrack sebagai ${name}.\n\nKirim /help untuk melihat perintah yang tersedia.`,
     pinNotRecognized: `❌ PIN tidak dikenali. Silakan hubungi admin untuk PIN yang benar.`,
-    help: `🤖 <b>Perintah Bot TunetOps</b>\n\n/start - Cek status koneksi\n/help - Tampilkan bantuan ini\n/tasks - Lihat tugas aktif Anda\n\n📍 Untuk share lokasi:\nTap 📎 → Location → Share\n\nLokasi Anda akan muncul di radar secara real-time.`,
+    help: `🤖 <b>Perintah Bot TuTrack</b>\n\n/start - Cek status koneksi\n/help - Tampilkan bantuan ini\n/tasks - Lihat tugas aktif Anda\n\n📍 Untuk share lokasi:\nTap 📎 → Location → Share\n\nLokasi Anda akan muncul di radar secara real-time.`,
     setUsernameFirst: "❌ Silakan atur nama pengguna Telegram terlebih dahulu.",
     noAccountFound: (username: string) =>
-      `❌ Akun TunetOps tidak ditemukan untuk @${username}.\n\nMinta admin Anda untuk menambahkan nama pengguna Telegram ke profil staf Anda.`,
+      `❌ Akun TuTrack tidak ditemukan untuk @${username}.\n\nMinta admin Anda untuk menambahkan nama pengguna Telegram ke profil staf Anda.`,
     noActiveTasks: "✅ Tidak ada tugas aktif. Anda sudah selesai semua!",
     activeTasksHeader: (n: number) => `📋 <b>Tugas Aktif Anda (${n})</b>\n\n`,
     tasksLocation: "📍 Lokasi:",

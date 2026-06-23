@@ -1,5 +1,5 @@
 -- =====================================================
--- TunetOps: Attendance Feature
+-- TuTrack: Attendance Feature
 -- Run this AFTER schema.sql and data-retention.sql
 -- Tracks daily Berangkat / Pulang check-in/out per employee
 -- Records are auto-deleted after 60 days via cleanup route

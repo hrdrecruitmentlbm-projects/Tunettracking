@@ -14,7 +14,7 @@ import { COPY } from "@/lib/copy";
 
 function getStoredUser(): { user: User; name: string; phone: string } | null {
   if (typeof window === "undefined") return null;
-  const stored = localStorage.getItem("tunetops-user");
+  const stored = localStorage.getItem("tutrack-user");
   if (!stored) return null;
   try {
     const userData = JSON.parse(stored) as User;
@@ -27,10 +27,10 @@ function getStoredUser(): { user: User; name: string; phone: string } | null {
 function getStoredSettings() {
   if (typeof window === "undefined") return { darkMode: true, taskAssignments: true, statusUpdates: true, overdueAlerts: true };
   return {
-    darkMode: localStorage.getItem("tunetops-darkMode") !== "false",
-    taskAssignments: localStorage.getItem("tunetops-taskAssignments") !== "false",
-    statusUpdates: localStorage.getItem("tunetops-statusUpdates") !== "false",
-    overdueAlerts: localStorage.getItem("tunetops-overdueAlerts") !== "false",
+    darkMode: localStorage.getItem("tutrack-darkMode") !== "false",
+    taskAssignments: localStorage.getItem("tutrack-taskAssignments") !== "false",
+    statusUpdates: localStorage.getItem("tutrack-statusUpdates") !== "false",
+    overdueAlerts: localStorage.getItem("tutrack-overdueAlerts") !== "false",
   };
 }
 
@@ -48,13 +48,13 @@ export default function SettingsPage() {
   const handleSave = () => {
     if (user) {
       const updatedUser = { ...user, name, phone };
-      localStorage.setItem("tunetops-user", JSON.stringify(updatedUser));
+      localStorage.setItem("tutrack-user", JSON.stringify(updatedUser));
       setUser(updatedUser);
     }
-    localStorage.setItem("tunetops-darkMode", String(darkMode));
-    localStorage.setItem("tunetops-taskAssignments", String(taskAssignments));
-    localStorage.setItem("tunetops-statusUpdates", String(statusUpdates));
-    localStorage.setItem("tunetops-overdueAlerts", String(overdueAlerts));
+    localStorage.setItem("tutrack-darkMode", String(darkMode));
+    localStorage.setItem("tutrack-taskAssignments", String(taskAssignments));
+    localStorage.setItem("tutrack-statusUpdates", String(statusUpdates));
+    localStorage.setItem("tutrack-overdueAlerts", String(overdueAlerts));
     toast.success(COPY.pages.settings.saved);
   };
 

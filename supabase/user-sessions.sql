@@ -1,5 +1,5 @@
 -- =====================================================
--- TunetOps: User Sessions (heartbeat-based online tracking)
+-- TuTrack: User Sessions (heartbeat-based online tracking)
 -- Run this AFTER schema.sql in the Supabase SQL Editor
 -- =====================================================
 

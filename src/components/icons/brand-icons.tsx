@@ -15,15 +15,13 @@ const base = (size = 20): React.SVGProps<SVGSVGElement> => ({
   strokeLinejoin: "round",
 });
 
-export function TunetMark({ size = 20, ...rest }: IconProps) {
+export function TuTrackMark({ size = 20, ...rest }: IconProps) {
   return (
     <svg {...base(size)} {...rest}>
-      {/* A "T" formed by signal arcs */}
-      <path d="M3 7h18" />
-      <path d="M12 7v14" />
-      <path d="M5 11a7 7 0 0 1 0 6" opacity="0.5" />
-      <path d="M19 11a7 7 0 0 1 0 6" opacity="0.5" />
-      <circle cx="12" cy="21" r="0.8" fill="currentColor" stroke="none" />
+      {/* A "T" where the stem is a location pin */}
+      <path d="M7 5h10" strokeWidth="2" />
+      <path d="M12 5C12 5 8 9 8 13a4 4 0 0 0 8 0c0-4-4-8-4-8z" fill="currentColor" stroke="none" opacity="0.85" />
+      <circle cx="12" cy="13" r="1.5" fill="none" stroke="currentColor" strokeWidth="1.5" />
     </svg>
   );
 }

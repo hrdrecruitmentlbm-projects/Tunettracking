@@ -48,7 +48,7 @@ export default function MapPage() {
   useHeartbeat({ userId: currentUserId });
 
   useEffect(() => {
-    const stored = localStorage.getItem("tunetops-user");
+    const stored = localStorage.getItem("tutrack-user");
     if (stored) {
       const user: User = JSON.parse(stored);
       // eslint-disable-next-line react-hooks/set-state-in-effect

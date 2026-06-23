@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifySessionToken } from "@/lib/auth";
 
-const SESSION_COOKIE_NAME = "tunetops-session";
+const SESSION_COOKIE_NAME = "tutrack-session";
 
 const PUBLIC_API_ROUTES = [
   "/api/auth/login",

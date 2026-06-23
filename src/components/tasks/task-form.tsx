@@ -109,7 +109,7 @@ export function TaskForm({
   }, [open, editingTask]);
 
   const handleSessionExpired = () => {
-    localStorage.removeItem("tunetops-user");
+    localStorage.removeItem("tutrack-user");
     toast.error("Sesi berakhir. Silakan masuk lagi.");
     router.push("/");
   };
@@ -122,7 +122,7 @@ export function TaskForm({
       return;
     }
 
-    const storedUser = localStorage.getItem("tunetops-user");
+    const storedUser = localStorage.getItem("tutrack-user");
     const cachedUser = storedUser ? JSON.parse(storedUser) : null;
     if (!cachedUser?.id) {
       handleSessionExpired();

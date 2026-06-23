@@ -1,14 +1,14 @@
-# Onboarding a New FOC to TunetOps
+# Onboarding a New FOC to TuTrack
 
 > **Who this is for:** Tunet admin staff (NOC leads) responsible for setting up new Field Operations Crew (FOC) members.
 > **Time required:** ~3 minutes per FOC, most of it on the FOC's side.
 
 ## Overview
 
-Adding a new FOC to TunetOps is a two-step process:
+Adding a new FOC to TuTrack is a two-step process:
 
-1. **You (admin)** create the FOC's account in TunetOps and get a 4-digit PIN for them.
-2. **The FOC** opens Telegram, finds the TunetOps bot, and sends the PIN to link their phone to the system.
+1. **You (admin)** create the FOC's account in TuTrack and get a 4-digit PIN for them.
+2. **The FOC** opens Telegram, finds the TuTrack bot, and sends the PIN to link their phone to the system.
 
 After this, the FOC automatically receives Telegram notifications when NOC assigns them a task, and their location shows up on the radar map when they share it via Telegram.
 
@@ -19,7 +19,7 @@ You never have to type a Telegram "chat ID" or any technical identifier — the 
 ## Part 1 — Create the FOC's Account (Admin)
 
 ### Step 1: Open Team Management
-- Log in to TunetOps with your admin PIN.
+- Log in to TuTrack with your admin PIN.
 - In the sidebar, click **Team Management** (or go to `/dashboard/admin/users`).
 
 ### Step 2: Click "Bulk Add"
@@ -45,7 +45,7 @@ Dewi Ratna, 081234567893,
 
 | Column     | Required? | Notes                                                                            |
 | ---------- | --------- | -------------------------------------------------------------------------------- |
-| Name       | Yes       | Full name as it should appear in TunetOps                                        |
+| Name       | Yes       | Full name as it should appear in TuTrack                                        |
 | Phone      | Yes       | Any format — used for admin contact only                                        |
 | PIN        | Optional  | Leave blank to auto-generate one for you                                        |
 | @telegram  | Optional  | Only if the FOC already has a public Telegram handle. Most FOCs can leave blank. |
@@ -83,13 +83,13 @@ For each FOC, send them a WhatsApp message using this template (copy/paste, fill
 ```
 Halo [Nama]!
 
-Saya daftarkan Anda di TunetOps, aplikasi manajemen tugas tim kita.
+Saya daftarkan Anda di TuTrack, aplikasi manajemen tugas tim kita.
 
 PIN Anda: [PIN]
 
 Setup Telegram (sekitar 2 menit):
 1. Buka aplikasi Telegram di HP kamu
-2. Di search bar, ketik: @TunetOpsTrackingBot
+2. Di search bar, ketik: @TuTrackTrackingBot
 3. Klik bot tersebut, lalu ketik: /start
 4. Bot akan membalas dengan instruksi
 5. Kirim PIN kamu (4 digit angka) ke bot tersebut
@@ -109,9 +109,9 @@ Hand off to the FOC. They follow these steps on their own phone:
 ### Step 1: Open Telegram
 - Open the Telegram app on their phone.
 
-### Step 2: Find the TunetOps Bot
-- In the search bar (magnifying glass icon), type: `@TunetOpsTrackingBot`
-- Tap the bot result that has the official TunetOps profile picture/handle.
+### Step 2: Find the TuTrack Bot
+- In the search bar (magnifying glass icon), type: `@TuTrackTrackingBot`
+- Tap the bot result that has the official TuTrack profile picture/handle.
 
 ### Step 3: Send /start
 - Tap **Start** or type `/start` and send.
@@ -119,7 +119,7 @@ Hand off to the FOC. They follow these steps on their own phone:
 The bot replies in Indonesian:
 
 ```
-👋 Selamat datang di TunetOps!
+👋 Selamat datang di TuTrack!
 
 Untuk menghubungkan akun Anda:
 1. Kirim PIN 4-digit Anda (contoh: 1234)
@@ -137,14 +137,14 @@ The bot replies with one of:
 
 **Success (first time linking):**
 ```
-✅ Terhubung ke TunetOps sebagai Ahmad Fauzi.
+✅ Terhubung ke TuTrack sebagai Ahmad Fauzi.
 
 Anda akan menerima notifikasi tugas di sini. Untuk share lokasi, tap 📎 → Location → Share.
 ```
 
 **Already linked (they re-sent the PIN, or you tested):**
 ```
-✅ Anda sudah terhubung ke TunetOps sebagai Ahmad Fauzi.
+✅ Anda sudah terhubung ke TuTrack sebagai Ahmad Fauzi.
 
 Kirim /help untuk melihat perintah yang tersedia.
 ```
@@ -168,18 +168,18 @@ The FOC is now linked. They'll automatically receive:
 After each FOC finishes Part 3, verify from the admin dashboard:
 
 ### Check 1: Confirm the FOC's PIN worked
-- In Telegram, ask the FOC if they got the "Terhubung ke TunetOps" confirmation message.
+- In Telegram, ask the FOC if they got the "Terhubung ke TuTrack" confirmation message.
 - If yes, the binding succeeded.
 
 ### Check 2: Send a Test Task
-- In TunetOps, go to **Tasks** (`/dashboard/tasks`).
+- In TuTrack, go to **Tasks** (`/dashboard/tasks`).
 - Click **New Task**, create a task, and **assign it to that FOC**.
 - Within 5–10 seconds, the FOC should receive a Telegram message on their phone with the full task details (title, location, priority, deadline, description).
 - If the FOC does NOT receive the message, see Troubleshooting below.
 
 ### Check 3: Test Live Location
 - In the FOC's Telegram chat with the bot, send a location (tap the paperclip icon, then Location, then Share).
-- Back in TunetOps, go to **Map** (`/dashboard/map`).
+- Back in TuTrack, go to **Map** (`/dashboard/map`).
 - The FOC's marker should appear at the location they shared.
 
 ---
@@ -225,7 +225,7 @@ A: No. The system stores one `chat_id` per FOC. If they switch phones, the new T
 A: No — each FOC must type their own PIN on their own phone, since the link is per-phone. But the admin's Part 1 is bulk (you can paste all 8 in one go).
 
 **Q: What if the FOC doesn't have Telegram?**
-A: TunetOps requires Telegram for the radar map and notifications. If the FOC doesn't have Telegram installed, they need to install it (free) and create an account first. Then proceed with Part 3.
+A: TuTrack requires Telegram for the radar map and notifications. If the FOC doesn't have Telegram installed, they need to install it (free) and create an account first. Then proceed with Part 3.
 
 **Q: Can the PIN be the same as their login PIN?**
 A: Yes — the linking PIN and the login PIN are the same number. One 4-digit code does both jobs.
@@ -247,7 +247,7 @@ For printing and pinning in the office:
 
 ```
 +------------------------------------------------------------+
-|  TUNETOPS - FOC ONBOARDING (1-PAGE REFERENCE)             |
+|  TUTRACK - FOC ONBOARDING (1-PAGE REFERENCE)              |
 |                                                            |
 |  ADMIN (you):                                              |
 |   1. Team Management -> Bulk Add                          |
@@ -257,7 +257,7 @@ For printing and pinning in the office:
 |                                                            |
 |  FOC (5 min on their phone):                               |
 |   1. Open Telegram                                         |
-|   2. Search: @TunetOpsTrackingBot                          |
+|   2. Search: @TuTrackTrackingBot                           |
 |   3. Send: /start                                          |
 |   4. Send: <4-digit PIN>                                   |
 |   5. Wait for "Terhubung" confirmation                    |

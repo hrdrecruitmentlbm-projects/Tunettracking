@@ -1,4 +1,4 @@
--- TunetOps Database Schema for Supabase
+-- TuTrack Database Schema for Supabase
 -- Run this in the Supabase SQL Editor
 
 -- Enable PostGIS for geospatial queries

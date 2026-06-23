@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-TunetOps - Network Operations Management. Real-time task management and field operations tracking for Tunet division.
+TuTrack - Network Operations Management. Real-time task management and field operations tracking for Tunet division.
 
 ## Quick Commands
 
@@ -23,7 +23,7 @@ No typecheck script is configured. No test framework is set up.
 - **UI**: shadcn/ui (base-nova style) + Tailwind CSS 4
 - **Database**: Supabase (PostgreSQL + PostGIS)
 - **Map**: Leaflet + OpenStreetMap (CartoDB Dark Matter tiles)
-- **Auth**: PIN-based login, stored in `localStorage` as `tunetops-user`
+- **Auth**: PIN-based login, stored in `localStorage` as `tutrack-user`
 - **Roles**: `admin`, `noc`, `foc`
 - **Theme**: Dark-only, custom `tunet-*` color palette in `globals.css`
 

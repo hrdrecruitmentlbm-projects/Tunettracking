@@ -76,7 +76,7 @@ export function TaskCard({
 
   const handleDelete = async () => {
     if (typeof window === "undefined") return;
-    const stored = localStorage.getItem("tunetops-user");
+    const stored = localStorage.getItem("tutrack-user");
     if (!stored) return;
     const currentUser = JSON.parse(stored);
     setDeleting(true);

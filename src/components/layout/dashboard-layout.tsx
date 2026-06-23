@@ -16,7 +16,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const stored = localStorage.getItem("tunetops-user");
+    const stored = localStorage.getItem("tutrack-user");
     if (stored) {
       try {
         const parsed = JSON.parse(stored);

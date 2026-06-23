@@ -1,5 +1,5 @@
 -- =====================================================
--- TunetOps: Atomic Operations (RPC Functions)
+-- TuTrack: Atomic Operations (RPC Functions)
 -- Run this AFTER all other migrations
 -- Replaces client-side race-condition-prone code with atomic DB functions
 -- =====================================================

@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { User } from "@/types";
 import { NotificationsPanel } from "./notifications-panel";
-import { TunetMark } from "@/components/icons/brand-icons";
+import { TuTrackMark } from "@/components/icons/brand-icons";
 import {
   LayoutDashboard,
   Map,
@@ -65,7 +65,7 @@ export function Sidebar({ user }: SidebarProps) {
     } catch (error) {
       console.error("Logout error:", error);
     }
-    localStorage.removeItem("tunetops-user");
+    localStorage.removeItem("tutrack-user");
     window.location.href = "/";
   };
 
@@ -82,9 +82,9 @@ export function Sidebar({ user }: SidebarProps) {
         {(!collapsed || isMobile) && (
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-tunet-green/20 flex items-center justify-center">
-              <TunetMark className="w-5 h-5 text-tunet-green" />
+              <TuTrackMark className="w-5 h-5 text-tunet-green" />
             </div>
-            <span className="font-bold text-tunet-text">TunetOps</span>
+            <span className="font-bold text-tunet-text">TuTrack</span>
           </div>
         )}
         {isMobile ? (

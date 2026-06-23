@@ -133,7 +133,7 @@ export function TaskDetail({
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const stored = localStorage.getItem("tunetops-user");
+    const stored = localStorage.getItem("tutrack-user");
     if (stored) {
       try {
         // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -244,7 +244,7 @@ export function TaskDetail({
   const priorityConfig = PRIORITY_CONFIG[task.priority];
 
   const handleStatusChange = async (newStatus: Task["status"]) => {
-    const storedUser = localStorage.getItem("tunetops-user");
+    const storedUser = localStorage.getItem("tutrack-user");
     const currentUser = storedUser ? JSON.parse(storedUser) : null;
     if (!currentUser) return;
 

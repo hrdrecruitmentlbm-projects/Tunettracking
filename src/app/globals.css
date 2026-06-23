@@ -48,7 +48,7 @@
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
 
-  /* TunetOps custom colors */
+  /* TuTrack custom colors */
   --color-tunet-green: #10B981;
   --color-tunet-green-light: #34D399;
   --color-tunet-green-dark: #059669;
@@ -168,7 +168,7 @@
 }
 
 /* ============================================================
-   TunetOps Visual Revamp — Animations
+   TuTrack Visual Revamp — Animations
    ============================================================ */
 
 /* Radar ring pulse — used for live FOC markers on the map */

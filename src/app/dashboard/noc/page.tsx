@@ -36,7 +36,7 @@ export default function NOCDashboard() {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("tunetops-user");
+      const stored = localStorage.getItem("tutrack-user");
       if (stored) {
         try {
           // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -60,7 +60,7 @@ export default function NOCDashboard() {
   useIncrementalTasks(setTasks);
 
   const handleStatusChange = async (taskId: string, newStatus: TaskStatus) => {
-    const storedUser = localStorage.getItem("tunetops-user");
+    const storedUser = localStorage.getItem("tutrack-user");
     const currentUser = storedUser ? JSON.parse(storedUser) : null;
 
     if (currentUser) {

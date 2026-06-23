@@ -1,5 +1,5 @@
 -- =====================================================
--- TunetOps: Location Pings (route history)
+-- TuTrack: Location Pings (route history)
 -- Run this AFTER schema.sql, notifications.sql, and travel-history.sql
 -- =====================================================
 

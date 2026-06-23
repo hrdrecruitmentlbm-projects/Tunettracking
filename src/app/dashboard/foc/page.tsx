@@ -29,7 +29,7 @@ import { useIncrementalTasks } from "@/hooks/use-incremental-tasks";
 import { useHeartbeat } from "@/hooks/use-heartbeat";
 
 const LOCATION_INTERVAL = 2 * 60 * 1000;
-const TELEGRAM_BOT_USERNAME = "TunetOpsTrackingBot";
+const TELEGRAM_BOT_USERNAME = "TuTrackTrackingBot";
 
 function formatCountdown(ms: number): string {
   if (ms <= 0) return "0:00";
@@ -68,7 +68,7 @@ function FOCDashboard() {
   useHeartbeat({ userId: currentUser?.id });
 
   useEffect(() => {
-    const stored = typeof window !== "undefined" ? localStorage.getItem("tunetops-user") : null;
+    const stored = typeof window !== "undefined" ? localStorage.getItem("tutrack-user") : null;
     if (stored) {
       try {
         // eslint-disable-next-line react-hooks/set-state-in-effect

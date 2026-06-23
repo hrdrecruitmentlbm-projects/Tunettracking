@@ -24,7 +24,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "TunetOps - Network Operations Management",
+  title: "TuTrack - Tunet Tracker",
   description: "Real-time task management and field operations tracking for Tunet division",
 };
 
