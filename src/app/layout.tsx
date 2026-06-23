@@ -26,6 +26,9 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "TuTrack - Tunet Tracker",
   description: "Real-time task management and field operations tracking for Tunet division",
+  icons: {
+    icon: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- T crossbar -->
+  <rect x="12" y="8" width="40" height="6" rx="3" fill="#10B981"/>
+  <!-- Location pin stem -->
+  <path d="M32 14C32 14 18 26 18 38a14 14 0 0 0 28 0c0-12-14-24-14-24z" fill="#10B981"/>
+  <!-- Pin inner circle -->
+  <circle cx="32" cy="38" r="5" fill="#0A0F1C"/>
+  <!-- Pin dot -->
+  <circle cx="32" cy="38" r="2.5" fill="#10B981"/>
+</svg>
