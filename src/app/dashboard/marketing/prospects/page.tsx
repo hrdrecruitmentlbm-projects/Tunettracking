@@ -335,10 +335,11 @@ function ProspectForm({
 
   const marketingUsers = useMemo(() => {
     const filtered = users.filter((u) => u.role === "marketing");
-    if (currentUser && !filtered.some((u) => u.id === currentUser.id)) {
-      return [currentUser, ...filtered];
+    const result = [...filtered];
+    if (currentUser && !result.some((u) => u.id === currentUser.id)) {
+      result.unshift(currentUser);
     }
-    return filtered;
+    return result;
   }, [users, currentUser]);
 
   return (
@@ -384,7 +385,7 @@ function ProspectForm({
             </div>
             <div>
               <label className="text-sm font-medium text-tunet-text">{COPY.pages.prospects.assignTo}</label>
-              <Select value={assignedTo} onValueChange={(v) => setAssignedTo(v || "")}>
+              <Select key={assignedTo || "empty"} value={assignedTo} onValueChange={(v) => setAssignedTo(v || "")}>
                 <SelectTrigger className="mt-1 bg-tunet-bg border-tunet-border text-tunet-text">
                   <SelectValue placeholder="Pilih..." />
                 </SelectTrigger>
