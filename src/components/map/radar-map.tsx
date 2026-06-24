@@ -187,7 +187,7 @@ function formatDuration(minutes: number | null): string {
 
 interface RadarMapProps {
   height?: string;
-  showRoles?: ("foc" | "noc")[];
+  showRoles?: ("foc" | "noc" | "marketing")[];
   focusUserId?: string | null;
   sessionDate?: string; // YYYY-MM-DD; defaults to today's session date
 }
@@ -326,12 +326,15 @@ export function RadarMap({
 
   const visibleLocations = locations.filter((loc) => {
     const role = loc.user?.role;
-    return role && showRoles.includes(role as "foc" | "noc");
+    return role && showRoles.includes(role as "foc" | "noc" | "marketing");
   });
 
   const getMarkerColor = (location: Location) => {
     if (showRoles.includes("foc") && location.user?.role === "foc") {
       return getFocColor(location.user_id);
+    }
+    if (location.user?.role === "marketing") {
+      return "#A855F7";
     }
     const hasActiveTask = tasks.some(
       (t) => t.assigned_to === location.user_id && t.status === "in_progress"
@@ -419,7 +422,7 @@ export function RadarMap({
     }
 
     return endpoints
-      .filter((e) => showRoles.includes(e.userRole as "foc" | "noc"))
+      .filter((e) => showRoles.includes(e.userRole as "foc" | "noc" | "marketing"))
       .map((e) => {
         const initials = e.userName
           .split(" ")
@@ -427,7 +430,7 @@ export function RadarMap({
           .join("")
           .slice(0, 2)
           .toUpperCase();
-        const color = getFocColor(e.userId);
+        const color = e.userRole === "marketing" ? "#A855F7" : getFocColor(e.userId);
         const isHighlighted = focusUserId === e.userId;
 
         return (

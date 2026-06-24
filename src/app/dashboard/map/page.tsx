@@ -31,7 +31,7 @@ const DASHBOARD_ROUTES: Record<UserRole, string> = {
   marketing: "/dashboard/marketing",
 };
 
-type VisibleRole = "foc" | "noc";
+type VisibleRole = "foc" | "noc" | "marketing";
 
 export default function MapPage() {
   const router = useRouter();
@@ -45,6 +45,7 @@ export default function MapPage() {
   const [showRoles, setShowRoles] = useState<VisibleRole[]>(["foc"]);
   const [selectedDate, setSelectedDate] = useState<string>(() => getSessionDate());
   const [currentUserId, setCurrentUserId] = useState<string | undefined>(undefined);
+  const [userRole, setUserRole] = useState<string>("noc");
 
   useHeartbeat({ userId: currentUserId });
 
@@ -56,6 +57,12 @@ export default function MapPage() {
       setDashboardPath(DASHBOARD_ROUTES[user.role] || DASHBOARD_ROUTES.noc);
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setCurrentUserId(user.id);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setUserRole(user.role);
+      if (user.role === "marketing") {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setShowRoles(["foc", "marketing"]);
+      }
     }
   }, []);
   useEffect(() => {
@@ -94,6 +101,10 @@ export default function MapPage() {
   );
   const nocUsers = useMemo(
     () => users.filter((u) => u.role === "noc"),
+    [users]
+  );
+  const marketingUsers = useMemo(
+    () => users.filter((u) => u.role === "marketing"),
     [users]
   );
 
@@ -207,6 +218,15 @@ export default function MapPage() {
               className="rounded accent-tunet-green"
             />
             {COPY.pages.map.roleNoc}
+          </label>
+          <label className="flex items-center gap-1.5 text-xs text-tunet-text-muted cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showRoles.includes("marketing")}
+              onChange={() => toggleRole("marketing")}
+              className="rounded accent-purple-500"
+            />
+            {COPY.pages.map.roleMarketing}
           </label>
           <div className="w-px h-4 bg-tunet-border" />
           <div className="flex items-center gap-2">
@@ -349,6 +369,48 @@ export default function MapPage() {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+
+          <div className="p-4 border-t border-tunet-border">
+            <h2 className="text-sm font-medium text-tunet-text-muted mb-3">
+              {COPY.pages.map.marketingCount(marketingUsers.length)}
+            </h2>
+            {marketingUsers.length === 0 ? (
+              <EmptyState
+                icon={MapPin}
+                title={COPY.empty.noLocations.title}
+                description={COPY.empty.noLocations.description}
+                variant="inline"
+              />
+            ) : (
+              <div className="space-y-2">
+                {marketingUsers.map((user) => {
+                  const location = locations.find((l) => l.user_id === user.id);
+                  return (
+                    <button
+                      key={user.id}
+                      onClick={() => setFocusUserId(user.id)}
+                      className={`w-full text-left flex items-center gap-3 p-2 rounded-lg transition-colors ${
+                        focusUserId === user.id
+                          ? "bg-purple-500/10 ring-1 ring-purple-500/30"
+                          : "hover:bg-tunet-surface-hover"
+                      }`}
+                    >
+                      <div className="w-2 h-2 rounded-full flex-shrink-0 bg-purple-500" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-tunet-text truncate">{user.name}</p>
+                        <p className="text-xs text-tunet-text-muted">
+                          {location
+                            ? getRelativeTime(location.updated_at)
+                            : COPY.pages.map.neverReported}
+                        </p>
+                      </div>
+                      {location && <Wifi className="w-3.5 h-3.5 text-purple-500 flex-shrink-0" />}
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
