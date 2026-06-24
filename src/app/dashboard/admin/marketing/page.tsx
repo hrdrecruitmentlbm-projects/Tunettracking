@@ -135,6 +135,18 @@ export default function AdminMarketingPage() {
     setDeleteProspect(null);
   };
 
+  const handleStatusChange = async (prospectId: string, newStatus: string) => {
+    const result = await updateProspect(prospectId, { status: newStatus });
+    if (result) {
+      setProspects((prev) =>
+        prev.map((p) => (p.id === prospectId ? { ...p, status: newStatus as Prospect["status"] } : p))
+      );
+      toast.success("Status berhasil diperbarui");
+    } else {
+      toast.error("Gagal memperbarui status");
+    }
+  };
+
   const handleSaved = async () => {
     const fresh = await fetchProspects();
     setProspects(fresh);
@@ -257,7 +269,6 @@ export default function AdminMarketingPage() {
                         </thead>
                         <tbody>
                           {filteredProspects.map((prospect) => {
-                            const statusConfig = PROSPECT_STATUS_CONFIG[prospect.status];
                             return (
                               <tr key={prospect.id} className="border-b border-tunet-border last:border-0 hover:bg-tunet-surface-hover">
                                 <td className="py-3 px-4">
@@ -271,13 +282,21 @@ export default function AdminMarketingPage() {
                                 <td className="py-3 px-4 text-sm text-tunet-text-muted">{prospect.phone}</td>
                                 <td className="py-3 px-4 text-sm text-tunet-text-muted">{prospect.area}</td>
                                 <td className="py-3 px-4">
-                                  <Badge
-                                    variant="secondary"
-                                    className="text-xs"
-                                    style={{ backgroundColor: statusConfig.color + "20", color: statusConfig.color }}
+                                  <select
+                                    value={prospect.status}
+                                    onChange={(e) => handleStatusChange(prospect.id, e.target.value)}
+                                    className="text-xs font-medium rounded-full px-3 py-1 border-0 cursor-pointer focus:ring-2 focus:ring-tunet-green/50 outline-none"
+                                    style={{
+                                      backgroundColor: PROSPECT_STATUS_CONFIG[prospect.status].color + "20",
+                                      color: PROSPECT_STATUS_CONFIG[prospect.status].color,
+                                    }}
                                   >
-                                    {statusConfig.label}
-                                  </Badge>
+                                    {Object.entries(PROSPECT_STATUS_CONFIG).map(([key, cfg]) => (
+                                      <option key={key} value={key} className="bg-tunet-surface text-tunet-text">
+                                        {cfg.label}
+                                      </option>
+                                    ))}
+                                  </select>
                                 </td>
                                 <td className="py-3 px-4 text-sm text-tunet-text-muted">{prospect.assignee?.name || "-"}</td>
                                 <td className="py-3 px-4">
