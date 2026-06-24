@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const prospect = await createProspect({
+    const result = await createProspect({
       name,
       phone: phone || "",
       address: address || "",
@@ -49,11 +49,11 @@ export async function POST(request: NextRequest) {
       area: area || "",
     });
 
-    if (!prospect) {
-      return NextResponse.json({ error: "Failed to create prospect" }, { status: 500 });
+    if (!result.data) {
+      return NextResponse.json({ error: result.error || "Failed to create prospect" }, { status: 500 });
     }
 
-    return NextResponse.json(prospect, { status: 201 });
+    return NextResponse.json(result.data, { status: 201 });
   } catch (error) {
     console.error("POST /api/prospects error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

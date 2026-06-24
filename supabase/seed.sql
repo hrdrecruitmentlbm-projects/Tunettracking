@@ -8,7 +8,9 @@ INSERT INTO users (id, pin, name, role, phone, telegram_id, is_active) VALUES
   ('33333333-3333-3333-3333-333333333333', '1234', 'Ahmad Fauzi', 'foc', '+628123456791', '@ahmadfauzi', true),
   ('44444444-4444-4444-4444-444444444444', '1234', 'Ali Rahman', 'foc', '+628123456792', '@alirahman', true),
   ('55555555-5555-5555-5555-555555555555', '1234', 'Siti Nurhaliza', 'foc', '+628123456793', NULL, true),
-  ('66666666-6666-6666-6666-666666666666', '1234', 'Rizky Pratama', 'noc', '+628123456794', NULL, true)
+  ('66666666-6666-6666-6666-666666666666', '1234', 'Rizky Pratama', 'noc', '+628123456794', NULL, true),
+  ('77777777-7777-7777-7777-777777777777', '1234', 'Dewi Lestari', 'marketing', '+628123456795', NULL, true),
+  ('88888888-8888-8888-8888-888888888888', '1234', 'Rina Wulandari', 'marketing', '+628123456796', NULL, true)
 ON CONFLICT (id) DO NOTHING;
 
 -- Tasks (priority_id references the priorities table inserted by schema.sql)

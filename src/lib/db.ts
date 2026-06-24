@@ -1371,7 +1371,7 @@ export async function createProspect(input: {
   notes: string;
   assigned_to: string;
   area: string;
-}): Promise<Prospect | null> {
+}): Promise<{ data: Prospect | null; error: string | null }> {
   const { data, error } = await supabase
     .from("prospects")
     .insert({
@@ -1390,9 +1390,9 @@ export async function createProspect(input: {
 
   if (error) {
     console.error("Error creating prospect:", error);
-    return null;
+    return { data: null, error: error.message || "Gagal menyimpan prospek" };
   }
-  return data as Prospect;
+  return { data: data as Prospect, error: null };
 }
 
 export async function updateProspect(
@@ -1486,7 +1486,7 @@ export async function createTowerSite(input: {
   status: string;
   notes: string;
   assigned_to: string;
-}): Promise<TowerSite | null> {
+}): Promise<{ data: TowerSite | null; error: string | null }> {
   const { data, error } = await supabase
     .from("tower_sites")
     .insert({
@@ -1505,9 +1505,9 @@ export async function createTowerSite(input: {
 
   if (error) {
     console.error("Error creating tower site:", error);
-    return null;
+    return { data: null, error: error.message || "Gagal menyimpan data tower" };
   }
-  return data as TowerSite;
+  return { data: data as TowerSite, error: null };
 }
 
 export async function updateTowerSite(
@@ -1611,7 +1611,7 @@ export async function createVisitLog(input: {
   notes: string;
   location_lat: number;
   location_lng: number;
-}): Promise<VisitLog | null> {
+}): Promise<{ data: VisitLog | null; error: string | null }> {
   const { data, error } = await supabase
     .from("visit_logs")
     .insert({
@@ -1629,9 +1629,9 @@ export async function createVisitLog(input: {
 
   if (error) {
     console.error("Error creating visit log:", error);
-    return null;
+    return { data: null, error: error.message || "Gagal menyimpan log kunjungan" };
   }
-  return data as VisitLog;
+  return { data: data as VisitLog, error: null };
 }
 
 // =====================================================

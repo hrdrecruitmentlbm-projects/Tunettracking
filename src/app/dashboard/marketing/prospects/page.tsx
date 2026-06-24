@@ -320,10 +320,10 @@ function ProspectForm({
           name, phone, address, area, status, notes, assigned_to: assignedTo,
           location_lat: -6.2088, location_lng: 106.8456,
         });
-        if (result) {
+        if (result.data) {
           toast.success(COPY.pages.prospects.created);
         } else {
-          toast.error(COPY.pages.prospects.failedCreate);
+          toast.error(result.error || COPY.pages.prospects.failedCreate);
         }
       }
       onSaved();
@@ -333,7 +333,13 @@ function ProspectForm({
     }
   };
 
-  const marketingUsers = users.filter((u) => u.role === "marketing");
+  const marketingUsers = useMemo(() => {
+    const filtered = users.filter((u) => u.role === "marketing");
+    if (currentUser && !filtered.some((u) => u.id === currentUser.id)) {
+      return [currentUser, ...filtered];
+    }
+    return filtered;
+  }, [users, currentUser]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

@@ -298,7 +298,7 @@ function VisitForm({
     setSaving(true);
     try {
       const loc = location || { lat: -6.2088, lng: 106.8456 };
-      const visit = await createVisitLog({
+      const result = await createVisitLog({
         type,
         prospect_id: type === "prospek" ? selectedId : undefined,
         tower_id: type === "tower" ? selectedId : undefined,
@@ -309,7 +309,7 @@ function VisitForm({
         location_lng: loc.lng,
       });
 
-      if (visit) {
+      if (result.data) {
         // Update the prospect/tower status
         if (type === "prospek") {
           await updateProspect(selectedId, { status });
@@ -324,7 +324,7 @@ function VisitForm({
         onSaved();
         onOpenChange(false);
       } else {
-        toast.error(COPY.pages.kunjungan.failedSave);
+        toast.error(result.error || COPY.pages.kunjungan.failedSave);
       }
     } finally {
       setSaving(false);

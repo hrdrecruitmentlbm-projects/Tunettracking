@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const visit = await createVisitLog({
+    const result = await createVisitLog({
       type,
       prospect_id,
       tower_id,
@@ -55,11 +55,11 @@ export async function POST(request: NextRequest) {
       location_lng,
     });
 
-    if (!visit) {
-      return NextResponse.json({ error: "Failed to create visit log" }, { status: 500 });
+    if (!result.data) {
+      return NextResponse.json({ error: result.error || "Failed to create visit log" }, { status: 500 });
     }
 
-    return NextResponse.json(visit, { status: 201 });
+    return NextResponse.json(result.data, { status: 201 });
   } catch (error) {
     console.error("POST /api/visits error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

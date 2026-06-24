@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const towerSite = await createTowerSite({
+    const result = await createTowerSite({
       name,
       site_type: site_type || "other",
       contact_person: contact_person || "",
@@ -49,11 +49,11 @@ export async function POST(request: NextRequest) {
       assigned_to,
     });
 
-    if (!towerSite) {
-      return NextResponse.json({ error: "Failed to create tower site" }, { status: 500 });
+    if (!result.data) {
+      return NextResponse.json({ error: result.error || "Failed to create tower site" }, { status: 500 });
     }
 
-    return NextResponse.json(towerSite, { status: 201 });
+    return NextResponse.json(result.data, { status: 201 });
   } catch (error) {
     console.error("POST /api/tower-sites error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
