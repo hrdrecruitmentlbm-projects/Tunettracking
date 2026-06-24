@@ -59,7 +59,10 @@ export default function MapPage() {
       setCurrentUserId(user.id);
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setUserRole(user.role);
-      if (user.role === "marketing") {
+      if (user.role === "admin") {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setShowRoles(["foc", "noc", "marketing"]);
+      } else if (user.role === "marketing") {
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setShowRoles(["foc", "marketing"]);
       }

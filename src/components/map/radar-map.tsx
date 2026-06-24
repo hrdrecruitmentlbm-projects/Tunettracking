@@ -329,21 +329,7 @@ export function RadarMap({
     return role && showRoles.includes(role as "foc" | "noc" | "marketing");
   });
 
-  if (locations.length > 0 && visibleLocations.length === 0 && showRoles.length > 0) {
-    console.log("[RadarMap] DEBUG: no visible locations", {
-      totalLocations: locations.length,
-      showRoles,
-      sampleLoc: locations[0] ? { user_id: locations[0].user_id, role: locations[0].user?.role, hasUser: !!locations[0].user, lat: locations[0].lat, lng: locations[0].lng } : null,
-      allRoles: locations.map((l) => ({ user_id: l.user_id, role: l.user?.role, hasUser: !!l.user })),
-    });
-  } else if (locations.length > 0) {
-    console.log("[RadarMap] DEBUG: visible locations", {
-      totalLocations: locations.length,
-      visibleCount: visibleLocations.length,
-      showRoles,
-      visibleRoles: visibleLocations.map((l) => l.user?.role),
-    });
-  }
+  if (false) {
 
   const getMarkerColor = (location: Location) => {
     if (showRoles.includes("foc") && location.user?.role === "foc") {
