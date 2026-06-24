@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Task, TaskStatus, STATUS_CONFIG, PRIORITY_CONFIG } from "@/types";
 import { MapPin, Clock, User, AlertTriangle, Trash2, ArrowUpRight, Camera } from "lucide-react";
-import { getTimeRemaining } from "@/lib/time";
+import { getTimeRemaining, getUrgencyTier, getDeadlineProgress } from "@/lib/time";
 import { COPY } from "@/lib/copy";
 import { softDeleteTask } from "@/lib/db";
 import { cn } from "@/lib/utils";
@@ -70,6 +70,8 @@ export function TaskCard({
   const isOverdue =
     task.deadline && new Date(task.deadline) < new Date() && task.status !== "done";
   const timeRemaining = getTimeRemaining(task.deadline);
+  const tier = getUrgencyTier(task.deadline, task.status);
+  const deadlineProgress = getDeadlineProgress(task.created_at, task.deadline);
   const isDeleted = !!task.deleted_at;
 
   const handleDelete = async () => {
@@ -102,9 +104,13 @@ export function TaskCard({
   return (
     <Card
       className={cn(
-        "group relative bg-tunet-surface border border-tunet-border overflow-hidden",
+        "group relative bg-tunet-surface border-tunet-border border border-tunet-border overflow-hidden",
         "transition-all duration-200 ease-out cursor-pointer",
-        "hover:-translate-y-px hover:shadow-[inset_0_0_0_1px_rgba(34,211,238,0.35),0_4px_12px_-6px_rgba(0,0,0,0.5)]"
+        "hover:-translate-y-px hover:shadow-[inset_0_0_0_1px_rgba(34,211,238,0.35),0_4px_12px_-6px_rgba(0,0,0,0.5)]",
+        tier === "critical" && "border-l-[3px] border-l-red-500",
+        tier === "warning" && "border-l-[3px] border-l-orange-500",
+        tier === "caution" && "border-l-[3px] border-l-amber-400",
+        tier === "overdue" && "border-l-[3px] border-l-status-overdue"
       )}
       onClick={() => onClick?.(task)}
     >
@@ -181,6 +187,17 @@ export function TaskCard({
             </Badge>
           )}
         </div>
+
+        {deadlineProgress && task.status !== "done" && (
+          <div className="mb-2">
+            <div className="h-1 w-full rounded-full bg-tunet-surface-hover overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all duration-500"
+                style={{ width: `${deadlineProgress.pct}%`, backgroundColor: deadlineProgress.color }}
+              />
+            </div>
+          </div>
+        )}
 
         <div className="flex items-center justify-between text-xs text-tunet-text-muted">
           <div className="flex items-center gap-1.5">

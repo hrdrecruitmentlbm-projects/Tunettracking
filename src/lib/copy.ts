@@ -67,6 +67,7 @@ export const COPY = {
     allStatus: "Semua status",
     allPriority: "Semua prioritas",
     allAssignees: "Semua penugasan",
+    allLabels: "Semua label",
     unassigned: "Belum ditugaskan",
   },
   tasks: {
@@ -128,6 +129,9 @@ export const COPY = {
       overdue: "Terlambat",
       teamMembers: "Anggota Tim",
       thisWeek: "Minggu ini",
+      expiringSoon: "Tugas Mendatang",
+      viewAll: "Lihat Semua",
+      expiringEmpty: "Tidak ada tugas dengan tenggat mendekat",
     },
     team: {
       title: "Manajemen Tim",

@@ -24,6 +24,9 @@ import { User, Task } from "@/types";
 import { COPY } from "@/lib/copy";
 import { useTelegramDispatch } from "@/hooks/use-telegram-dispatch";
 import { useHeartbeat } from "@/hooks/use-heartbeat";
+import { getTimeRemaining } from "@/lib/time";
+import { Clock, ArrowUpRight } from "lucide-react";
+import Link from "next/link";
 
 export default function AdminDashboard() {
   const [users, setUsers] = useState<User[]>([]);
@@ -102,6 +105,12 @@ export default function AdminDashboard() {
     userId: currentUserId,
     watchCount: true,
   });
+
+  // Top 5 expiring tasks (non-done, with deadline, closest first)
+  const expiringTasks = tasks
+    .filter((t) => t.status !== "done" && t.deadline && !t.deleted_at)
+    .sort((a, b) => new Date(a.deadline!).getTime() - new Date(b.deadline!).getTime())
+    .slice(0, 5);
 
   if (loading) {
     return (
@@ -204,6 +213,58 @@ export default function AdminDashboard() {
               </CardContent>
             </Card>
           </div>
+
+          {expiringTasks.length > 0 && (
+            <Card className="bg-tunet-surface border-tunet-border">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-tunet-text flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-tunet-ember" />
+                  {COPY.pages.admin.expiringSoon}
+                </CardTitle>
+                <Link
+                  href="/dashboard/tasks"
+                  className="text-[10px] uppercase tracking-wider text-tunet-text-muted hover:text-tunet-signal flex items-center gap-1"
+                >
+                  {COPY.pages.admin.viewAll}
+                  <ArrowUpRight className="w-3 h-3" />
+                </Link>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="divide-y divide-tunet-border/60">
+                  {expiringTasks.map((task) => {
+                    const tr = getTimeRemaining(task.deadline);
+                    return tr ? (
+                      <Link
+                        key={task.id}
+                        href={`/dashboard/tasks?highlight=${task.id}`}
+                        className="flex items-center justify-between px-5 py-3 hover:bg-tunet-surface-hover transition-colors"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm text-tunet-text truncate">{task.title}</p>
+                          <p className="text-[10px] text-tunet-text-muted mt-0.5">
+                            {task.assigned_to
+                              ? users.find((u) => u.id === task.assigned_to)?.name || "—"
+                              : COPY.taskCard.unassigned}
+                          </p>
+                        </div>
+                        <span
+                          className={`text-xs font-mono tabular-nums whitespace-nowrap ml-3 ${
+                            tr.isOverdue
+                              ? "text-status-overdue"
+                              : tr.isUrgent
+                              ? "text-tunet-ember"
+                              : "text-tunet-text-muted"
+                          }`}
+                        >
+                          {tr.short}
+                        </span>
+                      </Link>
+                    ) : null;
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         <div className="px-6 pb-6">

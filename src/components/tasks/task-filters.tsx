@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { TaskStatus, TaskPriority, STATUS_CONFIG, PRIORITY_CONFIG } from "@/types";
-import { fetchUsers } from "@/lib/db";
+import { TaskStatus, TaskPriority, STATUS_CONFIG, PRIORITY_CONFIG, Tag } from "@/types";
+import { fetchUsers, fetchTags } from "@/lib/db";
 import { User } from "@/types";
 import { Filter, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ export interface FilterState {
   status: TaskStatus | "all";
   priority: TaskPriority | "all";
   assignee: string | "all";
+  tag: string | "all";
 }
 
 interface Chip {
@@ -27,12 +28,14 @@ interface Chip {
 
 export function TaskFilters({ filters, onFiltersChange }: TaskFiltersProps) {
   const [focUsers, setFocUsers] = useState<User[]>([]);
+  const [tags, setTags] = useState<Tag[]>([]);
   const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
     fetchUsers().then((users) =>
       setFocUsers(users.filter((u) => u.role === "foc"))
     );
+    fetchTags().then(setTags);
   }, []);
 
   const updateFilter = <K extends keyof FilterState>(key: K, value: FilterState[K]) => {
@@ -44,7 +47,7 @@ export function TaskFilters({ filters, onFiltersChange }: TaskFiltersProps) {
   };
 
   const resetFilters = () => {
-    onFiltersChange({ status: "all", priority: "all", assignee: "all" });
+    onFiltersChange({ status: "all", priority: "all", assignee: "all", tag: "all" });
   };
 
   const chips: Chip[] = [];
@@ -71,6 +74,14 @@ export function TaskFilters({ filters, onFiltersChange }: TaskFiltersProps) {
       key: "assignee",
       label,
       onRemove: () => removeFilter("assignee"),
+    });
+  }
+  if (filters.tag !== "all") {
+    const label = tags.find((t) => t.id === filters.tag)?.name || "Unknown";
+    chips.push({
+      key: "tag",
+      label,
+      onRemove: () => removeFilter("tag"),
     });
   }
 
@@ -162,6 +173,21 @@ export function TaskFilters({ filters, onFiltersChange }: TaskFiltersProps) {
               </option>
             ))}
           </select>
+
+          {tags.length > 0 && (
+            <select
+              value={filters.tag}
+              onChange={(e) => updateFilter("tag", e.target.value)}
+              className="rounded-md border border-tunet-border bg-tunet-surface px-2 py-1 text-xs text-tunet-text focus:outline-none focus:ring-1 focus:ring-tunet-green/50"
+            >
+              <option value="all">{COPY.filters.allLabels}</option>
+              {tags.map((tag) => (
+                <option key={tag.id} value={tag.id}>
+                  {tag.name}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
       )}
     </div>

@@ -62,6 +62,39 @@ export function getTimeRemaining(deadline: string | null | undefined): TimeRemai
   return { label, isOverdue, isUrgent, short };
 }
 
+export type UrgencyTier = "critical" | "warning" | "caution" | "safe" | "overdue";
+
+export function getUrgencyTier(
+  deadline: string | null | undefined,
+  status: string
+): UrgencyTier {
+  if (status === "done" || !deadline) return "safe";
+  const diffMs = new Date(deadline).getTime() - Date.now();
+  if (diffMs < 0) return "overdue";
+  const hours = diffMs / (1000 * 60 * 60);
+  if (hours < 1) return "critical";
+  if (hours < 4) return "warning";
+  if (hours < 24) return "caution";
+  return "safe";
+}
+
+export function getDeadlineProgress(
+  createdAt: string,
+  deadline: string | null | undefined
+): { pct: number; color: string } | null {
+  if (!deadline) return null;
+  const created = new Date(createdAt).getTime();
+  const end = new Date(deadline).getTime();
+  const now = Date.now();
+  const total = end - created;
+  if (total <= 0) return { pct: 100, color: "#EF4444" };
+  const elapsed = now - created;
+  const pct = Math.min(Math.max((elapsed / total) * 100, 0), 100);
+  const color =
+    pct > 90 ? "#EF4444" : pct > 70 ? "#F97316" : pct > 50 ? "#EAB308" : "#10B981";
+  return { pct, color };
+}
+
 export function formatShortDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString("id-ID", {
     day: "numeric",

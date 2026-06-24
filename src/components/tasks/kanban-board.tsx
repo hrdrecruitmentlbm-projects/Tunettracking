@@ -60,6 +60,14 @@ export function KanbanBoard({
         map[t.status].push(t);
       }
     }
+    for (const key of Object.keys(map) as TaskStatus[]) {
+      map[key].sort((a, b) => {
+        if (!a.deadline && !b.deadline) return 0;
+        if (!a.deadline) return 1;
+        if (!b.deadline) return -1;
+        return new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
+      });
+    }
     return map;
   }, [tasks]);
 

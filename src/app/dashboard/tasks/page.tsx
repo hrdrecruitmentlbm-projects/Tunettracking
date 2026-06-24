@@ -32,6 +32,7 @@ const DEFAULT_FILTERS: FilterState = {
   status: "all",
   priority: "all",
   assignee: "all",
+  tag: "all",
 };
 
 function isTaskStatus(v: string | null): v is TaskStatus {
@@ -46,10 +47,12 @@ function readFiltersFromParams(params: URLSearchParams): FilterState {
   const status = params.get("status");
   const priority = params.get("priority");
   const assignee = params.get("assignee");
+  const tag = params.get("tag");
   return {
     status: isTaskStatus(status) ? status : "all",
     priority: isTaskPriority(priority) ? priority : "all",
     assignee: assignee || "all",
+    tag: tag || "all",
   };
 }
 
@@ -111,6 +114,7 @@ function TasksPageContent() {
     if (filters.status !== "all") params.set("status", filters.status);
     if (filters.priority !== "all") params.set("priority", filters.priority);
     if (filters.assignee !== "all") params.set("assignee", filters.assignee);
+    if (filters.tag !== "all") params.set("tag", filters.tag);
     if (searchQuery) params.set("q", searchQuery);
     const next = params.toString();
     const current = searchParams.toString();
@@ -221,7 +225,9 @@ function TasksPageContent() {
         matchesAssignee = t.assigned_to === filters.assignee;
       }
 
-      return matchesSearch && matchesStatus && matchesPriority && matchesAssignee;
+      const matchesTag = filters.tag === "all" || t.tags?.some((tag) => tag.id === filters.tag);
+
+      return matchesSearch && matchesStatus && matchesPriority && matchesAssignee && matchesTag;
     });
   }, [tasks, searchQuery, filters]);
 
@@ -229,6 +235,7 @@ function TasksPageContent() {
     filters.status !== "all" ||
     filters.priority !== "all" ||
     filters.assignee !== "all" ||
+    filters.tag !== "all" ||
     searchQuery.length > 0;
 
   return (
