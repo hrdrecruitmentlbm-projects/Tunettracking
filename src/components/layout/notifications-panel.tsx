@@ -89,6 +89,8 @@ export function NotificationsPanel({ userId, onCountChange }: NotificationsPanel
       const role = stored ? (JSON.parse(stored).role as string) : null;
       if (role === "foc") {
         router.push(`/dashboard/foc?task=${taskId}`);
+      } else if (role === "marketing") {
+        router.push(`/dashboard/tasks?highlight=${taskId}`);
       } else {
         router.push(`/dashboard/tasks?highlight=${taskId}`);
       }

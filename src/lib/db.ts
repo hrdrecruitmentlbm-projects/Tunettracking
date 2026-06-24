@@ -1,5 +1,5 @@
 import { supabase } from "./supabase";
-import { User, Task, Location, Tag, Notification, TaskStatus } from "@/types";
+import { User, Task, Location, Tag, Notification, TaskStatus, Prospect, TowerSite, VisitLog } from "@/types";
 
 export async function loginByPin(pin: string): Promise<User | null> {
   const { data, error } = await supabase
@@ -435,7 +435,7 @@ export async function updateTask(
 
 export interface CreateUserInput {
   name: string;
-  role: "admin" | "noc" | "foc";
+  role: "admin" | "noc" | "foc" | "marketing";
   phone: string;
   pin: string;
   telegram_id?: string;
@@ -1333,6 +1333,364 @@ export async function fetchActivityHeatmap(
   }
 
   return buckets;
+}
+
+// =====================================================
+// MARKETING: Prospects, Tower Sites, Visit Logs
+// =====================================================
+
+export async function fetchProspects(includeDeleted: boolean = false): Promise<Prospect[]> {
+  let query = supabase
+    .from("prospects")
+    .select(`
+      *,
+      assignee:users!prospects_assigned_to_fkey(id, name, role, phone, is_active, created_at),
+      deleter:users!prospects_deleted_by_fkey(id, name)
+    `)
+    .order("created_at", { ascending: false });
+
+  if (!includeDeleted) {
+    query = query.is("deleted_at", null);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    console.error("Error fetching prospects:", error);
+    return [];
+  }
+  return (data || []) as Prospect[];
+}
+
+export async function createProspect(input: {
+  name: string;
+  phone: string;
+  address: string;
+  location_lat: number;
+  location_lng: number;
+  status: string;
+  notes: string;
+  assigned_to: string;
+  area: string;
+}): Promise<Prospect | null> {
+  const { data, error } = await supabase
+    .from("prospects")
+    .insert({
+      name: input.name,
+      phone: input.phone,
+      address: input.address,
+      location_lat: input.location_lat,
+      location_lng: input.location_lng,
+      status: input.status,
+      notes: input.notes,
+      assigned_to: input.assigned_to,
+      area: input.area,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Error creating prospect:", error);
+    return null;
+  }
+  return data as Prospect;
+}
+
+export async function updateProspect(
+  id: string,
+  input: Partial<{
+    name: string;
+    phone: string;
+    address: string;
+    location_lat: number;
+    location_lng: number;
+    status: string;
+    notes: string;
+    assigned_to: string;
+    area: string;
+  }>
+): Promise<Prospect | null> {
+  const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  for (const [key, value] of Object.entries(input)) {
+    if (value !== undefined) updates[key] = value;
+  }
+
+  const { data, error } = await supabase
+    .from("prospects")
+    .update(updates)
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Error updating prospect:", error);
+    return null;
+  }
+  return data as Prospect;
+}
+
+export async function softDeleteProspect(id: string, deletedBy: string): Promise<boolean> {
+  const { error } = await supabase
+    .from("prospects")
+    .update({ deleted_at: new Date().toISOString(), deleted_by: deletedBy })
+    .eq("id", id);
+
+  if (error) {
+    console.error("Error soft-deleting prospect:", error);
+    return false;
+  }
+  return true;
+}
+
+export async function restoreProspect(id: string): Promise<boolean> {
+  const { error } = await supabase
+    .from("prospects")
+    .update({ deleted_at: null, deleted_by: null })
+    .eq("id", id);
+
+  if (error) {
+    console.error("Error restoring prospect:", error);
+    return false;
+  }
+  return true;
+}
+
+export async function fetchTowerSites(includeDeleted: boolean = false): Promise<TowerSite[]> {
+  let query = supabase
+    .from("tower_sites")
+    .select(`
+      *,
+      assignee:users!tower_sites_assigned_to_fkey(id, name, role, phone, is_active, created_at),
+      deleter:users!tower_sites_deleted_by_fkey(id, name)
+    `)
+    .order("created_at", { ascending: false });
+
+  if (!includeDeleted) {
+    query = query.is("deleted_at", null);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    console.error("Error fetching tower sites:", error);
+    return [];
+  }
+  return (data || []) as TowerSite[];
+}
+
+export async function createTowerSite(input: {
+  name: string;
+  site_type: string;
+  contact_person: string;
+  contact_phone: string;
+  location_lat: number;
+  location_lng: number;
+  status: string;
+  notes: string;
+  assigned_to: string;
+}): Promise<TowerSite | null> {
+  const { data, error } = await supabase
+    .from("tower_sites")
+    .insert({
+      name: input.name,
+      site_type: input.site_type,
+      contact_person: input.contact_person,
+      contact_phone: input.contact_phone,
+      location_lat: input.location_lat,
+      location_lng: input.location_lng,
+      status: input.status,
+      notes: input.notes,
+      assigned_to: input.assigned_to,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Error creating tower site:", error);
+    return null;
+  }
+  return data as TowerSite;
+}
+
+export async function updateTowerSite(
+  id: string,
+  input: Partial<{
+    name: string;
+    site_type: string;
+    contact_person: string;
+    contact_phone: string;
+    location_lat: number;
+    location_lng: number;
+    status: string;
+    notes: string;
+    assigned_to: string;
+  }>
+): Promise<TowerSite | null> {
+  const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  for (const [key, value] of Object.entries(input)) {
+    if (value !== undefined) updates[key] = value;
+  }
+
+  const { data, error } = await supabase
+    .from("tower_sites")
+    .update(updates)
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Error updating tower site:", error);
+    return null;
+  }
+  return data as TowerSite;
+}
+
+export async function softDeleteTowerSite(id: string, deletedBy: string): Promise<boolean> {
+  const { error } = await supabase
+    .from("tower_sites")
+    .update({ deleted_at: new Date().toISOString(), deleted_by: deletedBy })
+    .eq("id", id);
+
+  if (error) {
+    console.error("Error soft-deleting tower site:", error);
+    return false;
+  }
+  return true;
+}
+
+export async function restoreTowerSite(id: string): Promise<boolean> {
+  const { error } = await supabase
+    .from("tower_sites")
+    .update({ deleted_at: null, deleted_by: null })
+    .eq("id", id);
+
+  if (error) {
+    console.error("Error restoring tower site:", error);
+    return false;
+  }
+  return true;
+}
+
+export async function fetchVisitLogs(filters?: {
+  type?: "prospek" | "tower";
+  visited_by?: string;
+  limit?: number;
+}): Promise<VisitLog[]> {
+  let query = supabase
+    .from("visit_logs")
+    .select(`
+      *,
+      visitor:users!visit_logs_visited_by_fkey(id, name, role, phone, is_active, created_at),
+      prospect:prospects(id, name, phone, address, status, area),
+      tower:tower_sites(id, name, site_type, contact_person, status)
+    `)
+    .order("created_at", { ascending: false });
+
+  if (filters?.type) {
+    query = query.eq("type", filters.type);
+  }
+  if (filters?.visited_by) {
+    query = query.eq("visited_by", filters.visited_by);
+  }
+  if (filters?.limit) {
+    query = query.limit(filters.limit);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    console.error("Error fetching visit logs:", error);
+    return [];
+  }
+  return (data || []) as VisitLog[];
+}
+
+export async function createVisitLog(input: {
+  type: "prospek" | "tower";
+  prospect_id?: string;
+  tower_id?: string;
+  visited_by: string;
+  status_snapshot: string;
+  notes: string;
+  location_lat: number;
+  location_lng: number;
+}): Promise<VisitLog | null> {
+  const { data, error } = await supabase
+    .from("visit_logs")
+    .insert({
+      type: input.type,
+      prospect_id: input.prospect_id || null,
+      tower_id: input.tower_id || null,
+      visited_by: input.visited_by,
+      status_snapshot: input.status_snapshot,
+      notes: input.notes,
+      location_lat: input.location_lat,
+      location_lng: input.location_lng,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Error creating visit log:", error);
+    return null;
+  }
+  return data as VisitLog;
+}
+
+// =====================================================
+// MARKETING STATS
+// =====================================================
+
+export interface MarketingStats {
+  totalProspects: number;
+  activeProspects: number;
+  accProspects: number;
+  totalTowerSites: number;
+  accTowerSites: number;
+  pendingTowerSites: number;
+  visitsToday: number;
+  totalVisits: number;
+}
+
+export async function fetchMarketingStats(): Promise<MarketingStats> {
+  const [prospects, towerSites, visits] = await Promise.all([
+    fetchProspects(),
+    fetchTowerSites(),
+    fetchVisitLogs({ limit: 1000 }),
+  ]);
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  return {
+    totalProspects: prospects.length,
+    activeProspects: prospects.filter((p) => p.status !== "acc" && p.status !== "tidak").length,
+    accProspects: prospects.filter((p) => p.status === "acc").length,
+    totalTowerSites: towerSites.length,
+    accTowerSites: towerSites.filter((t) => t.status === "acc").length,
+    pendingTowerSites: towerSites.filter((t) => t.status === "pending").length,
+    visitsToday: visits.filter((v) => v.created_at.startsWith(today)).length,
+    totalVisits: visits.length,
+  };
+}
+
+// =====================================================
+// MARKETING COLORS
+// =====================================================
+
+export const MARKETING_PALETTE: string[] = [
+  "#8B5CF6", // violet
+  "#EC4899", // pink
+  "#F97316", // orange
+  "#06B6D4", // cyan
+  "#84CC16", // lime
+  "#EAB308", // yellow
+  "#14B8A6", // teal
+  "#F43F5E", // rose
+];
+
+export function getMarketingColor(userId: string): string {
+  let hash = 0;
+  for (let i = 0; i < userId.length; i++) {
+    hash = (hash * 31 + userId.charCodeAt(i)) | 0;
+  }
+  return MARKETING_PALETTE[Math.abs(hash) % MARKETING_PALETTE.length];
 }
 
 // =====================================================

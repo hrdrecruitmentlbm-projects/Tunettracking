@@ -5,7 +5,7 @@ const SESSION_COOKIE_NAME = "tutrack-session";
 
 export interface ApiSession {
   userId: string;
-  role: "admin" | "noc" | "foc";
+  role: "admin" | "noc" | "foc" | "marketing";
   name: string;
 }
 
@@ -17,7 +17,7 @@ export function getApiSession(request: NextRequest): ApiSession | null {
 
 export function requireRole(
   session: ApiSession | null,
-  allowedRoles: Array<"admin" | "noc" | "foc">
+  allowedRoles: Array<"admin" | "noc" | "foc" | "marketing">
 ): boolean {
   if (!session) return false;
   return allowedRoles.includes(session.role);

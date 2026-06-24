@@ -1,4 +1,4 @@
-export type UserRole = "admin" | "noc" | "foc";
+export type UserRole = "admin" | "noc" | "foc" | "marketing";
 
 export type TaskStatus = "assigned" | "in_progress" | "review" | "done";
 
@@ -147,3 +147,88 @@ export interface AttendanceTodo {
   title: string;
   created_at: string;
 }
+
+// ===== MARKETING TYPES =====
+
+export type ProspectStatus = "belum_diproses" | "sudah_followup" | "acc" | "tidak";
+
+export type TowerSiteStatus = "baru_ditugaskan" | "pending" | "diproses" | "acc" | "rejected";
+
+export type CardType = "task" | "prospect" | "tower";
+
+export interface Prospect {
+  id: string;
+  name: string;
+  phone: string;
+  address: string;
+  location_lat: number;
+  location_lng: number;
+  status: ProspectStatus;
+  notes: string;
+  assigned_to: string;
+  area: string;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+  deleted_by?: string | null;
+  assignee?: User;
+  deleter?: User;
+}
+
+export interface TowerSite {
+  id: string;
+  name: string;
+  site_type: "village" | "school" | "corporate" | "government" | "other";
+  contact_person: string;
+  contact_phone: string;
+  location_lat: number;
+  location_lng: number;
+  status: TowerSiteStatus;
+  notes: string;
+  assigned_to: string;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+  deleted_by?: string | null;
+  assignee?: User;
+  deleter?: User;
+}
+
+export interface VisitLog {
+  id: string;
+  type: "prospek" | "tower";
+  prospect_id?: string | null;
+  tower_id?: string | null;
+  visited_by: string;
+  status_snapshot: string;
+  notes: string;
+  location_lat: number;
+  location_lng: number;
+  created_at: string;
+  visitor?: User;
+  prospect?: Prospect;
+  tower?: TowerSite;
+}
+
+export const PROSPECT_STATUS_CONFIG: Record<ProspectStatus, { label: string; color: string }> = {
+  belum_diproses: { label: "Belum Diproses", color: "#6B7280" },
+  sudah_followup: { label: "Sudah di Followup", color: "#3B82F6" },
+  acc: { label: "Acc", color: "#10B981" },
+  tidak: { label: "Tidak", color: "#EF4444" },
+};
+
+export const TOWER_SITE_STATUS_CONFIG: Record<TowerSiteStatus, { label: string; color: string }> = {
+  baru_ditugaskan: { label: "Baru Ditugaskan", color: "#6B7280" },
+  pending: { label: "Pending", color: "#F59E0B" },
+  diproses: { label: "Diproses", color: "#3B82F6" },
+  acc: { label: "Acc", color: "#10B981" },
+  rejected: { label: "Rejected", color: "#EF4444" },
+};
+
+export const SITE_TYPE_CONFIG: Record<string, { label: string; icon: string }> = {
+  village: { label: "Kampung", icon: "🏘️" },
+  school: { label: "Sekolah", icon: "🏫" },
+  corporate: { label: "Perusahaan", icon: "🏢" },
+  government: { label: "Pemerintah", icon: "🏛️" },
+  other: { label: "Lainnya", icon: "📍" },
+};

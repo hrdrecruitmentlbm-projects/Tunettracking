@@ -79,7 +79,7 @@ function TasksPageContent() {
   );
 
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const canChangeStatus = currentUser?.role !== "foc";
+  const canChangeStatus = currentUser?.role !== "foc" && currentUser?.role !== "marketing";
 
   useHeartbeat({ userId: currentUser?.id });
 

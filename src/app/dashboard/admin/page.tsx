@@ -69,6 +69,7 @@ export default function AdminDashboard() {
   const totalUsers = users.length;
   const focCount = users.filter((u) => u.role === "foc").length;
   const nocCount = users.filter((u) => u.role === "noc").length;
+  const marketingCount = users.filter((u) => u.role === "marketing").length;
   const totalTasks = tasks.length;
   const completedTasks = tasks.filter((t) => t.status === "done").length;
   const overdueTasks = tasks.filter(
@@ -142,6 +143,9 @@ export default function AdminDashboard() {
                     </Badge>
                     <Badge variant="secondary" className="text-xs">
                       {focCount} FOC
+                    </Badge>
+                    <Badge variant="secondary" className="text-xs">
+                      {marketingCount} MKT
                     </Badge>
                   </div>
                 </div>
@@ -263,6 +267,8 @@ export default function AdminDashboard() {
                                   ? "bg-tunet-green/20 text-tunet-green"
                                   : user.role === "noc"
                                   ? "bg-status-assigned/20 text-status-assigned"
+                                  : user.role === "marketing"
+                                  ? "bg-purple-500/20 text-purple-400"
                                   : "bg-status-progress/20 text-status-progress"
                               }`}
                             >

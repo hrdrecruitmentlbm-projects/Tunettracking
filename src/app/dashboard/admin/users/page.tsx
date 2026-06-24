@@ -46,7 +46,7 @@ import { Plus, MoreHorizontal, Pencil, Trash2, UserX, Eye, EyeOff } from "lucide
 
 interface StaffFormData {
   name: string;
-  role: "admin" | "noc" | "foc";
+  role: "admin" | "noc" | "foc" | "marketing";
   phone: string;
   pin: string;
   telegram_id: string;
@@ -395,6 +395,7 @@ export default function AdminUsersPage() {
                   <SelectItem value="admin" className="text-tunet-text">Admin</SelectItem>
                   <SelectItem value="noc" className="text-tunet-text">NOC</SelectItem>
                   <SelectItem value="foc" className="text-tunet-text">FOC</SelectItem>
+                  <SelectItem value="marketing" className="text-tunet-text">Marketing</SelectItem>
                 </SelectContent>
               </Select>
             </div>

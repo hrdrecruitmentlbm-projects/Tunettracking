@@ -14,6 +14,10 @@ const PUBLIC_API_ROUTES = [
   "/api/tasks",
   "/api/attendance",
   "/api/admin/attendance",
+  "/api/prospects",
+  "/api/tower-sites",
+  "/api/visits",
+  "/api/marketing/stats",
 ];
 
 function isPublicRoute(pathname: string): boolean {

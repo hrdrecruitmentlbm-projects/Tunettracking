@@ -165,7 +165,7 @@ export function AdminAttendanceTable({ rows, loading }: AdminAttendanceTableProp
         <Select
           value={roleFilter}
           onValueChange={(v) => {
-            if (v === "all" || v === "admin" || v === "noc" || v === "foc") {
+            if (v === "all" || v === "admin" || v === "noc" || v === "foc" || v === "marketing") {
               setRoleFilter(v);
             }
           }}
@@ -185,6 +185,9 @@ export function AdminAttendanceTable({ rows, loading }: AdminAttendanceTableProp
             </SelectItem>
             <SelectItem value="foc" className="text-tunet-text">
               FOC
+            </SelectItem>
+            <SelectItem value="marketing" className="text-tunet-text">
+              Marketing
             </SelectItem>
           </SelectContent>
         </Select>
@@ -248,6 +251,8 @@ export function AdminAttendanceTable({ rows, loading }: AdminAttendanceTableProp
                   ? "bg-tunet-green/20 text-tunet-green"
                   : r.role === "noc"
                   ? "bg-status-assigned/20 text-status-assigned"
+                  : r.role === "marketing"
+                  ? "bg-purple-500/20 text-purple-400"
                   : "bg-status-progress/20 text-status-progress";
 
               const rowKey = `${r.userId}::${r.date}`;

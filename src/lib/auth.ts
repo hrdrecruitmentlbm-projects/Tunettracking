@@ -7,7 +7,7 @@ const SESSION_TTL_HOURS = 24;
 
 export interface SessionData {
   userId: string;
-  role: "admin" | "noc" | "foc";
+  role: "admin" | "noc" | "foc" | "marketing";
   name: string;
   expiresAt: number;
 }
@@ -19,7 +19,7 @@ function sign(payload: string): string {
     .digest("hex");
 }
 
-export function createSessionToken(userId: string, role: "admin" | "noc" | "foc", name: string): string {
+export function createSessionToken(userId: string, role: "admin" | "noc" | "foc" | "marketing", name: string): string {
   const expiresAt = Date.now() + SESSION_TTL_HOURS * 60 * 60 * 1000;
   const payload: SessionData = { userId, role, name, expiresAt };
   const encoded = Buffer.from(JSON.stringify(payload)).toString("base64url");

@@ -24,7 +24,7 @@ No typecheck script is configured. No test framework is set up.
 - **Database**: Supabase (PostgreSQL + PostGIS)
 - **Map**: Leaflet + OpenStreetMap (CartoDB Dark Matter tiles)
 - **Auth**: PIN-based login, stored in `localStorage` as `tutrack-user`
-- **Roles**: `admin`, `noc`, `foc`
+- **Roles**: `admin`, `noc`, `foc`, `marketing`
 - **Theme**: Dark-only, custom `tunet-*` color palette in `globals.css`
 
 ### Path Alias
@@ -38,29 +38,24 @@ tunet-ops/src/
 ├── app/
 │   ├── (auth)/page.tsx          # PIN login
 │   ├── dashboard/
-│   │   ├── admin/page.tsx       # Admin dashboard (sparkline, stats)
+│   │   ├── admin/page.tsx       # Admin dashboard
 │   │   ├── noc/page.tsx         # NOC (60/40 map+tasks)
-│   │   ├── foc/page.tsx         # FOC (mobile-first, tabbed tracking)
-│   │   ├── map/page.tsx         # Full-screen radar with role filters + search
-│   │   ├── tasks/page.tsx       # Kanban board (DnD) + list, URL-persisted filters
+│   │   ├── foc/page.tsx         # FOC (mobile-first)
+│   │   ├── marketing/page.tsx   # Marketing dashboard (stats, pipelines)
+│   │   ├── marketing/prospects/page.tsx  # Prospect CRUD
+│   │   ├── marketing/kunjungan/page.tsx  # Visit log with GPS
+│   │   ├── map/page.tsx         # Full-screen radar
+│   │   ├── tasks/page.tsx       # Kanban board
 │   │   └── settings/page.tsx
-│   └── api/
-│       ├── cleanup/route.ts     # Data retention cleanup endpoint
-│       ├── telegram/            # Telegram bot integration
-│       ├── users/               # User CRUD
-│       └── webhooks/            # Supabase webhooks
+│   └── api/                     # API routes
 ├── components/
-│   ├── layout/                  # DashboardLayout, Sidebar, NotificationsPanel (day-grouped)
-│   ├── map/                     # RadarMap (Leaflet, showRoles, focusUserId)
-│   ├── tasks/                   # KanbanBoard (DnD), TaskCard, TaskDetail, TaskForm, TaskFilters (chips)
-│   └── ui/                      # shadcn + Skeleton, EmptyState, Sparkline
+│   ├── layout/                  # DashboardLayout, Sidebar
+│   ├── map/                     # RadarMap (Leaflet)
+│   ├── tasks/                   # KanbanBoard, TaskCard
+│   └── ui/                      # shadcn components
 ├── lib/
 │   ├── supabase.ts              # Supabase client
-│   ├── db.ts                    # Data access + fetchCompletionTrend
-│   ├── copy.ts                  # Indonesian strings (empty/loading/time/filters/search)
-│   ├── time.ts                  # getRelativeTime, getTimeRemaining helpers
-│   ├── telegram.ts              # Bot sendMessage, setWebhook
-│   ├── telegram-cache.ts        # In-memory chat_id cache
+│   ├── mock-data.ts             # Demo users/tasks/locations
 │   └── utils.ts                 # cn() helper
 └── types/
     └── index.ts                 # All TypeScript types + configs
@@ -68,11 +63,12 @@ tunet-ops/src/
 
 ## Conventions
 
-- **Demo PIN**: `1234` works for all roles (admin, noc, foc)
+- **Demo PIN**: `1234` works for all roles (admin, noc, foc, marketing)
 - **Mock data**: Used for demo. Real Supabase backend not yet connected.
 - **Custom colors**: `tunet-green`, `tunet-surface`, `tunet-bg`, `tunet-border`, `tunet-text`, `tunet-text-muted` defined in `globals.css`
 - **Status colors**: `status-todo`, `status-assigned`, `status-progress`, `status-review`, `status-done`, `status-overdue`
 - **Priority colors**: `priority-critical`, `priority-high`, `priority-medium`, `priority-low`
+- **Marketing colors**: Marketing role uses purple badge (`bg-purple-500/20 text-purple-400`), prospect pins blue, tower site pins orange on map
 - **Components**: Use `cn()` from `@/lib/utils` for class merging
 - **Leaflet**: Must render client-side only (no SSR)
 - **Empty states**: Use `<EmptyState>` from `@/components/ui/empty-state` with copy from `@/lib/copy`
@@ -143,7 +139,7 @@ Format: Reverse chronological log (newest entries first).
   - `/api/cleanup` (public — uses its own secret)
   - `/api/webhooks/*` (public — uses WEBHOOK_SECRET)
 - **Session secret**: Set `SESSION_SECRET` in `.env.local` (generate with crypto.randomBytes)
-- **Role checks**: All `/api/users/*` routes require admin role
+- **Role checks**: All `/api/users/*` routes require admin role. Marketing API routes (`/api/prospects`, `/api/tower-sites`, `/api/visits`) require admin or marketing role.
 - **Login rate limit**: 5 attempts per minute per IP (in-memory, resets on restart)
 - **Bulk user rate limit**: 10 requests per minute per IP
 
@@ -161,6 +157,8 @@ Format: Reverse chronological log (newest entries first).
 - No `.env.local` exists yet — app uses empty strings (mock data only)
 - No test suite exists — do not assume tests will catch regressions
 - Leaflet components must be wrapped in `"use client"` and dynamic imports
+- Marketing pages (prospects, tower sites, visits) use Supabase tables: `prospects`, `tower_sites`, `visit_logs` — run SQL migrations before use
+- Marketing role has 6 nav items: Dasbor, Peta, Prospek, Kunjungan, Absensi, Pengaturan
 - `next.config.ts` is empty — no custom webpack or env config
 - `.next/` build output exists but may be stale after dependency changes
 - Location pings grow fast (~9,600 rows/day for 10 FOC) — data retention is critical

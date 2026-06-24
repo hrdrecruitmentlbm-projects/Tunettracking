@@ -85,7 +85,7 @@ export function TaskDetail({
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const canReassign = currentUser?.role === "admin" || currentUser?.role === "noc";
+  const canReassign = currentUser?.role === "admin" || currentUser?.role === "noc" || currentUser?.role === "marketing";
   const isDeleted = !!task?.deleted_at;
 
   useEffect(() => {

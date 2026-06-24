@@ -9,6 +9,7 @@ import {
   Settings,
   Users,
   Clock,
+  ClipboardCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserRole } from "@/types";
@@ -38,6 +39,14 @@ const NAV_ITEMS = {
     { href: "/dashboard/foc", label: COPY.nav.myTasks, icon: CheckSquare },
     { href: "/dashboard/attendance", label: COPY.nav.attendance, icon: Clock },
     { href: "/dashboard/map", label: COPY.nav.map, icon: Map },
+    { href: "/dashboard/settings", label: COPY.nav.settings, icon: Settings },
+  ],
+  marketing: [
+    { href: "/dashboard/marketing", label: COPY.nav.dashboard, icon: LayoutDashboard },
+    { href: "/dashboard/map", label: COPY.nav.map, icon: Map },
+    { href: "/dashboard/marketing/prospects", label: COPY.nav.prospects, icon: Users },
+    { href: "/dashboard/marketing/kunjungan", label: COPY.nav.visits, icon: ClipboardCheck },
+    { href: "/dashboard/attendance", label: COPY.nav.attendance, icon: Clock },
     { href: "/dashboard/settings", label: COPY.nav.settings, icon: Settings },
   ],
 };

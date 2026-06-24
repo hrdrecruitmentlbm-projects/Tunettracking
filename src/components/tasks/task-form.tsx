@@ -61,7 +61,7 @@ export function TaskForm({
   useEffect(() => {
     if (open) {
       fetchUsers().then((users) =>
-        setFocUsers(users.filter((u) => u.role === "foc"))
+        setFocUsers(users.filter((u) => u.role === "foc" || u.role === "marketing"))
       );
       fetchTags().then(setTags);
     }

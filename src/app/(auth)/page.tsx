@@ -55,6 +55,9 @@ export default function LoginPage() {
         case "foc":
           router.push("/dashboard/foc");
           break;
+        case "marketing":
+          router.push("/dashboard/marketing");
+          break;
         default:
           router.push("/dashboard/noc");
       }
