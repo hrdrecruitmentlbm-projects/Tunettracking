@@ -329,8 +329,6 @@ export function RadarMap({
     return role && showRoles.includes(role as "foc" | "noc" | "marketing");
   });
 
-  if (false) {
-
   const getMarkerColor = (location: Location) => {
     if (showRoles.includes("foc") && location.user?.role === "foc") {
       return getFocColor(location.user_id);
