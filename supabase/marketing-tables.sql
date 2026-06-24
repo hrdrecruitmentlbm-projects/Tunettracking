@@ -2,6 +2,10 @@
 -- Run this in Supabase SQL Editor AFTER schema.sql
 -- Uses GRANT for access (app handles auth at API layer via requireRole)
 
+-- Fix users table CHECK constraint to include marketing role
+ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
+ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('admin', 'noc', 'foc', 'marketing'));
+
 -- Ensure anon and authenticated can read users (needed for JOINs and fetchUsers)
 GRANT SELECT ON users TO anon;
 GRANT SELECT ON users TO authenticated;

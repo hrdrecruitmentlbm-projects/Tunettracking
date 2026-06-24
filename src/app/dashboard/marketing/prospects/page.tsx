@@ -385,16 +385,22 @@ function ProspectForm({
             </div>
             <div>
               <label className="text-sm font-medium text-tunet-text">{COPY.pages.prospects.assignTo}</label>
-              <Select key={assignedTo || "empty"} value={assignedTo} onValueChange={(v) => setAssignedTo(v || "")}>
-                <SelectTrigger className="mt-1 bg-tunet-bg border-tunet-border text-tunet-text">
-                  <SelectValue placeholder="Pilih..." />
-                </SelectTrigger>
-                <SelectContent className="bg-tunet-surface border-tunet-border">
-                  {marketingUsers.map((u) => (
-                    <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {prospect && marketingUsers.length > 0 ? (
+                <Select value={assignedTo} onValueChange={(v) => setAssignedTo(v || "")}>
+                  <SelectTrigger className="mt-1 bg-tunet-bg border-tunet-border text-tunet-text">
+                    <SelectValue placeholder="Pilih..." />
+                  </SelectTrigger>
+                  <SelectContent className="bg-tunet-surface border-tunet-border">
+                    {marketingUsers.map((u) => (
+                      <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <div className="mt-1 px-3 py-2 bg-tunet-bg border border-tunet-border rounded-md text-sm text-tunet-text">
+                  {currentUser?.name || assignedTo || "-"}
+                </div>
+              )}
             </div>
           </div>
           <div>
