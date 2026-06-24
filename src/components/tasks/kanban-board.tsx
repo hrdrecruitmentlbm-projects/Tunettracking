@@ -33,7 +33,7 @@ interface KanbanBoardProps {
   onDeleted?: (taskId: string) => void;
 }
 
-const COLUMNS: TaskStatus[] = ["todo", "assigned", "in_progress", "review", "done"];
+const COLUMNS: TaskStatus[] = ["assigned", "in_progress", "review", "done"];
 
 export function KanbanBoard({
   tasks,
@@ -50,7 +50,6 @@ export function KanbanBoard({
 
   const tasksByStatus = useMemo(() => {
     const map: Record<TaskStatus, Task[]> = {
-      todo: [],
       assigned: [],
       in_progress: [],
       review: [],

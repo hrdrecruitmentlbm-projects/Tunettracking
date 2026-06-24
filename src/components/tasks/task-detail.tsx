@@ -579,7 +579,6 @@ export function TaskDetail({
                   variant="outline"
                   onClick={() => {
                     const nextStatuses: Record<string, string> = {
-                      todo: "assigned",
                       assigned: "in_progress",
                       in_progress: "review",
                       review: "done",

@@ -30,7 +30,6 @@ interface TaskCardProps {
 }
 
 const NEXT_STATUS: Record<TaskStatus, TaskStatus | null> = {
-  todo: "assigned",
   assigned: "in_progress",
   in_progress: "review",
   review: "done",
@@ -38,7 +37,6 @@ const NEXT_STATUS: Record<TaskStatus, TaskStatus | null> = {
 };
 
 const NEXT_STATUS_LABEL: Record<TaskStatus, string | null> = {
-  todo: COPY.taskCard.start,
   assigned: COPY.taskCard.start,
   in_progress: COPY.taskCard.submitReview,
   review: COPY.taskCard.complete,

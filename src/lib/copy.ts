@@ -67,7 +67,7 @@ export const COPY = {
   },
   tasks: {
     start: "Mulai",
-    submitReview: "Sedang Ditinjau",
+    submitReview: "Kirim ke Review",
     complete: "Selesaikan",
     skipToNext: "Lewati ke berikutnya",
     overdue: "Terlambat",
@@ -256,8 +256,8 @@ export const COPY = {
     assigned: "Ditugaskan",
     unassigned: "Belum Ditugaskan",
     start: "Mulai",
-    submitReview: "Sedang Ditinjau",
-    complete: "Selesai",
+    submitReview: "Kirim ke Review",
+    complete: "Selesaikan",
     advanceTo: "Lanjut ke",
   },
   taskDetail: {
@@ -272,7 +272,7 @@ export const COPY = {
     tags: "Tag",
     changeStatus: "Ubah Status",
     startWork: "Mulai Kerja",
-    submitReview: "Sedang Ditinjau",
+    submitReview: "Kirim ke Review",
     markComplete: "Tandai Selesai",
     skipToNext: "Lewati ke Berikutnya",
     statusHistory: "Riwayat Status",

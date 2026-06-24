@@ -1,6 +1,6 @@
 export type UserRole = "admin" | "noc" | "foc";
 
-export type TaskStatus = "todo" | "assigned" | "in_progress" | "review" | "done";
+export type TaskStatus = "assigned" | "in_progress" | "review" | "done";
 
 export type TaskPriority = "critical" | "high" | "medium" | "low";
 
@@ -80,10 +80,9 @@ export interface Notification {
 }
 
 export const STATUS_CONFIG: Record<TaskStatus, { label: string; color: string }> = {
-  todo: { label: "Belum Dikerjakan", color: "#6B7280" },
-  assigned: { label: "Sudah Ditugaskan", color: "#3B82F6" },
-  in_progress: { label: "Sedang Berjalan", color: "#F59E0B" },
-  review: { label: "Sedang dalam Tinjauan", color: "#8B5CF6" },
+  assigned: { label: "Baru Ditugaskan", color: "#3B82F6" },
+  in_progress: { label: "Sedang Dikerjakan", color: "#F59E0B" },
+  review: { label: "Sedang di Review", color: "#8B5CF6" },
   done: { label: "Selesai", color: "#10B981" },
 };
 

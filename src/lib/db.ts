@@ -215,6 +215,52 @@ export async function fetchTags(): Promise<Tag[]> {
   return (data || []) as Tag[];
 }
 
+export async function createTag(
+  name: string,
+  color: string
+): Promise<Tag | null> {
+  const { data, error } = await supabase
+    .from("tags")
+    .insert({ name, color })
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Error creating tag:", error);
+    return null;
+  }
+  return data as Tag;
+}
+
+export async function updateTag(
+  id: string,
+  name: string,
+  color: string
+): Promise<Tag | null> {
+  const { data, error } = await supabase
+    .from("tags")
+    .update({ name, color })
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Error updating tag:", error);
+    return null;
+  }
+  return data as Tag;
+}
+
+export async function deleteTag(id: string): Promise<boolean> {
+  const { error } = await supabase.from("tags").delete().eq("id", id);
+
+  if (error) {
+    console.error("Error deleting tag:", error);
+    return false;
+  }
+  return true;
+}
+
 export interface CreateTaskInput {
   title: string;
   description: string;

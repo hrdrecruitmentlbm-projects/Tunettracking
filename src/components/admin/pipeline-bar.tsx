@@ -9,7 +9,7 @@ interface PipelineBarProps {
   className?: string;
 }
 
-const ORDER: TaskStatus[] = ["todo", "assigned", "in_progress", "review", "done"];
+const ORDER: TaskStatus[] = ["assigned", "in_progress", "review", "done"];
 
 export function PipelineBar({ tasks, completedToday, className }: PipelineBarProps) {
   const total = tasks.length || 1;

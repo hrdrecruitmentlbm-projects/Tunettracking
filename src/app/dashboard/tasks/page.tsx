@@ -35,7 +35,7 @@ const DEFAULT_FILTERS: FilterState = {
 };
 
 function isTaskStatus(v: string | null): v is TaskStatus {
-  return v === "todo" || v === "assigned" || v === "in_progress" || v === "review" || v === "done";
+  return v === "assigned" || v === "in_progress" || v === "review" || v === "done";
 }
 
 function isTaskPriority(v: string | null): v is Task["priority"] {
