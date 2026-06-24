@@ -19,6 +19,7 @@ import {
   X,
   Clock,
   ClipboardCheck,
+  Target,
 } from "lucide-react";
 import { COPY } from "@/lib/copy";
 import { useMediaQuery } from "@/hooks/use-media-query";
@@ -35,6 +36,7 @@ const NAV_ITEMS = {
     { href: "/dashboard/attendance", labelKey: "attendance" as const, icon: Clock },
     { href: "/dashboard/admin/users", labelKey: "team" as const, icon: Users },
     { href: "/dashboard/admin/attendance", labelKey: "attendanceOverview" as const, icon: Users },
+    { href: "/dashboard/admin/marketing", labelKey: "marketing" as const, icon: Target },
     { href: "/dashboard/settings", labelKey: "settings" as const, icon: Settings },
   ],
   noc: [

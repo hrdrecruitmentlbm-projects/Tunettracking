@@ -10,6 +10,7 @@ import {
   Users,
   Clock,
   ClipboardCheck,
+  Target,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserRole } from "@/types";
@@ -26,6 +27,7 @@ const NAV_ITEMS = {
     { href: "/dashboard/tasks", label: COPY.nav.taskBoard, icon: CheckSquare },
     { href: "/dashboard/attendance", label: COPY.nav.attendance, icon: Clock },
     { href: "/dashboard/admin/users", label: COPY.nav.team, icon: Users },
+    { href: "/dashboard/admin/marketing", label: COPY.nav.marketing, icon: Target },
     { href: "/dashboard/settings", label: COPY.nav.settings, icon: Settings },
   ],
   noc: [

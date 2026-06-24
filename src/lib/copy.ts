@@ -104,6 +104,7 @@ export const COPY = {
     attendanceOverview: "Rekap Absensi",
     prospects: "Prospek",
     visits: "Kunjungan",
+    marketing: "Marketing",
     trash: "Sampah",
   },
   auth: {
@@ -226,7 +227,8 @@ export const COPY = {
       newTask: "Tugas Baru",
       viewKanban: "Tampilan Kanban",
       viewList: "Tampilan Daftar",
-      trash: "Sampah",
+    marketing: "Marketing",
+    trash: "Sampah",
       trashEmpty: {
         title: "Tidak ada tugas yang dihapus",
         description: "Tugas yang dihapus akan muncul di sini.",
