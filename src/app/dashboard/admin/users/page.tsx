@@ -383,7 +383,7 @@ export default function AdminUsersPage() {
               <Select
                 value={formData.role}
                 onValueChange={(value) => {
-                  if (value === "admin" || value === "noc" || value === "foc") {
+                  if (value === "admin" || value === "noc" || value === "foc" || value === "marketing") {
                     setFormData({ ...formData, role: value });
                   }
                 }}
