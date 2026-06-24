@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Notification } from "@/types";
 import {
@@ -34,6 +34,7 @@ export function NotificationsPanel({ userId, onCountChange }: NotificationsPanel
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const mountId = useRef(Math.random().toString(36).slice(2));
 
   const loadNotifications = async () => {
     setLoading(true);
@@ -48,7 +49,7 @@ export function NotificationsPanel({ userId, onCountChange }: NotificationsPanel
     loadNotifications();
 
     const channel = supabase
-      .channel(`notifications-realtime-${userId}`)
+      .channel(`notifications-realtime-${userId}-${mountId.current}`)
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` },
