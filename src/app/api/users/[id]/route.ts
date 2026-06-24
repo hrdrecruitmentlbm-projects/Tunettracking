@@ -26,9 +26,9 @@ export async function PUT(
       );
     }
 
-    if (role && !["admin", "noc", "foc"].includes(role)) {
+    if (role && !["admin", "noc", "foc", "marketing"].includes(role)) {
       return NextResponse.json(
-        { error: "Role must be admin, noc, or foc" },
+        { error: "Role must be admin, noc, foc, or marketing" },
         { status: 400 }
       );
     }
