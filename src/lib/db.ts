@@ -1,5 +1,5 @@
 import { supabase } from "./supabase";
-import { User, Task, Location, Tag, Notification, TaskStatus, Prospect, TowerSite, VisitLog } from "@/types";
+import { User, Task, Location, Tag, Notification, TaskStatus, Prospect, TowerSite, VisitLog, ProspectHistory } from "@/types";
 
 export async function loginByPin(pin: string): Promise<User | null> {
   const { data, error } = await supabase
@@ -1407,11 +1407,29 @@ export async function updateProspect(
     notes: string;
     assigned_to: string;
     area: string;
+    changedBy: string;
   }>
 ): Promise<Prospect | null> {
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
   for (const [key, value] of Object.entries(input)) {
-    if (value !== undefined) updates[key] = value;
+    if (value !== undefined && key !== "changedBy") updates[key] = value;
+  }
+
+  // Log status change to history
+  if (input.status) {
+    const { data: current } = await supabase
+      .from("prospects")
+      .select("status")
+      .eq("id", id)
+      .single();
+    if (current && current.status !== input.status) {
+      await supabase.from("prospect_history").insert({
+        prospect_id: id,
+        old_status: current.status,
+        new_status: input.status,
+        changed_by: input.changedBy || "00000000-0000-0000-0000-000000000000",
+      });
+    }
   }
 
   const { data, error } = await supabase
@@ -1452,6 +1470,20 @@ export async function restoreProspect(id: string): Promise<boolean> {
     return false;
   }
   return true;
+}
+
+export async function fetchProspectHistory(prospectId: string): Promise<ProspectHistory[]> {
+  const { data, error } = await supabase
+    .from("prospect_history")
+    .select("*, changer:users!prospect_history_changed_by_fkey(id, name, role)")
+    .eq("prospect_id", prospectId)
+    .order("changed_at", { ascending: false });
+
+  if (error) {
+    console.error("Error fetching prospect history:", error);
+    return [];
+  }
+  return (data || []) as unknown as ProspectHistory[];
 }
 
 export async function fetchTowerSites(includeDeleted: boolean = false): Promise<TowerSite[]> {

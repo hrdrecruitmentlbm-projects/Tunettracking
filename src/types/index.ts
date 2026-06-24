@@ -175,6 +175,16 @@ export interface Prospect {
   deleter?: User;
 }
 
+export interface ProspectHistory {
+  id: string;
+  prospect_id: string;
+  old_status: string;
+  new_status: string;
+  changed_by: string;
+  changed_at: string;
+  changer?: User;
+}
+
 export interface TowerSite {
   id: string;
   name: string;

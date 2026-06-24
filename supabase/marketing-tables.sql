@@ -103,3 +103,17 @@ DROP TRIGGER IF EXISTS tower_sites_updated_at ON tower_sites;
 CREATE TRIGGER tower_sites_updated_at
   BEFORE UPDATE ON tower_sites
   FOR EACH ROW EXECUTE FUNCTION update_marketing_updated_at();
+
+-- Prospect status history (audit trail)
+CREATE TABLE IF NOT EXISTS prospect_history (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  prospect_id UUID NOT NULL REFERENCES prospects(id) ON DELETE CASCADE,
+  old_status TEXT NOT NULL,
+  new_status TEXT NOT NULL,
+  changed_by UUID NOT NULL REFERENCES users(id),
+  changed_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_prospect_history_prospect_id ON prospect_history(prospect_id);
+GRANT ALL ON prospect_history TO anon;
+GRANT ALL ON prospect_history TO authenticated;

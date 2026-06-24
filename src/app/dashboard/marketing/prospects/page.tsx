@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
-import { fetchProspects, createProspect, updateProspect, softDeleteProspect, fetchUsers } from "@/lib/db";
-import { Prospect, User, PROSPECT_STATUS_CONFIG } from "@/types";
+import { fetchProspects, createProspect, updateProspect, softDeleteProspect, fetchUsers, fetchProspectHistory } from "@/lib/db";
+import { Prospect, User, PROSPECT_STATUS_CONFIG, ProspectHistory } from "@/types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,7 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Search, Edit, Trash2 } from "lucide-react";
+import { Plus, Search, Edit, Trash2, History } from "lucide-react";
 import { COPY } from "@/lib/copy";
 import { toast } from "sonner";
 
@@ -38,6 +38,9 @@ export default function ProspectsPage() {
   const [editProspect, setEditProspect] = useState<Prospect | null>(null);
   const [deleteProspect, setDeleteProspect] = useState<Prospect | null>(null);
   const [currentUser, setCurrentUserId] = useState<User | null>(null);
+  const [historyProspect, setHistoryProspect] = useState<Prospect | null>(null);
+  const [history, setHistory] = useState<ProspectHistory[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem("tutrack-user");
@@ -95,7 +98,7 @@ export default function ProspectsPage() {
   };
 
   const handleStatusChange = async (prospectId: string, newStatus: string) => {
-    const result = await updateProspect(prospectId, { status: newStatus });
+    const result = await updateProspect(prospectId, { status: newStatus, changedBy: currentUser?.id || "" });
     if (result) {
       setProspects((prev) =>
         prev.map((p) => (p.id === prospectId ? { ...p, status: newStatus as Prospect["status"] } : p))
@@ -103,6 +106,17 @@ export default function ProspectsPage() {
       toast.success(COPY.pages.prospects.updated);
     } else {
       toast.error(COPY.pages.prospects.failedUpdate);
+    }
+  };
+
+  const handleHistory = async (prospect: Prospect) => {
+    setHistoryProspect(prospect);
+    setHistoryLoading(true);
+    try {
+      const data = await fetchProspectHistory(prospect.id);
+      setHistory(data);
+    } finally {
+      setHistoryLoading(false);
     }
   };
 
@@ -183,21 +197,30 @@ export default function ProspectsPage() {
                             <td className="py-3 px-4 text-sm text-tunet-text-muted">{prospect.phone}</td>
                             <td className="py-3 px-4 text-sm text-tunet-text-muted">{prospect.area}</td>
                             <td className="py-3 px-4">
-                              <select
-                                value={prospect.status}
-                                onChange={(e) => handleStatusChange(prospect.id, e.target.value)}
-                                className="text-xs font-medium rounded-full px-3 py-1 border-0 cursor-pointer focus:ring-2 focus:ring-tunet-green/50 outline-none"
-                                style={{
-                                  backgroundColor: PROSPECT_STATUS_CONFIG[prospect.status].color + "20",
-                                  color: PROSPECT_STATUS_CONFIG[prospect.status].color,
-                                }}
-                              >
-                                {Object.entries(PROSPECT_STATUS_CONFIG).map(([key, cfg]) => (
-                                  <option key={key} value={key} className="bg-tunet-surface text-tunet-text">
-                                    {cfg.label}
-                                  </option>
-                                ))}
-                              </select>
+                              <div className="flex items-center gap-2">
+                                <select
+                                  value={prospect.status}
+                                  onChange={(e) => handleStatusChange(prospect.id, e.target.value)}
+                                  className="text-xs font-medium rounded-full px-3 py-1 border-0 cursor-pointer focus:ring-2 focus:ring-tunet-green/50 outline-none"
+                                  style={{
+                                    backgroundColor: PROSPECT_STATUS_CONFIG[prospect.status].color + "20",
+                                    color: PROSPECT_STATUS_CONFIG[prospect.status].color,
+                                  }}
+                                >
+                                  {Object.entries(PROSPECT_STATUS_CONFIG).map(([key, cfg]) => (
+                                    <option key={key} value={key} className="bg-tunet-surface text-tunet-text">
+                                      {cfg.label}
+                                    </option>
+                                  ))}
+                                </select>
+                                <button
+                                  onClick={() => handleHistory(prospect)}
+                                  className="p-1 rounded hover:bg-tunet-surface-hover text-tunet-text-muted"
+                                  title="Riwayat"
+                                >
+                                  <History className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                             </td>
                             <td className="py-3 px-4 text-sm text-tunet-text-muted">{prospect.assignee?.name || "-"}</td>
                             <td className="py-3 px-4">
@@ -252,6 +275,61 @@ export default function ProspectsPage() {
                 {COPY.actions.delete}
               </Button>
             </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={!!historyProspect} onOpenChange={() => { setHistoryProspect(null); setHistory([]); }}>
+          <DialogContent className="bg-tunet-surface border-tunet-border max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-tunet-text">Riwayat Status</DialogTitle>
+              <DialogDescription className="text-tunet-text-muted">
+                {historyProspect?.name}
+              </DialogDescription>
+            </DialogHeader>
+            {historyLoading ? (
+              <div className="space-y-3 py-4">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <Skeleton key={i} className="h-16 w-full" />
+                ))}
+              </div>
+            ) : history.length === 0 ? (
+              <p className="text-sm text-tunet-text-muted py-4 text-center">Belum ada riwayat perubahan status</p>
+            ) : (
+              <div className="space-y-3 max-h-80 overflow-y-auto py-2">
+                {history.map((h) => (
+                  <div key={h.id} className="flex items-start gap-3 p-3 rounded-lg bg-tunet-bg border border-tunet-border">
+                    <div className="w-8 h-8 rounded-full bg-tunet-green/20 flex items-center justify-center text-tunet-green text-sm font-medium flex-shrink-0">
+                      {h.changer?.name?.charAt(0) || "?"}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm text-tunet-text font-medium">{h.changer?.name || "Unknown"}</span>
+                        <span className="text-xs text-tunet-text-muted">mengubah status</span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-1 text-xs">
+                        <span
+                          className="px-2 py-0.5 rounded-full"
+                          style={{ backgroundColor: (PROSPECT_STATUS_CONFIG[h.old_status as keyof typeof PROSPECT_STATUS_CONFIG]?.color || "#6B7280") + "20", color: PROSPECT_STATUS_CONFIG[h.old_status as keyof typeof PROSPECT_STATUS_CONFIG]?.color || "#6B7280" }}
+                        >
+                          {PROSPECT_STATUS_CONFIG[h.old_status as keyof typeof PROSPECT_STATUS_CONFIG]?.label || h.old_status}
+                        </span>
+                        <span className="text-tunet-text-muted">→</span>
+                        <span
+                          className="px-2 py-0.5 rounded-full"
+                          style={{ backgroundColor: (PROSPECT_STATUS_CONFIG[h.new_status as keyof typeof PROSPECT_STATUS_CONFIG]?.color || "#6B7280") + "20", color: PROSPECT_STATUS_CONFIG[h.new_status as keyof typeof PROSPECT_STATUS_CONFIG]?.color || "#6B7280" }}
+                        >
+                          {PROSPECT_STATUS_CONFIG[h.new_status as keyof typeof PROSPECT_STATUS_CONFIG]?.label || h.new_status}
+                        </span>
+                      </div>
+                      <p className="text-xs text-tunet-text-muted mt-1">
+                        {new Date(h.changed_at).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })},{" "}
+                        {new Date(h.changed_at).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </DialogContent>
         </Dialog>
       </div>
