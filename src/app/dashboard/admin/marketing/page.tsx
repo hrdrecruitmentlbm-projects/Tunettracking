@@ -62,15 +62,20 @@ export default function AdminMarketingPage() {
 
   useEffect(() => {
     async function load() {
-      const [p, v, u] = await Promise.all([
-        fetchProspects(),
-        fetchVisitLogs(),
-        fetchUsers(),
-      ]);
-      setProspects(p);
-      setVisits(v);
-      setUsers(u);
-      setLoading(false);
+      try {
+        const [p, v, u] = await Promise.all([
+          fetchProspects(),
+          fetchVisitLogs(),
+          fetchUsers(),
+        ]);
+        setProspects(p);
+        setVisits(v);
+        setUsers(u);
+      } catch (err) {
+        console.error("Failed to load marketing data:", err);
+      } finally {
+        setLoading(false);
+      }
     }
     load();
   }, []);
