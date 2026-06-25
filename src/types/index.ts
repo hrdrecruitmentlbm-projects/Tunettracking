@@ -104,6 +104,7 @@ export interface Attendance {
   location_lat?: number | null;
   location_lng?: number | null;
   notes?: string | null;
+  photo_file_id?: string | null;
   created_at: string;
 }
 

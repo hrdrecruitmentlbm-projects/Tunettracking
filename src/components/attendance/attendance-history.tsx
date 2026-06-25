@@ -13,15 +13,22 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { GroupedDay } from "@/types";
 import { formatAttendanceDate, formatTimeWIB, formatDuration } from "@/lib/time";
 import { COPY } from "@/lib/copy";
-import { CalendarOff, Check, AlertTriangle } from "lucide-react";
+import { CalendarOff, Check, AlertTriangle, ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useState } from "react";
 
 interface AttendanceHistoryProps {
   rows: GroupedDay[];
   loading?: boolean;
 }
 
+function getPhotoUrl(fileId: string): string {
+  return `https://drive.google.com/uc?export=view&id=${fileId}`;
+}
+
 export function AttendanceHistory({ rows, loading }: AttendanceHistoryProps) {
+  const [expandedPhoto, setExpandedPhoto] = useState<string | null>(null);
+
   if (loading) {
     return (
       <div className="space-y-2">
@@ -60,6 +67,9 @@ export function AttendanceHistory({ rows, loading }: AttendanceHistoryProps) {
               {COPY.attendance.colDate}
             </TableHead>
             <TableHead className="text-tunet-text-muted">
+              {COPY.attendance.photoTitle}
+            </TableHead>
+            <TableHead className="text-tunet-text-muted">
               {COPY.attendance.colBerangkat}
             </TableHead>
             <TableHead className="text-tunet-text-muted">
@@ -86,10 +96,27 @@ export function AttendanceHistory({ rows, loading }: AttendanceHistoryProps) {
               ? COPY.attendance.adminStatusBelumPulang
               : COPY.attendance.adminStatusBelumBerangkat;
 
+            const photoId = r.berangkat?.photo_file_id;
+            const isPhotoExpanded = expandedPhoto === photoId;
+
             return (
               <TableRow key={r.date} className="border-tunet-border">
                 <TableCell className="text-sm text-tunet-text">
                   {formatAttendanceDate(r.date)}
+                </TableCell>
+                <TableCell>
+                  {photoId ? (
+                    <button
+                      type="button"
+                      onClick={() => setExpandedPhoto(isPhotoExpanded ? null : photoId)}
+                      className="flex items-center gap-1.5 text-tunet-green hover:text-tunet-green/80 transition-colors"
+                    >
+                      <ImageIcon className="h-4 w-4" />
+                      <span className="text-[11px]">Lihat</span>
+                    </button>
+                  ) : (
+                    <span className="text-tunet-text-muted text-[11px]">-</span>
+                  )}
                 </TableCell>
                 <TableCell className="font-mono-data text-sm tabular-nums text-tunet-text">
                   {formatTimeWIB(r.berangkat?.timestamp)}
@@ -116,6 +143,27 @@ export function AttendanceHistory({ rows, loading }: AttendanceHistoryProps) {
           })}
         </TableBody>
       </Table>
+
+      {/* Expanded Photo View */}
+      {expandedPhoto && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80" onClick={() => setExpandedPhoto(null)}>
+          <div className="relative max-w-lg max-h-[80vh] p-2" onClick={(e) => e.stopPropagation()}>
+            <img
+              src={getPhotoUrl(expandedPhoto)}
+              alt={COPY.attendance.photoPreview}
+              className="max-w-full max-h-[75vh] object-contain rounded-lg"
+            />
+            <button
+              type="button"
+              onClick={() => setExpandedPhoto(null)}
+              className="absolute top-4 right-4 p-2 rounded-full bg-tunet-bg/80 text-tunet-text-muted hover:text-white transition-colors"
+            >
+              <span className="sr-only">Close</span>
+              ×
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

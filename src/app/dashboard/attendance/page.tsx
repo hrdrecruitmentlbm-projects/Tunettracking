@@ -59,7 +59,7 @@ export default function AttendancePage() {
     setTodoDialogOpen(true);
   };
 
-  const handleTodoSubmit = async (todos: string[]) => {
+  const handleTodoSubmit = async (todos: string[], photo: File | null) => {
     setTodoDialogOpen(false);
 
     let lat: number | null = null;
@@ -81,10 +81,17 @@ export default function AttendancePage() {
     }
 
     try {
+      // Build FormData for photo upload
+      const formData = new FormData();
+      formData.append("photo", photo!);
+      formData.append(
+        "payload",
+        JSON.stringify({ type: "berangkat", location_lat: lat, location_lng: lng, todos })
+      );
+
       const res = await fetch("/api/attendance", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "berangkat", location_lat: lat, location_lng: lng, todos }),
+        body: formData,
       });
 
       if (!res.ok) {

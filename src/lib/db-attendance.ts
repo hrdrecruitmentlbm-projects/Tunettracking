@@ -8,6 +8,7 @@ export interface RecordAttendanceInput {
   location_lng?: number | null;
   notes?: string | null;
   todos?: string[];
+  photo_file_id?: string | null;
 }
 
 /**
@@ -37,6 +38,7 @@ export async function recordAttendance(
       location_lat: input.location_lat ?? null,
       location_lng: input.location_lng ?? null,
       notes: input.notes ?? null,
+      photo_file_id: input.photo_file_id ?? null,
     })
     .select()
     .single();

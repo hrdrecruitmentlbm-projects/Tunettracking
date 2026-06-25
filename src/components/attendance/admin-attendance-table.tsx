@@ -22,7 +22,7 @@ import { Input } from "@/components/ui/input";
 import { AttendanceWithUser, AttendanceTodo, UserRole } from "@/types";
 import { formatAttendanceDate, formatTimeWIB, formatDuration } from "@/lib/time";
 import { COPY } from "@/lib/copy";
-import { Search, CalendarOff, Check, AlertTriangle, X, ChevronDown, ChevronRight, ListTodo } from "lucide-react";
+import { Search, CalendarOff, Check, AlertTriangle, X, ChevronDown, ChevronRight, ListTodo, ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface AdminAttendanceTableProps {
@@ -40,6 +40,7 @@ interface GroupedRow {
   durationMinutes: number | null;
   status: "complete" | "incomplete" | "anomali";
   todos: AttendanceTodo[];
+  photo_file_id: string | null;
 }
 
 function groupAdminRows(rows: AttendanceWithUser[]): GroupedRow[] {
@@ -58,11 +59,15 @@ function groupAdminRows(rows: AttendanceWithUser[]): GroupedRow[] {
         durationMinutes: null,
         status: "incomplete",
         todos: [],
+        photo_file_id: null,
       };
     if (r.type === "berangkat") {
       existing.berangkat = r.timestamp;
       if (r.todos && r.todos.length > 0) {
         existing.todos = r.todos;
+      }
+      if (r.photo_file_id) {
+        existing.photo_file_id = r.photo_file_id;
       }
     } else {
       existing.pulang = r.timestamp;
@@ -207,6 +212,9 @@ export function AdminAttendanceTable({ rows, loading }: AdminAttendanceTableProp
                 {COPY.attendance.colDate}
               </TableHead>
               <TableHead className="text-tunet-text-muted">
+                {COPY.attendance.photoTitle}
+              </TableHead>
+              <TableHead className="text-tunet-text-muted">
                 {COPY.attendance.adminColBerangkat}
               </TableHead>
               <TableHead className="text-tunet-text-muted">
@@ -258,6 +266,8 @@ export function AdminAttendanceTable({ rows, loading }: AdminAttendanceTableProp
               const rowKey = `${r.userId}::${r.date}`;
               const isExpanded = expandedRows.has(rowKey);
               const hasTodos = r.todos.length > 0;
+              const hasPhoto = !!r.photo_file_id;
+              const isExpandable = hasTodos || hasPhoto;
 
               return (
                 <>
@@ -265,13 +275,13 @@ export function AdminAttendanceTable({ rows, loading }: AdminAttendanceTableProp
                     key={rowKey}
                     className={cn(
                       "border-tunet-border",
-                      hasTodos && "cursor-pointer hover:bg-tunet-bg/50"
+                      isExpandable && "cursor-pointer hover:bg-tunet-bg/50"
                     )}
-                    onClick={hasTodos ? () => toggleRow(rowKey) : undefined}
+                    onClick={isExpandable ? () => toggleRow(rowKey) : undefined}
                   >
                     <TableCell>
                       <div className="flex items-center gap-3">
-                        {hasTodos && (
+                        {isExpandable && (
                           <span className="text-tunet-text-muted">
                             {isExpanded ? (
                               <ChevronDown className="h-4 w-4" />
@@ -299,6 +309,22 @@ export function AdminAttendanceTable({ rows, loading }: AdminAttendanceTableProp
                     <TableCell className="text-sm text-tunet-text-muted">
                       {formatAttendanceDate(r.date)}
                     </TableCell>
+                    <TableCell>
+                      {r.photo_file_id ? (
+                        <a
+                          href={`https://drive.google.com/uc?export=view&id=${r.photo_file_id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1.5 text-tunet-green hover:text-tunet-green/80 transition-colors"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <ImageIcon className="h-4 w-4" />
+                          <span className="text-[11px]">Foto</span>
+                        </a>
+                      ) : (
+                        <span className="text-tunet-text-muted text-[11px]">-</span>
+                      )}
+                    </TableCell>
                     <TableCell className="font-mono-data text-sm tabular-nums text-tunet-text">
                       {formatTimeWIB(r.berangkat)}
                     </TableCell>
@@ -320,27 +346,49 @@ export function AdminAttendanceTable({ rows, loading }: AdminAttendanceTableProp
                       </span>
                     </TableCell>
                   </TableRow>
-                  {isExpanded && hasTodos && (
+                  {isExpanded && (hasTodos || hasPhoto) && (
                     <TableRow key={`${rowKey}-todos`} className="border-tunet-border bg-tunet-bg/30">
-                      <TableCell colSpan={7} className="px-6 py-3">
-                        <div className="flex items-start gap-2">
-                          <ListTodo className="h-4 w-4 text-tunet-green mt-0.5 shrink-0" />
-                          <div>
-                            <p className="text-xs font-medium text-tunet-text-muted mb-1">
-                              To-Do Hari Itu:
-                            </p>
-                            <ul className="space-y-0.5">
-                              {r.todos.map((todo) => (
-                                <li
-                                  key={todo.id}
-                                  className="flex items-center gap-2 text-sm text-tunet-text"
-                                >
-                                  <span className="h-1 w-1 rounded-full bg-tunet-green shrink-0" />
-                                  {todo.title}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
+                      <TableCell colSpan={8} className="px-6 py-3">
+                        <div className="flex flex-wrap items-start gap-6">
+                          {hasPhoto && (
+                            <div>
+                              <p className="text-xs font-medium text-tunet-text-muted mb-2">
+                                Foto Absensi:
+                              </p>
+                              <a
+                                href={`https://drive.google.com/uc?export=view&id=${r.photo_file_id}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                <img
+                                  src={`https://drive.google.com/uc?export=view&id=${r.photo_file_id}`}
+                                  alt="Foto absensi"
+                                  className="w-32 h-32 object-cover rounded-lg border border-tunet-border hover:opacity-80 transition-opacity"
+                                />
+                              </a>
+                            </div>
+                          )}
+                          {hasTodos && (
+                            <div className="flex items-start gap-2">
+                              <ListTodo className="h-4 w-4 text-tunet-green mt-0.5 shrink-0" />
+                              <div>
+                                <p className="text-xs font-medium text-tunet-text-muted mb-1">
+                                  To-Do Hari Itu:
+                                </p>
+                                <ul className="space-y-0.5">
+                                  {r.todos.map((todo) => (
+                                    <li
+                                      key={todo.id}
+                                      className="flex items-center gap-2 text-sm text-tunet-text"
+                                    >
+                                      <span className="h-1 w-1 rounded-full bg-tunet-green shrink-0" />
+                                      {todo.title}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
