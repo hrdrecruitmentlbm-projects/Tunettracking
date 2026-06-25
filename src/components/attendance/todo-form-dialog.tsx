@@ -24,9 +24,13 @@ interface TodoFormDialogProps {
 /**
  * Downscale a photo using canvas to reduce memory usage on mobile.
  * Samsung S-series cameras produce 50MP+ images (10-20MB) that crash
- * the browser when held in memory via object URLs.
+ * the browser when held in memory. Returns both a preview data URL
+ * and a downscaled File for upload.
  */
-function downscaleImage(file: File, maxDim = 800): Promise<string> {
+function downscaleImage(
+  file: File,
+  maxDim = 800
+): Promise<{ preview: string; file: File }> {
   return new Promise((resolve) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
@@ -43,11 +47,24 @@ function downscaleImage(file: File, maxDim = 800): Promise<string> {
       canvas.height = height;
       const ctx = canvas.getContext("2d")!;
       ctx.drawImage(img, 0, 0, width, height);
-      resolve(canvas.toDataURL("image/jpeg", 0.7));
+      canvas.toBlob(
+        (blob) => {
+          const downscaledFile = new File([blob!], file.name, {
+            type: "image/jpeg",
+            lastModified: Date.now(),
+          });
+          resolve({
+            preview: canvas.toDataURL("image/jpeg", 0.7),
+            file: downscaledFile,
+          });
+        },
+        "image/jpeg",
+        0.8
+      );
     };
     img.onerror = () => {
       URL.revokeObjectURL(url);
-      resolve(url);
+      resolve({ preview: url, file });
     };
     img.src = url;
   });
@@ -79,9 +96,9 @@ export function TodoFormDialog({ open, onOpenChange, onSubmit }: TodoFormDialogP
       return;
     }
 
-    setPhoto(file);
-    // Downscale before preview to avoid OOM on high-res phone cameras
-    const preview = await downscaleImage(file);
+    // Downscale before preview AND upload to avoid OOM on high-res phone cameras
+    const { preview, file: downscaled } = await downscaleImage(file);
+    setPhoto(downscaled);
     setPhotoPreview(preview);
   }, []);
 

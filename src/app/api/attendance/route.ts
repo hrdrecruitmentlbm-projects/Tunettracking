@@ -102,29 +102,34 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Convert File to Buffer
-      const arrayBuffer = await photoFile.arrayBuffer();
-      const inputBuffer = Buffer.from(arrayBuffer);
+      try {
+        // Convert File to Buffer
+        const arrayBuffer = await photoFile.arrayBuffer();
+        const inputBuffer = Buffer.from(arrayBuffer);
 
-      // Process image (resize, compress, strip EXIF)
-      const processed = await processImage(inputBuffer);
+        // Process image (resize, compress, strip EXIF)
+        const processed = await processImage(inputBuffer);
 
-      // Get attendance date for folder structure
-      const attendanceDate = new Date().toLocaleDateString("sv-SE", {
-        timeZone: "Asia/Jakarta",
-      });
+        // Get attendance date for folder structure
+        const attendanceDate = new Date().toLocaleDateString("sv-SE", {
+          timeZone: "Asia/Jakarta",
+        });
 
-      // Generate filename
-      const fileName = `${session.userId}-berangkat-${crypto.randomUUID()}.webp`;
+        // Generate filename
+        const fileName = `${session.userId}-berangkat-${crypto.randomUUID()}.webp`;
 
-      // Upload to Google Drive
-      const result = await uploadAttendancePhoto(
-        processed.buffer,
-        fileName,
-        attendanceDate
-      );
+        // Upload to Google Drive
+        const result = await uploadAttendancePhoto(
+          processed.buffer,
+          fileName,
+          attendanceDate
+        );
 
-      photoFileId = result.fileId;
+        photoFileId = result.fileId;
+      } catch (photoErr) {
+        // Photo upload failed — log but don't block attendance
+        console.error("Photo upload failed, recording attendance without photo:", photoErr);
+      }
     }
 
     // Record attendance
