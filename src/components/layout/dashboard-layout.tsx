@@ -58,7 +58,10 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         Lewati ke konten utama
       </a>
       <Sidebar user={user} />
-      <main id="main-content" className="flex-1 overflow-auto w-full md:w-auto">{children}</main>
+      <main id="main-content" className="flex-1 overflow-auto w-full md:w-auto">
+        <div aria-live="polite" aria-atomic="true" className="sr-only" id="tutrack-live-region" />
+        {children}
+      </main>
     </div>
   );
 }

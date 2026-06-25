@@ -24,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { ClipboardCheck, Plus, MapPin, Navigation, RefreshCw } from "lucide-react";
 import { COPY } from "@/lib/copy";
 import { toast } from "sonner";
@@ -95,6 +96,7 @@ function KunjunganContent() {
       <div className="min-h-screen bg-tunet-bg pb-20 md:pb-0">
         <div className="h-16 border-b border-tunet-border flex items-center justify-between px-4 md:px-6 pl-16 md:pl-6">
           <div>
+            <Breadcrumbs items={[{ label: "Marketing", href: "/dashboard/marketing" }, { label: "Kunjungan" }]} className="mb-1" />
             <h1 className="text-lg font-semibold text-tunet-text">{COPY.pages.kunjungan.title}</h1>
             <p className="text-xs text-tunet-text-muted">{COPY.pages.kunjungan.subtitle}</p>
           </div>

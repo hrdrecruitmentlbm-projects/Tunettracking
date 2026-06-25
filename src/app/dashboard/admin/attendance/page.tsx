@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { COPY } from "@/lib/copy";
 import { AttendanceWithUser } from "@/types";
 import { ClipboardCheck, CalendarDays } from "lucide-react";
+import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
@@ -61,6 +62,7 @@ export default function AdminAttendancePage() {
       <div className="min-h-screen bg-tunet-bg">
         <div className="h-16 border-b border-tunet-border flex items-center px-6">
           <div>
+            <Breadcrumbs items={[{ label: "Admin", href: "/dashboard/admin" }, { label: "Absensi" }]} className="mb-1" />
             <h1 className="text-lg font-semibold text-tunet-text">
               {COPY.attendance.adminTitle}
             </h1>

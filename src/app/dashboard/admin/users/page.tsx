@@ -43,6 +43,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { Plus, MoreHorizontal, Pencil, Trash2, UserX, Eye, EyeOff } from "lucide-react";
+import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 
 interface StaffFormData {
   name: string;
@@ -195,6 +196,7 @@ export default function AdminUsersPage() {
       <div className="min-h-screen bg-tunet-bg">
         <div className="h-16 border-b border-tunet-border flex items-center justify-between px-6">
           <div>
+            <Breadcrumbs items={[{ label: "Admin", href: "/dashboard/admin" }, { label: "Users" }]} className="mb-1" />
             <h1 className="text-lg font-semibold text-tunet-text">{COPY.pages.team.title}</h1>
             <p className="text-xs text-tunet-text-muted">{COPY.pages.team.subtitle}</p>
           </div>

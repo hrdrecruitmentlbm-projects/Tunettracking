@@ -25,6 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { Plus, Search, Edit, Trash2, History } from "lucide-react";
 import { COPY } from "@/lib/copy";
 import { toast } from "sonner";
@@ -138,6 +139,7 @@ export default function ProspectsPage() {
       <div className="min-h-screen bg-tunet-bg">
         <div className="h-16 border-b border-tunet-border flex items-center justify-between px-6 gap-3 flex-wrap">
           <div>
+            <Breadcrumbs items={[{ label: "Marketing", href: "/dashboard/marketing" }, { label: "Prospek" }]} className="mb-1" />
             <h1 className="text-lg font-semibold text-tunet-text">{COPY.pages.prospects.title}</h1>
             <p className="text-xs text-tunet-text-muted">{COPY.pages.prospects.subtitle}</p>
           </div>

@@ -36,6 +36,7 @@ import {
 import { Target, Search, Edit, Trash2, ClipboardCheck, MapPin, History } from "lucide-react";
 import { COPY } from "@/lib/copy";
 import { toast } from "sonner";
+import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 
 export default function AdminMarketingPage() {
   const [prospects, setProspects] = useState<Prospect[]>([]);
@@ -181,6 +182,7 @@ export default function AdminMarketingPage() {
         {/* Header */}
         <div className="h-16 border-b border-tunet-border flex items-center justify-between px-6 gap-3 flex-wrap">
           <div>
+            <Breadcrumbs items={[{ label: "Admin", href: "/dashboard/admin" }, { label: "Marketing" }]} className="mb-1" />
             <h1 className="text-lg font-semibold text-tunet-text">Marketing</h1>
             <p className="text-xs text-tunet-text-muted">Kelola data prospek dan kunjungan</p>
           </div>
