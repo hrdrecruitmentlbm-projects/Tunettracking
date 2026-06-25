@@ -183,7 +183,16 @@ export default function NOCDashboard() {
                               <div
                                 key={task.id}
                                 onClick={() => handleTaskClick(task)}
-                                className="p-3 rounded-lg bg-tunet-surface border border-tunet-border hover:border-tunet-green/50 transition-colors cursor-pointer"
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" || e.key === " ") {
+                                    e.preventDefault();
+                                    handleTaskClick(task);
+                                  }
+                                }}
+                                tabIndex={0}
+                                role="button"
+                                aria-label={`${task.title} - ${config.label}`}
+                                className="p-3 rounded-lg bg-tunet-surface border border-tunet-border hover:border-tunet-green/50 focus:outline-none focus:ring-2 focus:ring-tunet-green/50 transition-colors cursor-pointer"
                               >
                                 <div className="flex items-start gap-2 mb-2">
                                   <div
