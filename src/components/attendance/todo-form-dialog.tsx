@@ -21,6 +21,38 @@ interface TodoFormDialogProps {
   onSubmit: (todos: string[], photo: File | null) => void;
 }
 
+/**
+ * Downscale a photo using canvas to reduce memory usage on mobile.
+ * Samsung S-series cameras produce 50MP+ images (10-20MB) that crash
+ * the browser when held in memory via object URLs.
+ */
+function downscaleImage(file: File, maxDim = 800): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let { width, height } = img;
+      if (width > maxDim || height > maxDim) {
+        const ratio = Math.min(maxDim / width, maxDim / height);
+        width = Math.round(width * ratio);
+        height = Math.round(height * ratio);
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL("image/jpeg", 0.7));
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve(url);
+    };
+    img.src = url;
+  });
+}
+
 export function TodoFormDialog({ open, onOpenChange, onSubmit }: TodoFormDialogProps) {
   const [items, setItems] = useState<string[]>([""]);
   const [submitting, setSubmitting] = useState(false);
@@ -28,7 +60,7 @@ export function TodoFormDialog({ open, onOpenChange, onSubmit }: TodoFormDialogP
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handlePhotoSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -48,20 +80,18 @@ export function TodoFormDialog({ open, onOpenChange, onSubmit }: TodoFormDialogP
     }
 
     setPhoto(file);
-    const url = URL.createObjectURL(file);
-    setPhotoPreview(url);
+    // Downscale before preview to avoid OOM on high-res phone cameras
+    const preview = await downscaleImage(file);
+    setPhotoPreview(preview);
   }, []);
 
   const removePhoto = useCallback(() => {
     setPhoto(null);
-    if (photoPreview) {
-      URL.revokeObjectURL(photoPreview);
-      setPhotoPreview(null);
-    }
+    setPhotoPreview(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
-  }, [photoPreview]);
+  }, []);
 
   const addItem = () => {
     setItems((prev) => [...prev, ""]);
