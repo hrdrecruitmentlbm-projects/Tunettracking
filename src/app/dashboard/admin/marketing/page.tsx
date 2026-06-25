@@ -188,6 +188,7 @@ export default function AdminMarketingPage() {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-tunet-text-muted" />
               <Input
+                id="prospect-search"
                 placeholder="Cari..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -299,6 +300,8 @@ export default function AdminMarketingPage() {
                                 <td className="py-3 px-4">
                                   <div className="flex items-center gap-2">
                                     <select
+                                      id={`prospect-status-${prospect.id}`}
+                                      aria-label="Status prospek"
                                       value={prospect.status}
                                       onChange={(e) => handleStatusChange(prospect.id, e.target.value)}
                                       className="text-xs font-medium rounded-full px-3 py-1 border-0 cursor-pointer focus:ring-2 focus:ring-tunet-green/50 outline-none"
@@ -317,6 +320,7 @@ export default function AdminMarketingPage() {
                                       onClick={() => handleHistory(prospect)}
                                       className="p-1 rounded hover:bg-tunet-surface-hover text-tunet-text-muted"
                                       title="Riwayat"
+                                      aria-label="Riwayat"
                                     >
                                       <History className="w-3.5 h-3.5" />
                                     </button>
@@ -328,12 +332,14 @@ export default function AdminMarketingPage() {
                                     <button
                                       onClick={() => handleEdit(prospect)}
                                       className="p-1.5 rounded hover:bg-tunet-surface-hover text-tunet-text-muted"
+                                      aria-label="Edit prospek"
                                     >
                                       <Edit className="w-4 h-4" />
                                     </button>
                                     <button
                                       onClick={() => setDeleteProspect(prospect)}
                                       className="p-1.5 rounded hover:bg-status-overdue/10 text-tunet-text-muted hover:text-status-overdue"
+                                      aria-label="Hapus prospek"
                                     >
                                       <Trash2 className="w-4 h-4" />
                                     </button>
@@ -645,28 +651,28 @@ function AdminProspectForm({
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="text-sm font-medium text-tunet-text">{COPY.pages.prospects.name}</label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} className="mt-1 bg-tunet-bg border-tunet-border text-tunet-text" />
+            <label htmlFor="prospect-name" className="text-sm font-medium text-tunet-text">{COPY.pages.prospects.name}</label>
+            <Input id="prospect-name" value={name} onChange={(e) => setName(e.target.value)} className="mt-1 bg-tunet-bg border-tunet-border text-tunet-text" />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-sm font-medium text-tunet-text">{COPY.pages.prospects.phone}</label>
-              <Input value={phone} onChange={(e) => setPhone(e.target.value)} className="mt-1 bg-tunet-bg border-tunet-border text-tunet-text" />
+              <label htmlFor="prospect-phone" className="text-sm font-medium text-tunet-text">{COPY.pages.prospects.phone}</label>
+              <Input id="prospect-phone" value={phone} onChange={(e) => setPhone(e.target.value)} className="mt-1 bg-tunet-bg border-tunet-border text-tunet-text" />
             </div>
             <div>
-              <label className="text-sm font-medium text-tunet-text">{COPY.pages.prospects.area}</label>
-              <Input value={area} onChange={(e) => setArea(e.target.value)} className="mt-1 bg-tunet-bg border-tunet-border text-tunet-text" />
+              <label htmlFor="prospect-area" className="text-sm font-medium text-tunet-text">{COPY.pages.prospects.area}</label>
+              <Input id="prospect-area" value={area} onChange={(e) => setArea(e.target.value)} className="mt-1 bg-tunet-bg border-tunet-border text-tunet-text" />
             </div>
           </div>
           <div>
-            <label className="text-sm font-medium text-tunet-text">{COPY.pages.prospects.address}</label>
-            <Input value={address} onChange={(e) => setAddress(e.target.value)} className="mt-1 bg-tunet-bg border-tunet-border text-tunet-text" />
+            <label htmlFor="prospect-address" className="text-sm font-medium text-tunet-text">{COPY.pages.prospects.address}</label>
+            <Input id="prospect-address" value={address} onChange={(e) => setAddress(e.target.value)} className="mt-1 bg-tunet-bg border-tunet-border text-tunet-text" />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-sm font-medium text-tunet-text">{COPY.pages.prospects.status}</label>
+              <label htmlFor="prospect-status" className="text-sm font-medium text-tunet-text">{COPY.pages.prospects.status}</label>
               <Select value={status} onValueChange={(v) => v && setStatus(v)}>
-                <SelectTrigger className="mt-1 bg-tunet-bg border-tunet-border text-tunet-text">
+                <SelectTrigger id="prospect-status" className="mt-1 bg-tunet-bg border-tunet-border text-tunet-text">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-tunet-surface border-tunet-border">
@@ -677,9 +683,9 @@ function AdminProspectForm({
               </Select>
             </div>
             <div>
-              <label className="text-sm font-medium text-tunet-text">{COPY.pages.prospects.assignTo}</label>
+              <label htmlFor="prospect-assignee" className="text-sm font-medium text-tunet-text">{COPY.pages.prospects.assignTo}</label>
               <Select value={assignedTo} onValueChange={(v) => v && setAssignedTo(v)}>
-                <SelectTrigger className="mt-1 bg-tunet-bg border-tunet-border text-tunet-text">
+                <SelectTrigger id="prospect-assignee" className="mt-1 bg-tunet-bg border-tunet-border text-tunet-text">
                   <SelectValue placeholder="Pilih penanggung jawab" />
                 </SelectTrigger>
                 <SelectContent className="bg-tunet-surface border-tunet-border">
@@ -691,8 +697,8 @@ function AdminProspectForm({
             </div>
           </div>
           <div>
-            <label className="text-sm font-medium text-tunet-text">{COPY.pages.prospects.notes}</label>
-            <Input value={notes} onChange={(e) => setNotes(e.target.value)} className="mt-1 bg-tunet-bg border-tunet-border text-tunet-text" placeholder="Catatan tambahan..." />
+            <label htmlFor="prospect-notes" className="text-sm font-medium text-tunet-text">{COPY.pages.prospects.notes}</label>
+            <Input id="prospect-notes" value={notes} onChange={(e) => setNotes(e.target.value)} className="mt-1 bg-tunet-bg border-tunet-border text-tunet-text" placeholder="Catatan tambahan..." />
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="border-tunet-border text-tunet-text">

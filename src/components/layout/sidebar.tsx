@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -67,8 +67,43 @@ export function Sidebar({ user }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const isMobile = useMediaQuery("(max-width: 767px)");
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const drawerRef = useRef<HTMLElement>(null);
 
   const navItems = NAV_ITEMS[user.role] || NAV_ITEMS.noc;
+
+  // Focus trap for mobile drawer
+  const handleDrawerKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === "Escape") {
+      setMobileOpen(false);
+      triggerRef.current?.focus();
+    }
+    if (e.key === "Tab" && drawerRef.current) {
+      const focusable = drawerRef.current.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  }, []);
+
+  // Focus first element when drawer opens
+  useEffect(() => {
+    if (mobileOpen && drawerRef.current) {
+      const firstFocusable = drawerRef.current.querySelector<HTMLElement>(
+        'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+      firstFocusable?.focus();
+    }
+  }, [mobileOpen]);
 
   const handleLogout = async () => {
     try {
@@ -80,10 +115,14 @@ export function Sidebar({ user }: SidebarProps) {
     window.location.href = "/";
   };
 
-  const closeMobile = () => setMobileOpen(false);
+  const closeMobile = () => {
+    setMobileOpen(false);
+    triggerRef.current?.focus();
+  };
 
   const sidebarContent = (
     <aside
+      aria-label="Navigasi sampingan"
       className={cn(
         "h-full bg-tunet-surface border-r border-tunet-border flex flex-col transition-all duration-300",
         isMobile ? "w-64" : collapsed ? "w-16" : "w-60"
@@ -117,7 +156,7 @@ export function Sidebar({ user }: SidebarProps) {
         )}
       </div>
 
-      <nav className="flex-1 p-2 space-y-1 overflow-y-auto">
+      <nav className="flex-1 p-2 space-y-1 overflow-y-auto" aria-label="Menu utama">
         {navItems.map((item) => {
           const isActive = pathname === item.href;
           return (
@@ -172,9 +211,12 @@ export function Sidebar({ user }: SidebarProps) {
     return (
       <>
         <button
+          ref={triggerRef}
           onClick={() => setMobileOpen(true)}
           className="fixed top-3 left-3 z-50 p-2 rounded-lg bg-tunet-surface border border-tunet-border text-tunet-text md:hidden shadow-lg"
-          aria-label="Open menu"
+          aria-label="Buka menu"
+          aria-expanded={mobileOpen}
+          aria-controls="mobile-sidebar"
         >
           <Menu className="w-5 h-5" />
         </button>
@@ -188,6 +230,12 @@ export function Sidebar({ user }: SidebarProps) {
         )}
 
         <div
+          id="mobile-sidebar"
+          role="dialog"
+          aria-label="Menu navigasi"
+          aria-modal="true"
+          ref={drawerRef as React.RefObject<HTMLDivElement>}
+          onKeyDown={handleDrawerKeyDown}
           className={cn(
             "fixed inset-y-0 left-0 z-50 md:hidden transform transition-transform duration-300",
             mobileOpen ? "translate-x-0" : "-translate-x-full"

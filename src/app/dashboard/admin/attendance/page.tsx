@@ -81,8 +81,9 @@ export default function AdminAttendancePage() {
             <CardContent>
               <div className="flex flex-wrap items-end gap-3">
                 <div className="space-y-1">
-                  <Label className="text-xs text-tunet-text-muted">Dari</Label>
+                  <Label htmlFor="attendance-start-date" className="text-xs text-tunet-text-muted">Dari</Label>
                   <Input
+                    id="attendance-start-date"
                     type="date"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
@@ -91,8 +92,9 @@ export default function AdminAttendancePage() {
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs text-tunet-text-muted">Sampai</Label>
+                  <Label htmlFor="attendance-end-date" className="text-xs text-tunet-text-muted">Sampai</Label>
                   <Input
+                    id="attendance-end-date"
                     type="date"
                     value={endDate}
                     onChange={(e) => setEndDate(e.target.value)}

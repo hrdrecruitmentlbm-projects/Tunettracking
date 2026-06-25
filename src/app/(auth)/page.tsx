@@ -87,8 +87,9 @@ export default function LoginPage() {
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-tunet-text">{COPY.auth.pinLabel}</label>
+              <label htmlFor="pin-input" className="text-sm font-medium text-tunet-text">{COPY.auth.pinLabel}</label>
               <Input
+                id="pin-input"
                 type="password"
                 placeholder={COPY.auth.pinPlaceholder}
                 value={pin}
@@ -96,6 +97,8 @@ export default function LoginPage() {
                 maxLength={4}
                 className="text-center text-2xl tracking-[0.5em] bg-tunet-bg border-tunet-border text-tunet-text"
                 autoFocus
+                inputMode="numeric"
+                autoComplete="one-time-code"
               />
             </div>
             <Button

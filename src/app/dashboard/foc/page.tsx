@@ -53,7 +53,10 @@ function FOCDashboard() {
   const pathname = usePathname();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
-  const [locationEnabled, setLocationEnabled] = useState(false);
+  const [locationEnabled, setLocationEnabled] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("tutrack-location-enabled") === "true";
+  });
   const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [updatingLocation, setUpdatingLocation] = useState(false);
@@ -116,61 +119,8 @@ function FOCDashboard() {
     };
   }, []);
 
-  // Countdown timer for next auto-update
-  useEffect(() => {
-    if (!locationEnabled) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setCountdownMs(LOCATION_INTERVAL);
-      return;
-    }
-    const tick = () => {
-      if (!lastUpdated) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setCountdownMs(LOCATION_INTERVAL);
-        return;
-      }
-      const elapsed = Date.now() - lastUpdated.getTime();
-      const remaining = Math.max(0, LOCATION_INTERVAL - elapsed);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setCountdownMs(remaining);
-    };
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [locationEnabled, lastUpdated]);
-
   const userId = currentUser?.id;
   const telegramUsername = currentUser?.telegram_id;
-
-  const myTasks = tasks.filter((t) => t.assigned_to === userId);
-  const pendingTasks = myTasks.filter((t) => t.status !== "done");
-  const completedTasks = myTasks.filter((t) => t.status === "done");
-
-  const handleStatusChange = async (taskId: string, newStatus: TaskStatus) => {
-    if (!userId) return;
-    const previous = tasks.find((t) => t.id === taskId);
-    if (previous) {
-      setTasks((prev) =>
-        prev.map((t) =>
-          t.id === taskId ? { ...t, status: newStatus, updated_at: new Date().toISOString() } : t
-        )
-      );
-    }
-    const success = await updateTaskStatus(taskId, newStatus, userId);
-    if (!success) {
-      if (previous) {
-        setTasks((prev) => prev.map((t) => (t.id === taskId ? previous : t)));
-      }
-      toast.error(COPY.toasts.taskStatusUpdateFailed);
-    } else {
-      toast.success(COPY.toasts.taskStatusUpdated);
-    }
-  };
-
-  const handleTaskClick = (task: Task) => {
-    setSelectedTask(task);
-    setDetailOpen(true);
-  };
 
   const sendLocationToServer = useCallback(async (): Promise<boolean> => {
     if (!userId) return false;
@@ -203,6 +153,75 @@ function FOCDashboard() {
     });
   }, [userId]);
 
+  // Restore location sharing interval on mount if previously enabled
+  useEffect(() => {
+    if (locationEnabled && userId) {
+      intervalRef.current = setInterval(async () => {
+        await sendLocationToServer();
+      }, LOCATION_INTERVAL);
+    }
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
+
+  // Countdown timer for next auto-update
+  useEffect(() => {
+    if (!locationEnabled) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setCountdownMs(LOCATION_INTERVAL);
+      return;
+    }
+    const tick = () => {
+      if (!lastUpdated) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setCountdownMs(LOCATION_INTERVAL);
+        return;
+      }
+      const elapsed = Date.now() - lastUpdated.getTime();
+      const remaining = Math.max(0, LOCATION_INTERVAL - elapsed);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setCountdownMs(remaining);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [locationEnabled, lastUpdated]);
+
+  const myTasks = tasks.filter((t) => t.assigned_to === userId);
+  const pendingTasks = myTasks.filter((t) => t.status !== "done");
+  const completedTasks = myTasks.filter((t) => t.status === "done");
+
+  const handleStatusChange = async (taskId: string, newStatus: TaskStatus) => {
+    if (!userId) return;
+    const previous = tasks.find((t) => t.id === taskId);
+    if (previous) {
+      setTasks((prev) =>
+        prev.map((t) =>
+          t.id === taskId ? { ...t, status: newStatus, updated_at: new Date().toISOString() } : t
+        )
+      );
+    }
+    const success = await updateTaskStatus(taskId, newStatus, userId);
+    if (!success) {
+      if (previous) {
+        setTasks((prev) => prev.map((t) => (t.id === taskId ? previous : t)));
+      }
+      toast.error(COPY.toasts.taskStatusUpdateFailed);
+    } else {
+      toast.success(COPY.toasts.taskStatusUpdated);
+    }
+  };
+
+  const handleTaskClick = (task: Task) => {
+    setSelectedTask(task);
+    setDetailOpen(true);
+  };
+
   const handleManualUpdate = async () => {
     setUpdatingLocation(true);
     const ok = await sendLocationToServer();
@@ -217,6 +236,7 @@ function FOCDashboard() {
   const toggleLocation = async () => {
     if (locationEnabled) {
       setLocationEnabled(false);
+      localStorage.setItem("tutrack-location-enabled", "false");
       setCurrentLocation(null);
       setLastUpdated(null);
       if (intervalRef.current) {
@@ -237,6 +257,7 @@ function FOCDashboard() {
         return;
       }
       setLocationEnabled(true);
+      localStorage.setItem("tutrack-location-enabled", "true");
       toast.success(COPY.toasts.locationSharingEnabled);
 
       intervalRef.current = setInterval(async () => {

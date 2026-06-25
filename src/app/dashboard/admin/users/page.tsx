@@ -301,6 +301,7 @@ export default function AdminUsersPage() {
                               <button
                                 onClick={() => togglePinVisibility(user.id)}
                                 className="text-tunet-text-muted hover:text-tunet-text"
+                                aria-label={showPin[user.id] ? "Hide PIN" : "Show PIN"}
                               >
                                 {showPin[user.id] ? (
                                   <EyeOff className="w-3.5 h-3.5" />
@@ -369,8 +370,9 @@ export default function AdminUsersPage() {
 
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label className="text-tunet-text">{COPY.pages.team.fullName} *</Label>
+              <Label htmlFor="user-name" className="text-tunet-text">{COPY.pages.team.fullName} *</Label>
               <Input
+                id="user-name"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 placeholder="cth. Ahmad Fauzi"
@@ -379,7 +381,7 @@ export default function AdminUsersPage() {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-tunet-text">{COPY.pages.team.role} *</Label>
+              <Label htmlFor="user-role" className="text-tunet-text">{COPY.pages.team.role} *</Label>
               <Select
                 value={formData.role}
                 onValueChange={(value) => {
@@ -388,7 +390,7 @@ export default function AdminUsersPage() {
                   }
                 }}
               >
-                <SelectTrigger className="bg-tunet-bg border-tunet-border text-tunet-text">
+                <SelectTrigger id="user-role" className="bg-tunet-bg border-tunet-border text-tunet-text">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-tunet-surface border-tunet-border">
@@ -401,8 +403,9 @@ export default function AdminUsersPage() {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-tunet-text">{COPY.pages.team.phone} *</Label>
+              <Label htmlFor="user-phone" className="text-tunet-text">{COPY.pages.team.phone} *</Label>
               <Input
+                id="user-phone"
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                 placeholder="cth. 081234567890"
@@ -411,8 +414,9 @@ export default function AdminUsersPage() {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-tunet-text">{COPY.pages.team.pinLabel} *</Label>
+              <Label htmlFor="user-pin" className="text-tunet-text">{COPY.pages.team.pinLabel} *</Label>
               <Input
+                id="user-pin"
                 value={formData.pin}
                 onChange={(e) => {
                   const val = e.target.value.replace(/\D/g, "").slice(0, 4);
@@ -425,8 +429,9 @@ export default function AdminUsersPage() {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-tunet-text">{COPY.pages.team.telegramIdOptional}</Label>
+              <Label htmlFor="user-telegram" className="text-tunet-text">{COPY.pages.team.telegramIdOptional}</Label>
               <Input
+                id="user-telegram"
                 value={formData.telegram_id}
                 onChange={(e) => setFormData({ ...formData, telegram_id: e.target.value })}
                 placeholder="cth. @username"

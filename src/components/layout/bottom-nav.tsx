@@ -58,16 +58,17 @@ export function BottomNav({ role }: BottomNavProps) {
   const items = NAV_ITEMS[role] || NAV_ITEMS.noc;
 
   return (
-    <nav className="fixed bottom-0 inset-x-0 z-30 bg-tunet-surface border-t border-tunet-border md:hidden">
-      <div className="flex justify-around items-stretch h-16">
+    <nav className="fixed bottom-0 inset-x-0 z-30 bg-tunet-surface border-t border-tunet-border md:hidden" aria-label="Navigasi bawah">
+      <div className="flex justify-around items-stretch h-17">
         {items.map((item) => {
           const isActive = pathname === item.href;
           return (
             <Link
               key={item.href}
               href={item.href}
+              aria-current={isActive ? "page" : undefined}
               className={cn(
-                "flex flex-col items-center justify-center gap-0.5 flex-1 min-w-0 transition-colors",
+                "flex flex-col items-center justify-center gap-0.5 flex-1 min-w-[44px] py-2 transition-colors",
                 isActive
                   ? "text-tunet-green"
                   : "text-tunet-text-muted hover:text-tunet-text"

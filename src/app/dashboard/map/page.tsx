@@ -206,6 +206,7 @@ export default function MapPage() {
         <div className="flex items-center gap-4 flex-wrap">
           <label className="flex items-center gap-1.5 text-xs text-tunet-text-muted cursor-pointer">
             <input
+              id="filter-foc"
               type="checkbox"
               checked={showRoles.includes("foc")}
               onChange={() => toggleRole("foc")}
@@ -215,6 +216,7 @@ export default function MapPage() {
           </label>
           <label className="flex items-center gap-1.5 text-xs text-tunet-text-muted cursor-pointer">
             <input
+              id="filter-noc"
               type="checkbox"
               checked={showRoles.includes("noc")}
               onChange={() => toggleRole("noc")}
@@ -224,6 +226,7 @@ export default function MapPage() {
           </label>
           <label className="flex items-center gap-1.5 text-xs text-tunet-text-muted cursor-pointer">
             <input
+              id="filter-marketing"
               type="checkbox"
               checked={showRoles.includes("marketing")}
               onChange={() => toggleRole("marketing")}

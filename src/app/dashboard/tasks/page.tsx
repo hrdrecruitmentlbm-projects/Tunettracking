@@ -252,10 +252,12 @@ function TasksPageContent() {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-tunet-text-muted" />
               <Input
+                id="task-search"
                 placeholder={COPY.search.placeholder}
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 className="pl-9 w-64 bg-tunet-surface border-tunet-border text-tunet-text pr-9"
+                aria-label={COPY.search.placeholder}
               />
               {isSearching && (
                 <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-tunet-text-muted animate-spin" />

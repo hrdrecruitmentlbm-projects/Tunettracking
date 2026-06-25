@@ -51,8 +51,14 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
   return (
     <div className="min-h-screen flex bg-tunet-bg">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[100] focus:px-4 focus:py-2 focus:bg-tunet-green focus:text-white focus:rounded-lg focus:text-sm focus:font-medium focus:outline-none focus:ring-2 focus:ring-tunet-green focus:ring-offset-2 focus:ring-offset-tunet-bg"
+      >
+        Lewati ke konten utama
+      </a>
       <Sidebar user={user} />
-      <main className="flex-1 overflow-auto w-full md:w-auto">{children}</main>
+      <main id="main-content" className="flex-1 overflow-auto w-full md:w-auto">{children}</main>
     </div>
   );
 }

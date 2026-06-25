@@ -178,6 +178,7 @@ export function TodoFormDialog({ open, onOpenChange, onSubmit }: TodoFormDialogP
               <button
                 type="button"
                 onClick={removePhoto}
+                aria-label="Hapus foto"
                 className="absolute top-2 right-2 p-1.5 rounded-full bg-tunet-bg/80 text-tunet-text-muted hover:text-red-400 transition-colors"
               >
                 <X className="h-4 w-4" />

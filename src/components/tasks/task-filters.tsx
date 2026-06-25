@@ -135,6 +135,7 @@ export function TaskFilters({ filters, onFiltersChange }: TaskFiltersProps) {
       {showFilters && (
         <div className="flex items-center gap-2 flex-wrap">
           <select
+            aria-label="Filter berdasarkan status"
             value={filters.status}
             onChange={(e) => updateFilter("status", e.target.value as TaskStatus | "all")}
             className="rounded-md border border-tunet-border bg-tunet-surface px-2 py-1 text-xs text-tunet-text focus:outline-none focus:ring-1 focus:ring-tunet-green/50"
@@ -148,6 +149,7 @@ export function TaskFilters({ filters, onFiltersChange }: TaskFiltersProps) {
           </select>
 
           <select
+            aria-label="Filter berdasarkan prioritas"
             value={filters.priority}
             onChange={(e) => updateFilter("priority", e.target.value as TaskPriority | "all")}
             className="rounded-md border border-tunet-border bg-tunet-surface px-2 py-1 text-xs text-tunet-text focus:outline-none focus:ring-1 focus:ring-tunet-green/50"
@@ -161,6 +163,7 @@ export function TaskFilters({ filters, onFiltersChange }: TaskFiltersProps) {
           </select>
 
           <select
+            aria-label="Filter berdasarkan penugasan"
             value={filters.assignee}
             onChange={(e) => updateFilter("assignee", e.target.value)}
             className="rounded-md border border-tunet-border bg-tunet-surface px-2 py-1 text-xs text-tunet-text focus:outline-none focus:ring-1 focus:ring-tunet-green/50"
@@ -176,6 +179,7 @@ export function TaskFilters({ filters, onFiltersChange }: TaskFiltersProps) {
 
           {tags.length > 0 && (
             <select
+              aria-label="Filter berdasarkan label"
               value={filters.tag}
               onChange={(e) => updateFilter("tag", e.target.value)}
               className="rounded-md border border-tunet-border bg-tunet-surface px-2 py-1 text-xs text-tunet-text focus:outline-none focus:ring-1 focus:ring-tunet-green/50"

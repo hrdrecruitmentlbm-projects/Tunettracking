@@ -151,24 +151,29 @@ export default function SettingsPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <label className="text-sm text-tunet-text">{COPY.pages.settings.name}</label>
+                <label htmlFor="settings-name" className="text-sm text-tunet-text">{COPY.pages.settings.name}</label>
                 <Input
+                  id="settings-name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="bg-tunet-bg border-tunet-border text-tunet-text"
+                  autoComplete="name"
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm text-tunet-text">{COPY.pages.settings.phone}</label>
+                <label htmlFor="settings-phone" className="text-sm text-tunet-text">{COPY.pages.settings.phone}</label>
                 <Input
+                  id="settings-phone"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   className="bg-tunet-bg border-tunet-border text-tunet-text"
+                  autoComplete="tel"
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm text-tunet-text">{COPY.pages.settings.role}</label>
+                <label htmlFor="settings-role" className="text-sm text-tunet-text">{COPY.pages.settings.role}</label>
                 <Input
+                  id="settings-role"
                   value={user?.role.toUpperCase() || ""}
                   disabled
                   className="bg-tunet-bg border-tunet-border text-tunet-text-muted"
@@ -199,7 +204,9 @@ export default function SettingsPage() {
                   <p className="text-sm text-tunet-text">{COPY.pages.settings.darkMode}</p>
                   <p className="text-xs text-tunet-text-muted">{COPY.pages.settings.darkModeDesc}</p>
                 </div>
-                <Switch checked={darkMode} onCheckedChange={setDarkMode} />
+                <label htmlFor="settings-dark-mode">
+                  <Switch id="settings-dark-mode" checked={darkMode} onCheckedChange={setDarkMode} aria-label={COPY.pages.settings.darkMode} />
+                </label>
               </div>
             </CardContent>
           </Card>
@@ -222,7 +229,9 @@ export default function SettingsPage() {
                   <p className="text-sm text-tunet-text">{COPY.pages.settings.taskAssignments}</p>
                   <p className="text-xs text-tunet-text-muted">{COPY.pages.settings.taskAssignmentsDesc}</p>
                 </div>
-                <Switch checked={taskAssignments} onCheckedChange={setTaskAssignments} />
+                <label htmlFor="settings-task-assignments">
+                  <Switch id="settings-task-assignments" checked={taskAssignments} onCheckedChange={setTaskAssignments} aria-label={COPY.pages.settings.taskAssignments} />
+                </label>
               </div>
               <Separator className="bg-tunet-border" />
               <div className="flex items-center justify-between">
@@ -230,7 +239,9 @@ export default function SettingsPage() {
                   <p className="text-sm text-tunet-text">{COPY.pages.settings.statusUpdates}</p>
                   <p className="text-xs text-tunet-text-muted">{COPY.pages.settings.statusUpdatesDesc}</p>
                 </div>
-                <Switch checked={statusUpdates} onCheckedChange={setStatusUpdates} />
+                <label htmlFor="settings-status-updates">
+                  <Switch id="settings-status-updates" checked={statusUpdates} onCheckedChange={setStatusUpdates} aria-label={COPY.pages.settings.statusUpdates} />
+                </label>
               </div>
               <Separator className="bg-tunet-border" />
               <div className="flex items-center justify-between">
@@ -238,7 +249,9 @@ export default function SettingsPage() {
                   <p className="text-sm text-tunet-text">{COPY.pages.settings.overdueAlerts}</p>
                   <p className="text-xs text-tunet-text-muted">{COPY.pages.settings.overdueAlertsDesc}</p>
                 </div>
-                <Switch checked={overdueAlerts} onCheckedChange={setOverdueAlerts} />
+                <label htmlFor="settings-overdue-alerts">
+                  <Switch id="settings-overdue-alerts" checked={overdueAlerts} onCheckedChange={setOverdueAlerts} aria-label={COPY.pages.settings.overdueAlerts} />
+                </label>
               </div>
             </CardContent>
           </Card>
@@ -258,13 +271,17 @@ export default function SettingsPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex gap-2">
+                  <label htmlFor="tag-color" className="sr-only">Warna label</label>
                   <input
+                    id="tag-color"
                     type="color"
                     value={tagColor}
                     onChange={(e) => setTagColor(e.target.value)}
                     className="w-9 h-9 rounded cursor-pointer border-0 bg-transparent"
                   />
+                  <label htmlFor="tag-name" className="sr-only">Nama label</label>
                   <Input
+                    id="tag-name"
                     placeholder="Nama label"
                     value={tagName}
                     onChange={(e) => setTagName(e.target.value)}
@@ -317,12 +334,14 @@ export default function SettingsPage() {
                           <button
                             onClick={() => handleEditTag(tag)}
                             className="p-1 text-tunet-text-muted hover:text-tunet-text"
+                            aria-label={`Edit label ${tag.name}`}
                           >
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
                           <button
                             onClick={() => handleDeleteTag(tag.id)}
                             className="p-1 text-tunet-text-muted hover:text-status-overdue"
+                            aria-label={`Hapus label ${tag.name}`}
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>

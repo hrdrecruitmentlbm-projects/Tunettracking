@@ -218,6 +218,7 @@ export function TaskCard({
             <button
               onClick={handleAdvance}
               disabled={!canChangeStatus}
+              aria-label={`${COPY.taskCard.advanceTo} ${NEXT_STATUS_LABEL[task.status]}`}
               className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md bg-tunet-signal/15 text-tunet-signal hover:bg-tunet-signal/25 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-tunet-signal/15"
             >
               {NEXT_STATUS_LABEL[task.status]}

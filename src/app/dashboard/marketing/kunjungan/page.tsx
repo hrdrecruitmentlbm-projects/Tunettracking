@@ -367,11 +367,13 @@ function VisitForm({
           </div>
 
           <div>
-            <label className="text-sm font-medium text-tunet-text">{COPY.pages.kunjungan.selectItem}</label>
+            <label htmlFor="visit-item" className="text-sm font-medium text-tunet-text">{COPY.pages.kunjungan.selectItem}</label>
             {items.length === 0 ? (
               <p className="mt-1 text-sm text-tunet-text-muted">Tidak ada data tersedia</p>
             ) : (
               <select
+                id="visit-item"
+                aria-label="Status kunjungan"
                 value={selectedId}
                 onChange={(e) => setSelectedId(e.target.value)}
                 className="mt-1 w-full px-3 py-2 bg-tunet-bg border border-tunet-border rounded-md text-sm text-tunet-text"
@@ -385,9 +387,9 @@ function VisitForm({
           </div>
 
           <div>
-            <label className="text-sm font-medium text-tunet-text">{COPY.pages.kunjungan.selectStatus}</label>
-            <Select value={status} onValueChange={(v) => setStatus(v || "")}>
-              <SelectTrigger className="mt-1 bg-tunet-bg border-tunet-border text-tunet-text">
+            <label htmlFor="visit-status" className="text-sm font-medium text-tunet-text">{COPY.pages.kunjungan.selectStatus}</label>
+            <Select id="visit-status" value={status} onValueChange={(v) => setStatus(v || "")}>
+              <SelectTrigger id="visit-status" className="mt-1 bg-tunet-bg border-tunet-border text-tunet-text">
                 <SelectValue placeholder="Pilih..." />
               </SelectTrigger>
               <SelectContent className="bg-tunet-surface border-tunet-border">
@@ -399,8 +401,9 @@ function VisitForm({
           </div>
 
           <div>
-            <label className="text-sm font-medium text-tunet-text">{COPY.pages.kunjungan.notes}</label>
+            <label htmlFor="visit-notes" className="text-sm font-medium text-tunet-text">{COPY.pages.kunjungan.notes}</label>
             <Input
+              id="visit-notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder={COPY.pages.kunjungan.notesPlaceholder}
