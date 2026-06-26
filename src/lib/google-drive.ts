@@ -1,4 +1,5 @@
 import { google, drive_v3 } from "googleapis";
+import { Readable } from "stream";
 
 let driveClient: drive_v3.Drive | null = null;
 
@@ -96,7 +97,7 @@ export async function uploadAttendancePhoto(
     },
     media: {
       mimeType: "image/webp",
-      body: fileBuffer,
+      body: Readable.from(fileBuffer),
     },
     fields: "id",
   });
