@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 const SESSION_DURATION_MS = 45 * 60 * 1000; // 45 minutes
 
 function getInitialExpired(): boolean {
+  if (typeof window === "undefined") return false;
   const loginAtStr = localStorage.getItem("tutrack-login-at");
   if (!loginAtStr) return true;
   const loginAt = Number(loginAtStr);
@@ -13,6 +14,7 @@ function getInitialExpired(): boolean {
 }
 
 function getRemainingTime(): number | null {
+  if (typeof window === "undefined") return null;
   const loginAtStr = localStorage.getItem("tutrack-login-at");
   if (!loginAtStr) return null;
   const loginAt = Number(loginAtStr);
