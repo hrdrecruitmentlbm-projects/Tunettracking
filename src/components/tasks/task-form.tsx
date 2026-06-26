@@ -110,6 +110,7 @@ export function TaskForm({
 
   const handleSessionExpired = () => {
     localStorage.removeItem("tutrack-user");
+    localStorage.removeItem("tutrack-login-at");
     toast.error("Sesi berakhir. Silakan masuk lagi.");
     router.push("/");
   };

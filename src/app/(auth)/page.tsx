@@ -42,6 +42,7 @@ export default function LoginPage() {
           role: user.role,
         })
       );
+      localStorage.setItem("tutrack-login-at", String(Date.now()));
 
       toast.success(COPY.auth.welcome(user.name));
 

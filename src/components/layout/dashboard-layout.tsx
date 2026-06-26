@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Sidebar } from "./sidebar";
 import { User } from "@/types";
 import { Loader2 } from "lucide-react";
+import { useSessionTimer } from "@/hooks/use-session-timer";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -14,6 +15,16 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [ready, setReady] = useState(false);
+  const { isExpired } = useSessionTimer();
+
+  useEffect(() => {
+    if (isExpired) {
+      const redirectTimer = setTimeout(() => {
+        router.push("/");
+      }, 2000);
+      return () => clearTimeout(redirectTimer);
+    }
+  }, [isExpired, router]);
 
   useEffect(() => {
     const stored = localStorage.getItem("tutrack-user");
@@ -41,6 +52,17 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-tunet-bg">
         <Loader2 className="w-8 h-8 text-tunet-green animate-spin" />
+      </div>
+    );
+  }
+
+  if (isExpired) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-tunet-bg">
+        <div className="text-center space-y-4">
+          <p className="text-tunet-text text-lg">Sesi anda telah berakhir, harap login kembali.</p>
+          <Loader2 className="w-6 h-6 text-tunet-green animate-spin mx-auto" />
+        </div>
       </div>
     );
   }

@@ -3,7 +3,7 @@ import crypto from "crypto";
 
 const SESSION_SECRET = process.env.SESSION_SECRET || "tutrack-dev-secret-change-in-production";
 const SESSION_COOKIE_NAME = "tutrack-session";
-const SESSION_TTL_HOURS = 24;
+const SESSION_TTL_MINUTES = 50;
 
 export interface SessionData {
   userId: string;
@@ -20,7 +20,7 @@ function sign(payload: string): string {
 }
 
 export function createSessionToken(userId: string, role: "admin" | "noc" | "foc" | "marketing", name: string): string {
-  const expiresAt = Date.now() + SESSION_TTL_HOURS * 60 * 60 * 1000;
+  const expiresAt = Date.now() + SESSION_TTL_MINUTES * 60 * 1000;
   const payload: SessionData = { userId, role, name, expiresAt };
   const encoded = Buffer.from(JSON.stringify(payload)).toString("base64url");
   const signature = sign(encoded);
@@ -72,5 +72,5 @@ export function getSessionTokenFromRequest(request: Request): SessionData | null
 
 export const SESSION_CONFIG = {
   cookieName: SESSION_COOKIE_NAME,
-  ttlSeconds: SESSION_TTL_HOURS * 60 * 60,
+  ttlSeconds: SESSION_TTL_MINUTES * 60,
 };

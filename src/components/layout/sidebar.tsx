@@ -112,6 +112,7 @@ export function Sidebar({ user }: SidebarProps) {
       console.error("Logout error:", error);
     }
     localStorage.removeItem("tutrack-user");
+    localStorage.removeItem("tutrack-login-at");
     window.location.href = "/";
   };
 
