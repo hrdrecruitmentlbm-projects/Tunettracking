@@ -126,9 +126,9 @@ export async function POST(request: NextRequest) {
         );
 
         photoFileId = result.fileId;
+        console.log("[attendance] Photo uploaded successfully, fileId:", photoFileId);
       } catch (photoErr) {
-        // Photo upload failed — log but don't block attendance
-        console.error("Photo upload failed, recording attendance without photo:", photoErr);
+        console.error("[attendance] Photo upload FAILED:", photoErr instanceof Error ? photoErr.message : photoErr);
       }
     }
 

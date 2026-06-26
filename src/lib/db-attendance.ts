@@ -29,6 +29,8 @@ export async function recordAttendance(
     (attendanceDateResult.data as string | null) ??
     new Date().toISOString().slice(0, 10);
 
+  console.log("[attendance] Inserting record:", { user_id: input.user_id, type: input.type, photo_file_id: input.photo_file_id });
+
   const { data, error } = await supabaseAdmin
     .from("attendance")
     .insert({
