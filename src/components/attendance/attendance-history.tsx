@@ -15,19 +15,35 @@ import { formatAttendanceDate, formatTimeWIB, formatDuration } from "@/lib/time"
 import { COPY } from "@/lib/copy";
 import { CalendarOff, Check, AlertTriangle, ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 
 interface AttendanceHistoryProps {
   rows: GroupedDay[];
   loading?: boolean;
 }
 
-function getPhotoUrl(fileId: string): string {
-  return `https://drive.google.com/uc?export=view&id=${fileId}`;
+async function fetchAttendancePhotoUrl(filePath: string): Promise<string> {
+  const id = filePath.split("/").pop() || "photo";
+  const res = await fetch(`/api/attendance/photo/${id}?path=${encodeURIComponent(filePath)}`);
+  if (!res.ok) throw new Error("Failed to fetch photo");
+  const data = await res.json();
+  return data.url;
 }
 
 export function AttendanceHistory({ rows, loading }: AttendanceHistoryProps) {
   const [expandedPhoto, setExpandedPhoto] = useState<string | null>(null);
+  const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({});
+
+  const loadPhotoUrl = useCallback(async (filePath: string) => {
+    if (photoUrls[filePath]) return photoUrls[filePath];
+    try {
+      const url = await fetchAttendancePhotoUrl(filePath);
+      setPhotoUrls((prev) => ({ ...prev, [filePath]: url }));
+      return url;
+    } catch {
+      return null;
+    }
+  }, [photoUrls]);
 
   if (loading) {
     return (
@@ -108,7 +124,14 @@ export function AttendanceHistory({ rows, loading }: AttendanceHistoryProps) {
                   {photoId ? (
                     <button
                       type="button"
-                      onClick={() => setExpandedPhoto(isPhotoExpanded ? null : photoId)}
+                      onClick={async () => {
+                        if (isPhotoExpanded) {
+                          setExpandedPhoto(null);
+                        } else {
+                          setExpandedPhoto(photoId);
+                          await loadPhotoUrl(photoId);
+                        }
+                      }}
                       className="flex items-center gap-1.5 text-tunet-green hover:text-tunet-green/80 transition-colors"
                     >
                       <ImageIcon className="h-4 w-4" />
@@ -148,11 +171,17 @@ export function AttendanceHistory({ rows, loading }: AttendanceHistoryProps) {
       {expandedPhoto && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80" onClick={() => setExpandedPhoto(null)}>
           <div className="relative max-w-lg max-h-[80vh] p-2" onClick={(e) => e.stopPropagation()}>
-            <img
-              src={getPhotoUrl(expandedPhoto)}
-              alt={COPY.attendance.photoPreview}
-              className="max-w-full max-h-[75vh] object-contain rounded-lg"
-            />
+            {photoUrls[expandedPhoto] ? (
+              <img
+                src={photoUrls[expandedPhoto]}
+                alt={COPY.attendance.photoPreview}
+                className="max-w-full max-h-[75vh] object-contain rounded-lg"
+              />
+            ) : (
+              <div className="w-64 h-64 rounded-lg bg-tunet-surface flex items-center justify-center">
+                <Skeleton className="w-full h-full" />
+              </div>
+            )}
             <button
               type="button"
               onClick={() => setExpandedPhoto(null)}

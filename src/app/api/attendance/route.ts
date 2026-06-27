@@ -6,8 +6,7 @@ import {
   getAttendanceHistoryGrouped,
   getAttendanceStats,
 } from "@/lib/db-attendance";
-import { uploadAttendancePhoto } from "@/lib/google-drive";
-import { processImage } from "@/lib/storage";
+import { uploadAttendanceToStorage } from "@/lib/storage";
 import { AttendanceType } from "@/types";
 
 function isAttendanceType(v: unknown): v is AttendanceType {
@@ -107,26 +106,11 @@ export async function POST(request: NextRequest) {
         const arrayBuffer = await photoFile.arrayBuffer();
         const inputBuffer = Buffer.from(arrayBuffer);
 
-        // Process image (resize, compress, strip EXIF)
-        const processed = await processImage(inputBuffer);
+        // Upload to Supabase Storage (processImage is called inside uploadAttendanceToStorage)
+        const { filePath } = await uploadAttendanceToStorage(session.userId, inputBuffer);
 
-        // Get attendance date for folder structure
-        const attendanceDate = new Date().toLocaleDateString("sv-SE", {
-          timeZone: "Asia/Jakarta",
-        });
-
-        // Generate filename
-        const fileName = `${session.userId}-berangkat-${crypto.randomUUID()}.webp`;
-
-        // Upload to Google Drive
-        const result = await uploadAttendancePhoto(
-          processed.buffer,
-          fileName,
-          attendanceDate
-        );
-
-        photoFileId = result.fileId;
-        console.log("[attendance] Photo uploaded successfully, fileId:", photoFileId);
+        photoFileId = filePath;
+        console.log("[attendance] Photo uploaded successfully, path:", photoFileId);
       } catch (photoErr) {
         console.error("[attendance] Photo upload FAILED:", photoErr instanceof Error ? photoErr.message : photoErr);
       }

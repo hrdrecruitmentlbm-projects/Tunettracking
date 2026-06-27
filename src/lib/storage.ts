@@ -107,3 +107,38 @@ export async function getSignedUrls(paths: string[]): Promise<string[]> {
   const urls = await Promise.all(paths.map(getSignedUrl));
   return urls;
 }
+
+const ATTENDANCE_PREFIX = "attendance";
+
+/**
+ * Upload an attendance photo to Supabase Storage.
+ * Path: attendance/{userId}/{date}-{uuid}.webp
+ */
+export async function uploadAttendanceToStorage(
+  userId: string,
+  fileBuffer: Buffer
+): Promise<{ filePath: string; fileSize: number }> {
+  const photoId = crypto.randomUUID();
+  const date = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Jakarta" });
+  const filePath = `${ATTENDANCE_PREFIX}/${userId}/${date}-${photoId}.webp`;
+
+  const { buffer, fileSize } = await processImage(fileBuffer);
+
+  const { error } = await supabaseAdmin.storage
+    .from(BUCKET)
+    .upload(filePath, buffer, { contentType: "image/webp" });
+  if (error) throw error;
+
+  return { filePath, fileSize };
+}
+
+/**
+ * Get a signed URL for an attendance photo (1 hour TTL).
+ */
+export async function getAttendanceSignedUrl(filePath: string): Promise<string> {
+  const { data, error } = await supabaseAdmin.storage
+    .from(BUCKET)
+    .createSignedUrl(filePath, 3600);
+  if (error) throw error;
+  return data.signedUrl;
+}

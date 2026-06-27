@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import {
   Table,
   TableBody,
@@ -28,6 +28,14 @@ import { cn } from "@/lib/utils";
 interface AdminAttendanceTableProps {
   rows: AttendanceWithUser[];
   loading?: boolean;
+}
+
+async function fetchAttendancePhotoUrl(filePath: string): Promise<string> {
+  const id = filePath.split("/").pop() || "photo";
+  const res = await fetch(`/api/attendance/photo/${id}?path=${encodeURIComponent(filePath)}`);
+  if (!res.ok) throw new Error("Failed to fetch photo");
+  const data = await res.json();
+  return data.url;
 }
 
 interface GroupedRow {
@@ -96,6 +104,18 @@ export function AdminAttendanceTable({ rows, loading }: AdminAttendanceTableProp
   const [roleFilter, setRoleFilter] = useState<"all" | UserRole>("all");
   const [search, setSearch] = useState("");
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({});
+
+  const loadPhotoUrl = useCallback(async (filePath: string) => {
+    if (photoUrls[filePath]) return photoUrls[filePath];
+    try {
+      const url = await fetchAttendancePhotoUrl(filePath);
+      setPhotoUrls((prev) => ({ ...prev, [filePath]: url }));
+      return url;
+    } catch {
+      return null;
+    }
+  }, [photoUrls]);
 
   const grouped = useMemo(() => groupAdminRows(rows), [rows]);
 
@@ -108,13 +128,14 @@ export function AdminAttendanceTable({ rows, loading }: AdminAttendanceTableProp
     });
   }, [grouped, roleFilter, search]);
 
-  const toggleRow = (key: string) => {
+  const toggleRow = async (key: string, photoPath?: string | null) => {
     setExpandedRows((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
       else next.add(key);
       return next;
     });
+    if (photoPath) loadPhotoUrl(photoPath);
   };
 
   if (loading) {
@@ -277,7 +298,7 @@ export function AdminAttendanceTable({ rows, loading }: AdminAttendanceTableProp
                       "border-tunet-border",
                       isExpandable && "cursor-pointer hover:bg-tunet-bg/50"
                     )}
-                    onClick={isExpandable ? () => toggleRow(rowKey) : undefined}
+                    onClick={isExpandable ? () => toggleRow(rowKey, r.photo_file_id) : undefined}
                   >
                     <TableCell>
                       <div className="flex items-center gap-3">
@@ -311,16 +332,18 @@ export function AdminAttendanceTable({ rows, loading }: AdminAttendanceTableProp
                     </TableCell>
                     <TableCell>
                       {r.photo_file_id ? (
-                        <a
-                          href={`https://drive.google.com/uc?export=view&id=${r.photo_file_id}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                        <button
+                          type="button"
                           className="flex items-center gap-1.5 text-tunet-green hover:text-tunet-green/80 transition-colors"
-                          onClick={(e) => e.stopPropagation()}
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            const url = await loadPhotoUrl(r.photo_file_id!);
+                            if (url) window.open(url, "_blank", "noopener,noreferrer");
+                          }}
                         >
                           <ImageIcon className="h-4 w-4" />
                           <span className="text-[11px]">Foto</span>
-                        </a>
+                        </button>
                       ) : (
                         <span className="text-tunet-text-muted text-[11px]">-</span>
                       )}
@@ -355,17 +378,23 @@ export function AdminAttendanceTable({ rows, loading }: AdminAttendanceTableProp
                               <p className="text-xs font-medium text-tunet-text-muted mb-2">
                                 Foto Absensi:
                               </p>
-                              <a
-                                href={`https://drive.google.com/uc?export=view&id=${r.photo_file_id}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                              >
-                                <img
-                                  src={`https://drive.google.com/uc?export=view&id=${r.photo_file_id}`}
-                                  alt="Foto absensi"
-                                  className="w-32 h-32 object-cover rounded-lg border border-tunet-border hover:opacity-80 transition-opacity"
-                                />
-                              </a>
+                              {photoUrls[r.photo_file_id!] ? (
+                                <a
+                                  href={photoUrls[r.photo_file_id!]}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                >
+                                  <img
+                                    src={photoUrls[r.photo_file_id!]}
+                                    alt="Foto absensi"
+                                    className="w-32 h-32 object-cover rounded-lg border border-tunet-border hover:opacity-80 transition-opacity"
+                                  />
+                                </a>
+                              ) : (
+                                <div className="w-32 h-32 rounded-lg border border-tunet-border bg-tunet-bg flex items-center justify-center">
+                                  <Skeleton className="w-full h-full" />
+                                </div>
+                              )}
                             </div>
                           )}
                           {hasTodos && (
