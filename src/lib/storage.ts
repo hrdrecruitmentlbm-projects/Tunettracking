@@ -65,16 +65,20 @@ export async function uploadToStorage(
 
   const { buffer, thumbnailBuffer, fileSize } = await processImage(fileBuffer);
 
+  // Convert to Blob to avoid Buffer serialization issues in @supabase/storage-js
+  const blob = new Blob([new Uint8Array(buffer)], { type: "image/webp" });
+  const thumbBlob = new Blob([new Uint8Array(thumbnailBuffer)], { type: "image/webp" });
+
   // Upload original
   const { error: uploadError } = await supabaseAdmin.storage
     .from(BUCKET)
-    .upload(filePath, buffer, { contentType: "image/webp" });
+    .upload(filePath, blob, { contentType: "image/webp" });
   if (uploadError) throw uploadError;
 
   // Upload thumbnail
   const { error: thumbError } = await supabaseAdmin.storage
     .from(BUCKET)
-    .upload(thumbnailPath, thumbnailBuffer, { contentType: "image/webp" });
+    .upload(thumbnailPath, thumbBlob, { contentType: "image/webp" });
   if (thumbError) throw thumbError;
 
   return { filePath, thumbnailPath, fileSize };
@@ -124,9 +128,12 @@ export async function uploadAttendanceToStorage(
 
   const { buffer, fileSize } = await processImage(fileBuffer);
 
+  // Convert to Blob to avoid Buffer serialization issues in @supabase/storage-js
+  const blob = new Blob([new Uint8Array(buffer)], { type: "image/webp" });
+
   const { error } = await supabaseAdmin.storage
     .from(BUCKET)
-    .upload(filePath, buffer, { contentType: "image/webp" });
+    .upload(filePath, blob, { contentType: "image/webp" });
   if (error) throw error;
 
   return { filePath, fileSize };
