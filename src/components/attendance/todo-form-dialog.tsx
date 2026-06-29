@@ -125,7 +125,7 @@ export function TodoFormDialog({ open, onOpenChange, onSubmit }: TodoFormDialogP
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="sm:max-w-md">
+      <SheetContent className="sm:max-w-md flex flex-col gap-0">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <ListTodo className="h-5 w-5 text-tunet-green" />
@@ -136,101 +136,104 @@ export function TodoFormDialog({ open, onOpenChange, onSubmit }: TodoFormDialogP
           </SheetDescription>
         </SheetHeader>
 
-        {/* Photo Section */}
-        <div className="mt-6">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-sm font-medium text-tunet-text">
-              {COPY.attendance.photoTitle}
-            </span>
-            <span className="text-[10px] text-tunet-ember">*</span>
-          </div>
-
-          {photoPreview ? (
-            /* Photo preview */
-            <div className="relative">
-              <img
-                src={photoPreview}
-                alt={COPY.attendance.photoPreview}
-                className="w-full h-48 object-cover rounded-lg border border-tunet-border"
-              />
-              <button
-                type="button"
-                onClick={removePhoto}
-                className="absolute top-2 right-2 p-1.5 rounded-full bg-tunet-bg/80 text-tunet-text-muted hover:text-red-400 transition-colors"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-              <div className="mt-2">
-                <PhotoPickerButton onFile={handlePhotoSelect} disabled={processing} />
-              </div>
-            </div>
-          ) : /* Empty state + picker */
-          processing ? (
-            <div className="w-full h-32 flex flex-col items-center justify-center gap-2 border border-tunet-border rounded-lg bg-tunet-surface">
-              <Loader2 className="h-6 w-6 animate-spin text-tunet-green" />
-              <span className="text-sm text-tunet-text-muted">{COPY.attendance.photoUploading}</span>
-            </div>
-          ) : (
-            <PhotoPickerButton onFile={handlePhotoSelect} />
-          )}
-
-          <p className="mt-2 text-[11px] text-tunet-text-muted">
-            {COPY.attendance.photoRequired}
-          </p>
-        </div>
-
-        {/* Todo List Section */}
-        <div className="mt-6 space-y-3">
-          <div className="flex items-center gap-2">
-            <ListTodo className="h-4 w-4 text-tunet-green" />
-            <span className="text-sm font-medium text-tunet-text">To-Do Hari Ini</span>
-          </div>
-
-          {items.map((item, index) => (
-            <div key={index} className="flex items-center gap-2">
-              <span className="text-tunet-text-muted text-sm font-medium w-6 text-center">
-                {index + 1}.
+        {/* Scrollable content area */}
+        <div className="flex-1 overflow-y-auto min-h-0 px-4 pt-2">
+          {/* Photo Section */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-sm font-medium text-tunet-text">
+                {COPY.attendance.photoTitle}
               </span>
-              <Input
-                value={item}
-                onChange={(e) => updateItem(index, e.target.value)}
-                placeholder={`${COPY.attendance.todoPlaceholder} ${index + 1}`}
-                className="flex-1"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    if (index === items.length - 1) addItem();
-                  }
-                }}
-                disabled={submitting}
-              />
-              {items.length > 1 && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 shrink-0 text-tunet-text-muted hover:text-red-400"
-                  onClick={() => removeItem(index)}
-                  disabled={submitting}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              )}
+              <span className="text-[10px] text-tunet-ember">*</span>
             </div>
-          ))}
 
-          <Button
-            variant="outline"
-            size="sm"
-            className="mt-2 border-dashed border-tunet-border text-tunet-text-muted hover:text-tunet-green hover:border-tunet-green/40"
-            onClick={addItem}
-            disabled={submitting}
-          >
-            <Plus className="h-4 w-4 mr-1" />
-            {COPY.attendance.todoAddItem}
-          </Button>
+            {photoPreview ? (
+              /* Photo preview */
+              <div className="relative">
+                <img
+                  src={photoPreview}
+                  alt={COPY.attendance.photoPreview}
+                  className="w-full h-48 object-cover rounded-lg border border-tunet-border"
+                />
+                <button
+                  type="button"
+                  onClick={removePhoto}
+                  className="absolute top-2 right-2 p-1.5 rounded-full bg-tunet-bg/80 text-tunet-text-muted hover:text-red-400 transition-colors"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+                <div className="mt-2">
+                  <PhotoPickerButton onFile={handlePhotoSelect} disabled={processing} />
+                </div>
+              </div>
+            ) : /* Empty state + picker */
+            processing ? (
+              <div className="w-full h-32 flex flex-col items-center justify-center gap-2 border border-tunet-border rounded-lg bg-tunet-surface">
+                <Loader2 className="h-6 w-6 animate-spin text-tunet-green" />
+                <span className="text-sm text-tunet-text-muted">{COPY.attendance.photoUploading}</span>
+              </div>
+            ) : (
+              <PhotoPickerButton onFile={handlePhotoSelect} />
+            )}
+
+            <p className="mt-2 text-[11px] text-tunet-text-muted">
+              {COPY.attendance.photoRequired}
+            </p>
+          </div>
+
+          {/* Todo List Section */}
+          <div className="mt-4 space-y-3 pb-4">
+            <div className="flex items-center gap-2">
+              <ListTodo className="h-4 w-4 text-tunet-green" />
+              <span className="text-sm font-medium text-tunet-text">To-Do Hari Ini</span>
+            </div>
+
+            {items.map((item, index) => (
+              <div key={index} className="flex items-center gap-2">
+                <span className="text-tunet-text-muted text-sm font-medium w-6 text-center">
+                  {index + 1}.
+                </span>
+                <Input
+                  value={item}
+                  onChange={(e) => updateItem(index, e.target.value)}
+                  placeholder={`${COPY.attendance.todoPlaceholder} ${index + 1}`}
+                  className="flex-1"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      if (index === items.length - 1) addItem();
+                    }
+                  }}
+                  disabled={submitting}
+                />
+                {items.length > 1 && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 shrink-0 text-tunet-text-muted hover:text-red-400"
+                    onClick={() => removeItem(index)}
+                    disabled={submitting}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            ))}
+
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-2 border-dashed border-tunet-border text-tunet-text-muted hover:text-tunet-green hover:border-tunet-green/40"
+              onClick={addItem}
+              disabled={submitting}
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              {COPY.attendance.todoAddItem}
+            </Button>
+          </div>
         </div>
 
-        <SheetFooter className="mt-6">
+        <SheetFooter>
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}
