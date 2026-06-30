@@ -1,17 +1,56 @@
 "use client";
 
+import { useState } from "react";
 import { Task, STATUS_CONFIG, PRIORITY_CONFIG } from "@/types";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Clock, User } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { MapPin, Clock, User, Trash2 } from "lucide-react";
 import { formatShortDate } from "@/lib/time";
 import { COPY } from "@/lib/copy";
+import { permanentDeleteTask } from "@/lib/db";
+import { toast } from "sonner";
 
 interface TaskListViewProps {
   tasks: Task[];
   onTaskClick?: (task: Task) => void;
+  canPermanentDelete?: boolean;
+  onPermanentDelete?: (taskId: string) => void;
 }
 
-export function TaskListView({ tasks, onTaskClick }: TaskListViewProps) {
+export function TaskListView({
+  tasks,
+  onTaskClick,
+  canPermanentDelete = false,
+  onPermanentDelete,
+}: TaskListViewProps) {
+  const [permDeleteOpen, setPermDeleteOpen] = useState(false);
+  const [permDeleting, setPermDeleting] = useState(false);
+  const [permDeleteTarget, setPermDeleteTarget] = useState<Task | null>(null);
+
+  const handlePermanentDelete = async () => {
+    if (!permDeleteTarget) return;
+    setPermDeleting(true);
+    const ok = await permanentDeleteTask(permDeleteTarget.id);
+    if (ok) {
+      toast.success(COPY.taskDetail.permDeleteSuccess);
+      onPermanentDelete?.(permDeleteTarget.id);
+      setPermDeleteOpen(false);
+    } else {
+      toast.error(COPY.taskDetail.permDeleteFailed);
+    }
+    setPermDeleting(false);
+  };
+
+  const colCount = canPermanentDelete ? 7 : 6;
+
   return (
     <div className="w-full overflow-auto">
       <table className="w-full text-sm">
@@ -23,6 +62,9 @@ export function TaskListView({ tasks, onTaskClick }: TaskListViewProps) {
             <th className="text-left py-3 px-4 text-xs font-medium text-tunet-text-muted">{COPY.taskList.colAssignee}</th>
             <th className="text-left py-3 px-4 text-xs font-medium text-tunet-text-muted">{COPY.taskList.colLocation}</th>
             <th className="text-left py-3 px-4 text-xs font-medium text-tunet-text-muted">{COPY.taskList.colDeadline}</th>
+            {canPermanentDelete && (
+              <th className="text-right py-3 px-4 text-xs font-medium text-tunet-text-muted">{COPY.pages.trash.colActions}</th>
+            )}
           </tr>
         </thead>
         <tbody>
@@ -105,18 +147,63 @@ export function TaskListView({ tasks, onTaskClick }: TaskListViewProps) {
                     )}
                   </div>
                 </td>
+                {canPermanentDelete && (
+                  <td className="py-3 px-4 text-right">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPermDeleteTarget(task);
+                        setPermDeleteOpen(true);
+                      }}
+                      className="p-1.5 rounded hover:bg-status-overdue/10 text-tunet-text-muted hover:text-status-overdue transition-colors"
+                      aria-label={COPY.pages.trash.permanentlyDelete}
+                      title={COPY.pages.trash.permanentlyDelete}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </td>
+                )}
               </tr>
             );
           })}
           {tasks.length === 0 && (
             <tr>
-              <td colSpan={6} className="py-12 text-center text-tunet-text-muted text-sm">
+              <td colSpan={colCount} className="py-12 text-center text-tunet-text-muted text-sm">
                 {COPY.taskList.emptyMessage}
               </td>
             </tr>
           )}
         </tbody>
       </table>
+
+      <Dialog open={permDeleteOpen} onOpenChange={setPermDeleteOpen}>
+        <DialogContent className="bg-tunet-surface border-tunet-border">
+          <DialogHeader>
+            <DialogTitle className="text-tunet-text">
+              {COPY.taskDetail.permDeleteConfirmTitle}
+            </DialogTitle>
+            <DialogDescription className="text-tunet-text-muted">
+              {permDeleteTarget && COPY.taskDetail.permDeleteConfirmDesc(permDeleteTarget.title)}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setPermDeleteOpen(false)}
+              className="border-tunet-border text-tunet-text"
+            >
+              {COPY.actions.cancel}
+            </Button>
+            <Button
+              onClick={handlePermanentDelete}
+              disabled={permDeleting}
+              className="bg-status-overdue hover:bg-status-overdue/90 text-white"
+            >
+              {permDeleting ? COPY.taskDetail.permDeleting : COPY.pages.trash.permanentlyDelete}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -443,6 +443,12 @@ export const COPY = {
     deleteFailedNoc: "Anda hanya dapat menghapus tugas yang Anda buat",
     deleteFailedDefault: "Gagal menghapus tugas",
     deleting: "Menghapus...",
+    permDeleteConfirmTitle: "Hapus Permanen",
+    permDeleteConfirmDesc: (title: string) =>
+      `Yakin ingin menghapus "${title}" secara permanen? Tindakan ini tidak dapat dibatalkan.`,
+    permDeleteSuccess: "Tugas dihapus permanen",
+    permDeleteFailed: "Gagal menghapus tugas",
+    permDeleting: "Menghapus...",
   },
   taskForm: {
     createTitle: "Buat Tugas Baru",

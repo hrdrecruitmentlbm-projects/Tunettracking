@@ -188,6 +188,15 @@ export async function softDeleteTask(
   return true;
 }
 
+export async function permanentDeleteTask(taskId: string): Promise<boolean> {
+  const { error } = await supabase.from("tasks").delete().eq("id", taskId);
+  if (error) {
+    console.error("Error permanently deleting task:", error);
+    return false;
+  }
+  return true;
+}
+
 export async function upsertLocation(
   userId: string,
   lat: number,

@@ -83,6 +83,7 @@ function TasksPageContent() {
 
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const canChangeStatus = currentUser?.role !== "foc" && currentUser?.role !== "marketing";
+  const canPermanentDelete = currentUser?.role === "admin";
 
   useHeartbeat({ userId: currentUser?.id });
 
@@ -203,6 +204,10 @@ function TasksPageContent() {
       // In active view: remove from local state
       setTasks((prev) => prev.filter((t) => t.id !== taskId));
     }
+  };
+
+  const handleTaskPermanentlyDeleted = (taskId: string) => {
+    setTasks((prev) => prev.filter((t) => t.id !== taskId));
   };
 
   const filteredTasks = useMemo(() => {
@@ -383,7 +388,12 @@ function TasksPageContent() {
               onDeleted={handleTaskDeleted}
             />
           ) : (
-            <TaskListView tasks={filteredTasks} onTaskClick={handleTaskClick} />
+            <TaskListView
+              tasks={filteredTasks}
+              onTaskClick={handleTaskClick}
+              canPermanentDelete={showDeleted ? canPermanentDelete : false}
+              onPermanentDelete={handleTaskPermanentlyDeleted}
+            />
           )}
         </div>
 
