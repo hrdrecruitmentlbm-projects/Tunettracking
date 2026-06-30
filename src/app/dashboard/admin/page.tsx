@@ -6,9 +6,9 @@ import {
   fetchUsers,
   fetchTasks,
   fetchCompletionTrend,
-  fetchActivityHeatmap,
+  fetchDailyPingCount,
   type CompletionTrendPoint,
-  type ActivityHeatmapCell,
+  type DailyPingCount,
 } from "@/lib/db";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -19,7 +19,9 @@ import { AreaChart } from "@/components/ui/area-chart";
 import { ProgressRing } from "@/components/ui/progress-ring";
 import { AdminHero } from "@/components/admin/admin-hero";
 import { PipelineBar } from "@/components/admin/pipeline-bar";
-import { ActivityHeatmap } from "@/components/admin/activity-heatmap";
+import { ActivityStats } from "@/components/admin/activity-stats";
+import { DailyActivityChart } from "@/components/admin/daily-activity-chart";
+import { PerUserActivity } from "@/components/admin/per-user-activity";
 import { User, Task } from "@/types";
 import { COPY } from "@/lib/copy";
 import { useTelegramDispatch } from "@/hooks/use-telegram-dispatch";
@@ -32,7 +34,7 @@ export default function AdminDashboard() {
   const [users, setUsers] = useState<User[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [trend, setTrend] = useState<CompletionTrendPoint[]>([]);
-  const [heatmap, setHeatmap] = useState<ActivityHeatmapCell[]>([]);
+  const [dailyPings, setDailyPings] = useState<DailyPingCount[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | undefined>(undefined);
 
@@ -54,16 +56,16 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     async function load() {
-      const [u, t, tr, hm] = await Promise.all([
+      const [u, t, tr, dp] = await Promise.all([
         fetchUsers(),
-        fetchTasks(),
+        fetchTasks({ limit: 200 }),
         fetchCompletionTrend(14),
-        fetchActivityHeatmap(7),
+        fetchDailyPingCount(14),
       ]);
       setUsers(u);
       setTasks(t);
       setTrend(tr);
-      setHeatmap(hm);
+      setDailyPings(dp);
       setLoading(false);
     }
     load();
@@ -73,13 +75,10 @@ export default function AdminDashboard() {
   const focCount = users.filter((u) => u.role === "foc").length;
   const nocCount = users.filter((u) => u.role === "noc").length;
   const marketingCount = users.filter((u) => u.role === "marketing").length;
-  const totalTasks = tasks.length;
-  const completedTasks = tasks.filter((t) => t.status === "done").length;
   const overdueTasks = tasks.filter(
     (t) => t.deadline && new Date(t.deadline) < new Date() && t.status !== "done"
   ).length;
   const activeTasks = tasks.filter((t) => t.status === "in_progress").length;
-  const completionPct = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
   const trendCounts = trend.map((t) => t.count);
   const trendBaseline = trend.length > 7 ? trend.slice(0, 7).map((t) => t.count) : undefined;
   const trendCurrent = trend.length > 7 ? trend.slice(7, 14).map((t) => t.count) : trendCounts;
@@ -91,6 +90,37 @@ export default function AdminDashboard() {
     const now = new Date();
     return updated.toDateString() === now.toDateString();
   }).length;
+
+  // Count "completed yesterday"
+  const completedYesterday = tasks.filter((t) => {
+    if (t.status !== "done") return false;
+    const updated = new Date(t.updated_at);
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    return updated.toDateString() === yesterday.toDateString();
+  }).length;
+
+  // Tasks created today
+  const newToday = tasks.filter((t) => {
+    const created = new Date(t.created_at);
+    return created.toDateString() === new Date().toDateString();
+  }).length;
+
+  // Tasks created yesterday
+  const newYesterday = tasks.filter((t) => {
+    const created = new Date(t.created_at);
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    return created.toDateString() === yesterday.toDateString();
+  }).length;
+
+  // Active today (from ping data)
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const yesterdayDate = new Date();
+  yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+  const yesterdayStr = yesterdayDate.toISOString().slice(0, 10);
+  const activeToday = dailyPings.find((d) => d.date === todayStr)?.count ?? 0;
+  const activeYesterday = dailyPings.find((d) => d.date === yesterdayStr)?.count ?? 0;
 
   // Per-user completion rate (7-day lookback)
   const completionByUser: Record<string, number> = {};
@@ -209,9 +239,28 @@ export default function AdminDashboard() {
 
             <Card className="bg-tunet-surface border-tunet-border">
               <CardContent className="p-5">
-                <ActivityHeatmap data={heatmap} />
+                <ActivityStats
+                  newToday={newToday}
+                  newYesterday={newYesterday}
+                  completedToday={completedToday}
+                  completedYesterday={completedYesterday}
+                  activeToday={activeToday}
+                  activeYesterday={activeYesterday}
+                />
               </CardContent>
             </Card>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <Card className="bg-tunet-surface border-tunet-border lg:col-span-2">
+              <CardContent className="p-5">
+                <DailyActivityChart data={dailyPings} />
+              </CardContent>
+            </Card>
+
+            <div className="lg:col-span-1">
+              <PerUserActivity users={users} tasks={tasks} />
+            </div>
           </div>
 
           {expiringTasks.length > 0 && (

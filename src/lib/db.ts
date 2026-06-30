@@ -1290,58 +1290,51 @@ export async function fetchPings(
   return rows;
 }
 
-export interface ActivityHeatmapCell {
-  /** 0=Mon, 6=Sun (Indonesian week) */
-  day: number;
-  /** 0..23 hour of day in Asia/Jakarta */
-  hour: number;
+export interface DailyPingCount {
+  date: string;
   count: number;
 }
 
 /**
- * Fetches pings from the last `daysBack` days and groups them by
- * day-of-week (0=Mon) and hour-of-day (0-23) in Asia/Jakarta timezone.
- * Returns up to 168 cells.
+ * Returns daily ping counts from location_pings, grouped by session_date.
+ * Useful for daily activity bar charts and stat cards.
  */
-export async function fetchActivityHeatmap(
-  daysBack: number = 7
-): Promise<ActivityHeatmapCell[]> {
+export async function fetchDailyPingCount(
+  daysBack: number = 14
+): Promise<DailyPingCount[]> {
   const start = new Date();
   start.setDate(start.getDate() - daysBack);
+  const startStr = start.toISOString().slice(0, 10);
 
   const { data, error } = await supabase
     .from("location_pings")
-    .select("created_at")
-    .gte("created_at", start.toISOString())
-    .limit(5000);
+    .select("session_date")
+    .gte("session_date", startStr)
+    .limit(10000);
 
   if (error) {
-    console.error("[fetchActivityHeatmap] error:", error);
+    console.error("[fetchDailyPingCount] error:", error);
     return [];
   }
 
-  const buckets: ActivityHeatmapCell[] = [];
-  for (let d = 0; d < 7; d++) {
-    for (let h = 0; h < 24; h++) {
-      buckets.push({ day: d, hour: h, count: 0 });
-    }
-  }
-
+  const counts: Record<string, number> = {};
   for (const row of data ?? []) {
-    const created = new Date((row as { created_at: string }).created_at);
-    if (Number.isNaN(created.getTime())) continue;
-    // Convert to Jakarta time, then read hour
-    const jakartaStr = created.toLocaleString("en-US", { timeZone: "Asia/Jakarta" });
-    const j = new Date(jakartaStr);
-    const hour = j.getHours();
-    // Postgres DOW: 0=Sun, 6=Sat. We want 0=Mon, 6=Sun.
-    const jsDay = j.getDay(); // 0=Sun, 6=Sat
-    const day = (jsDay + 6) % 7; // 0=Mon, 6=Sun
-    const cell = buckets.find((b) => b.day === day && b.hour === hour);
-    if (cell) cell.count += 1;
+    const d = (row as { session_date: string }).session_date;
+    counts[d] = (counts[d] ?? 0) + 1;
   }
 
-  return buckets;
+  // Fill in zero-count days
+  const result: DailyPingCount[] = [];
+  const current = new Date(start);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  while (current <= today) {
+    const key = current.toISOString().slice(0, 10);
+    result.push({ date: key, count: counts[key] ?? 0 });
+    current.setDate(current.getDate() + 1);
+  }
+
+  return result;
 }
 
 // =====================================================
