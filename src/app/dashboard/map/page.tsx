@@ -288,7 +288,7 @@ export default function MapPage() {
         </div>
 
         <div className="w-80 border-l border-tunet-border flex flex-col">
-          <div className="p-4 border-b border-tunet-border space-y-3">
+          <div className="p-4 flex-1 overflow-hidden border-b border-tunet-border space-y-3 flex flex-col">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-sm font-medium text-tunet-text">
@@ -310,7 +310,7 @@ export default function MapPage() {
                 className="pl-8 h-8 text-xs bg-tunet-bg border-tunet-border text-tunet-text"
               />
             </div>
-            <ScrollArea className="h-32">
+            <ScrollArea className="flex-1">
               <div className="space-y-1 pr-2">
                 {filteredFoc.length === 0 ? (
                   <div className="py-4">
@@ -353,7 +353,7 @@ export default function MapPage() {
             </ScrollArea>
           </div>
 
-          <div className="p-4 flex-1">
+          <div className="p-4 h-28 overflow-auto">
             <h2 className="text-sm font-medium text-tunet-text-muted mb-3">
               {COPY.pages.map.nocCount(nocUsers.length)}
             </h2>
