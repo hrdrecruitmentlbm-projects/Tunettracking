@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useTheme } from "next-themes";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { User, Tag } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -13,7 +14,7 @@ import { User as UserIcon, Bell, Moon, Sun, Tag as TagIcon, Plus, Pencil, Trash2
 import { COPY } from "@/lib/copy";
 import { fetchTags, createTag, updateTag, deleteTag } from "@/lib/db";
 
-function getStoredUser(): { user: User; name: string; phone: string } | null {
+function getStoredUser() {
   if (typeof window === "undefined") return null;
   const stored = localStorage.getItem("tutrack-user");
   if (!stored) return null;
@@ -25,26 +26,15 @@ function getStoredUser(): { user: User; name: string; phone: string } | null {
   }
 }
 
-function getStoredSettings() {
-  if (typeof window === "undefined") return { darkMode: true, taskAssignments: true, statusUpdates: true, overdueAlerts: true };
-  return {
-    darkMode: localStorage.getItem("tutrack-darkMode") !== "false",
-    taskAssignments: localStorage.getItem("tutrack-taskAssignments") !== "false",
-    statusUpdates: localStorage.getItem("tutrack-statusUpdates") !== "false",
-    overdueAlerts: localStorage.getItem("tutrack-overdueAlerts") !== "false",
-  };
-}
-
 export default function SettingsPage() {
+  const { theme, setTheme } = useTheme();
   const initial = getStoredUser();
-  const settings = getStoredSettings();
   const [user, setUser] = useState<User | null>(initial?.user ?? null);
   const [name, setName] = useState(initial?.name ?? "");
   const [phone, setPhone] = useState(initial?.phone ?? "");
-  const [darkMode, setDarkMode] = useState(settings.darkMode);
-  const [taskAssignments, setTaskAssignments] = useState(settings.taskAssignments);
-  const [statusUpdates, setStatusUpdates] = useState(settings.statusUpdates);
-  const [overdueAlerts, setOverdueAlerts] = useState(settings.overdueAlerts);
+  const [taskAssignments, setTaskAssignments] = useState(true);
+  const [statusUpdates, setStatusUpdates] = useState(true);
+  const [overdueAlerts, setOverdueAlerts] = useState(true);
 
   const [tags, setTags] = useState<Tag[]>([]);
   const [tagName, setTagName] = useState("");
@@ -119,7 +109,6 @@ export default function SettingsPage() {
       localStorage.setItem("tutrack-user", JSON.stringify(updatedUser));
       setUser(updatedUser);
     }
-    localStorage.setItem("tutrack-darkMode", String(darkMode));
     localStorage.setItem("tutrack-taskAssignments", String(taskAssignments));
     localStorage.setItem("tutrack-statusUpdates", String(statusUpdates));
     localStorage.setItem("tutrack-overdueAlerts", String(overdueAlerts));
@@ -186,7 +175,7 @@ export default function SettingsPage() {
             <CardHeader>
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-status-review/20 flex items-center justify-center">
-                  {darkMode ? (
+                  {theme === "dark" ? (
                     <Moon className="w-5 h-5 text-status-review" />
                   ) : (
                     <Sun className="w-5 h-5 text-status-progress" />
@@ -205,7 +194,12 @@ export default function SettingsPage() {
                   <p className="text-xs text-tunet-text-muted">{COPY.pages.settings.darkModeDesc}</p>
                 </div>
                 <label htmlFor="settings-dark-mode">
-                  <Switch id="settings-dark-mode" checked={darkMode} onCheckedChange={setDarkMode} aria-label={COPY.pages.settings.darkMode} />
+                  <Switch
+                    id="settings-dark-mode"
+                    checked={theme === "dark"}
+                    onCheckedChange={(checked) => setTheme(checked ? "dark" : "light")}
+                    aria-label={COPY.pages.settings.darkMode}
+                  />
                 </label>
               </div>
             </CardContent>
