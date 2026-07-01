@@ -162,6 +162,8 @@ export const COPY = {
       edit: "Edit",
       deactivate: "Nonaktifkan",
       deactivateOrDelete: "Nonaktifkan / Hapus",
+      showInactive: "Tampilkan tidak aktif",
+      hideInactive: "Sembunyikan tidak aktif",
       fullName: "Nama Lengkap",
       role: "Peran",
       phone: "Telepon",

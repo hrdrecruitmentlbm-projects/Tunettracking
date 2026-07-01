@@ -42,7 +42,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
-import { Plus, MoreHorizontal, Pencil, Trash2, UserX, Eye, EyeOff } from "lucide-react";
+import { Plus, MoreHorizontal, Pencil, Trash2, UserX, Eye, EyeOff, Users } from "lucide-react";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 
 interface StaffFormData {
@@ -71,6 +71,7 @@ export default function AdminUsersPage() {
   const [formData, setFormData] = useState<StaffFormData>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [showPin, setShowPin] = useState<Record<string, boolean>>({});
+  const [showInactive, setShowInactive] = useState(false);
 
   const loadUsers = async () => {
     const data = await fetchUsers();
@@ -191,6 +192,8 @@ export default function AdminUsersPage() {
     }
   };
 
+  const visibleUsers = showInactive ? users : users.filter((u) => u.is_active);
+
   return (
     <DashboardLayout>
       <div className="min-h-screen bg-tunet-bg">
@@ -229,8 +232,23 @@ export default function AdminUsersPage() {
 
         <div className="px-6 pb-6">
           <Card className="bg-tunet-surface border-tunet-border">
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-tunet-text">{COPY.pages.team.allStaff}</CardTitle>
+              <button
+                onClick={() => setShowInactive(!showInactive)}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs transition-colors ${
+                  showInactive
+                    ? "bg-status-overdue/10 text-status-overdue border border-status-overdue/30"
+                    : "text-tunet-text-muted hover:bg-tunet-surface-hover border border-transparent"
+                }`}
+              >
+                {showInactive ? (
+                  <UserX className="w-3.5 h-3.5" />
+                ) : (
+                  <Users className="w-3.5 h-3.5" />
+                )}
+                {showInactive ? COPY.pages.team.hideInactive : COPY.pages.team.showInactive}
+              </button>
             </CardHeader>
             <CardContent>
               {loading ? (
@@ -249,7 +267,7 @@ export default function AdminUsersPage() {
                     </div>
                   ))}
                 </div>
-              ) : users.length === 0 ? (
+              ) : visibleUsers.length === 0 ? (
                 <EmptyState
                   icon={Plus}
                   title={COPY.empty.noTeamMembers.title}
@@ -279,7 +297,7 @@ export default function AdminUsersPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {users.map((user) => (
+                      {visibleUsers.map((user) => (
                         <TableRow key={user.id} className="border-tunet-border">
                           <TableCell>
                             <div className="flex items-center gap-3">
