@@ -182,6 +182,7 @@ export default function ProspectsPage() {
                         <th className="text-left py-3 px-4 text-xs font-medium text-tunet-text-muted">{COPY.pages.prospects.colArea}</th>
                         <th className="text-left py-3 px-4 text-xs font-medium text-tunet-text-muted">{COPY.pages.prospects.colStatus}</th>
                         <th className="text-left py-3 px-4 text-xs font-medium text-tunet-text-muted">{COPY.pages.prospects.colAssignee}</th>
+                        <th className="text-left py-3 px-4 text-xs font-medium text-tunet-text-muted">{COPY.pages.prospects.colDateAdded}</th>
                         <th className="text-left py-3 px-4 text-xs font-medium text-tunet-text-muted">{COPY.pages.prospects.colActions}</th>
                       </tr>
                     </thead>
@@ -229,6 +230,9 @@ export default function ProspectsPage() {
                               </div>
                             </td>
                             <td className="py-3 px-4 text-sm text-tunet-text-muted">{prospect.assignee?.name || "-"}</td>
+                            <td className="py-3 px-4 text-xs text-tunet-text-muted">
+                              {new Date(prospect.created_at).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
+                            </td>
                             <td className="py-3 px-4">
                               <div className="flex items-center gap-2">
                                 <button

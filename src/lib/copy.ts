@@ -302,6 +302,7 @@ export const COPY = {
       colArea: "Area",
       colStatus: "Status",
       colAssignee: "Penanggung Jawab",
+      colDateAdded: "Tanggal Ditambahkan",
       colActions: "Aksi",
     },
     towerSites: {

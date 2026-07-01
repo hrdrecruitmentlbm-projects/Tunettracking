@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback, Suspense } from "react";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
-import { fetchVisitLogs, createVisitLog, fetchProspects, fetchTowerSites, updateProspect, updateTowerSite, upsertLocation } from "@/lib/db";
+import { fetchVisitLogs, createVisitLog, fetchProspects, fetchTowerSites, updateProspect, updateTowerSite, upsertLocation, createTowerSite } from "@/lib/db";
 import { VisitLog, Prospect, TowerSite, PROSPECT_STATUS_CONFIG, TOWER_SITE_STATUS_CONFIG } from "@/types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -230,6 +230,7 @@ function VisitForm({
 }) {
   const [type, setType] = useState<"prospek" | "tower">("prospek");
   const [selectedId, setSelectedId] = useState("");
+  const [towerName, setTowerName] = useState("");
   const [status, setStatus] = useState("");
   const [notes, setNotes] = useState("");
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -242,6 +243,8 @@ function VisitForm({
       setType("prospek");
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedId("");
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setTowerName("");
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setStatus("");
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -292,18 +295,53 @@ function VisitForm({
       }
     }
 
-    if (!selectedId || !status) {
-      toast.error("Pilih item dan status wajib diisi");
+    if (type === "prospek" && !selectedId) {
+      toast.error("Pilih prospek wajib diisi");
+      return;
+    }
+    if (type === "tower" && !towerName.trim()) {
+      toast.error("Nama tower wajib diisi");
+      return;
+    }
+    if (!status) {
+      toast.error("Pilih status wajib diisi");
       return;
     }
 
     setSaving(true);
     try {
       const loc = location || { lat: -6.2088, lng: 106.8456 };
+      let towerId: string | undefined;
+
+      if (type === "tower") {
+        // Find or create tower_site by name
+        const existing = towerSites.find(
+          (t) => t.name.toLowerCase() === towerName.trim().toLowerCase()
+        );
+        if (existing) {
+          towerId = existing.id;
+        } else {
+          const newTower = await createTowerSite({
+            name: towerName.trim(),
+            site_type: "other",
+            contact_person: "",
+            contact_phone: "",
+            location_lat: loc.lat,
+            location_lng: loc.lng,
+            status: "baru_ditugaskan",
+            notes: "",
+            assigned_to: currentUser.id,
+          });
+          if (newTower.data) {
+            towerId = newTower.data.id;
+          }
+        }
+      }
+
       const result = await createVisitLog({
         type,
         prospect_id: type === "prospek" ? selectedId : undefined,
-        tower_id: type === "tower" ? selectedId : undefined,
+        tower_id: towerId,
         visited_by: currentUser.id,
         status_snapshot: status,
         notes,
@@ -315,8 +353,8 @@ function VisitForm({
         // Update the prospect/tower status
         if (type === "prospek") {
           await updateProspect(selectedId, { status });
-        } else {
-          await updateTowerSite(selectedId, { status });
+        } else if (towerId) {
+          await updateTowerSite(towerId, { status });
         }
 
         // Update location
@@ -346,7 +384,7 @@ function VisitForm({
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={() => { setType("prospek"); setSelectedId(""); setStatus(""); }}
+              onClick={() => { setType("prospek"); setSelectedId(""); setTowerName(""); setStatus(""); }}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                 type === "prospek"
                   ? "bg-tunet-green/20 text-tunet-green"
@@ -357,7 +395,7 @@ function VisitForm({
             </button>
             <button
               type="button"
-              onClick={() => { setType("tower"); setSelectedId(""); setStatus(""); }}
+              onClick={() => { setType("tower"); setSelectedId(""); setTowerName(""); setStatus(""); }}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                 type === "tower"
                   ? "bg-tunet-green/20 text-tunet-green"
@@ -368,25 +406,38 @@ function VisitForm({
             </button>
           </div>
 
-          <div>
-            <label htmlFor="visit-item" className="text-sm font-medium text-tunet-text">{COPY.pages.kunjungan.selectItem}</label>
-            {items.length === 0 ? (
-              <p className="mt-1 text-sm text-tunet-text-muted">Tidak ada data tersedia</p>
-            ) : (
-              <select
-                id="visit-item"
-                aria-label="Status kunjungan"
-                value={selectedId}
-                onChange={(e) => setSelectedId(e.target.value)}
-                className="mt-1 w-full px-3 py-2 bg-tunet-bg border border-tunet-border rounded-md text-sm text-tunet-text"
-              >
-                <option value="">Pilih...</option>
-                {items.map((item) => (
-                  <option key={item.id} value={item.id}>{item.name}</option>
-                ))}
-              </select>
-            )}
-          </div>
+          {type === "prospek" ? (
+            <div>
+              <label htmlFor="visit-item" className="text-sm font-medium text-tunet-text">{COPY.pages.kunjungan.selectItem}</label>
+              {items.length === 0 ? (
+                <p className="mt-1 text-sm text-tunet-text-muted">Tidak ada data tersedia</p>
+              ) : (
+                <select
+                  id="visit-item"
+                  aria-label="Status kunjungan"
+                  value={selectedId}
+                  onChange={(e) => setSelectedId(e.target.value)}
+                  className="mt-1 w-full px-3 py-2 bg-tunet-bg border border-tunet-border rounded-md text-sm text-tunet-text"
+                >
+                  <option value="">Pilih...</option>
+                  {items.map((item) => (
+                    <option key={item.id} value={item.id}>{item.name}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          ) : (
+            <div>
+              <label htmlFor="tower-name" className="text-sm font-medium text-tunet-text">Nama Tower / Area</label>
+              <Input
+                id="tower-name"
+                value={towerName}
+                onChange={(e) => setTowerName(e.target.value)}
+                placeholder="Masukkan nama tower atau area..."
+                className="mt-1 bg-tunet-bg border-tunet-border text-tunet-text"
+              />
+            </div>
+          )}
 
           <div>
             <label htmlFor="visit-status" className="text-sm font-medium text-tunet-text">{COPY.pages.kunjungan.selectStatus}</label>
