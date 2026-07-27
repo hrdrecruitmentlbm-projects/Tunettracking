@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -112,6 +113,10 @@ export function TodoFormDialog({ open, onOpenChange, onSubmit }: TodoFormDialogP
   const handleSubmit = async () => {
     const validItems = items.filter((t) => t.trim().length > 0);
     if (!photo) return;
+    if (validItems.length === 0) {
+      toast.error(COPY.attendance.todoRequired);
+      return;
+    }
     setSubmitting(true);
     try {
       onSubmit(validItems, photo);
@@ -186,6 +191,7 @@ export function TodoFormDialog({ open, onOpenChange, onSubmit }: TodoFormDialogP
             <div className="flex items-center gap-2">
               <ListTodo className="h-4 w-4 text-tunet-green" />
               <span className="text-sm font-medium text-tunet-text">To-Do Hari Ini</span>
+              <span className="text-[10px] text-tunet-ember">*</span>
             </div>
 
             {items.map((item, index) => (
@@ -244,7 +250,7 @@ export function TodoFormDialog({ open, onOpenChange, onSubmit }: TodoFormDialogP
           <Button
             className="bg-tunet-green hover:bg-tunet-green/90 text-tunet-bg"
             onClick={handleSubmit}
-            disabled={submitting || !photo}
+            disabled={submitting || !photo || items.filter((t) => t.trim().length > 0).length === 0}
           >
             {submitting ? (
               <>
