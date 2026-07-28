@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
+import { useState, type ReactNode } from "react";
+import { AlertTriangle, ArrowUpRight, Clock, MapPin, Trash2, User } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -12,12 +13,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Task, TaskStatus, STATUS_CONFIG, PRIORITY_CONFIG } from "@/types";
-import { MapPin, Clock, User, AlertTriangle, Trash2, ArrowUpRight, Camera } from "lucide-react";
-import { getTimeRemaining, getUrgencyTier, getDeadlineProgress } from "@/lib/time";
 import { COPY } from "@/lib/copy";
 import { softDeleteTask } from "@/lib/db";
+import { getTimeRemaining, getUrgencyTier } from "@/lib/time";
 import { cn } from "@/lib/utils";
+import { PRIORITY_CONFIG, STATUS_CONFIG, Task, TaskStatus } from "@/types";
 import { toast } from "sonner";
 
 interface TaskCardProps {
@@ -27,6 +27,7 @@ interface TaskCardProps {
   canChangeStatus?: boolean;
   canDelete?: boolean;
   onDeleted?: (taskId: string) => void;
+  dragHandle?: ReactNode;
 }
 
 const NEXT_STATUS: Record<TaskStatus, TaskStatus | null> = {
@@ -50,38 +51,35 @@ export function TaskCard({
   canChangeStatus = true,
   canDelete = false,
   onDeleted,
+  dragHandle,
 }: TaskCardProps) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [renderedAt] = useState(() => Date.now());
+  const status = STATUS_CONFIG[task.status];
+  const priority = PRIORITY_CONFIG[task.priority];
+  const remaining = getTimeRemaining(task.deadline);
+  const urgency = getUrgencyTier(task.deadline, task.status);
+  const isDeleted = Boolean(task.deleted_at);
+  const showAdvance = Boolean(onStatusChange && task.status !== "done" && !isDeleted);
 
-  const statusConfig = STATUS_CONFIG[task.status];
-  const priorityConfig = PRIORITY_CONFIG[task.priority];
-
-  const getAge = (createdAt: string) => {
-    const created = new Date(createdAt);
-    const now = new Date();
-    const diffMs = now.getTime() - created.getTime();
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    if (diffDays === 0) return COPY.taskCard.today;
-    if (diffDays === 1) return COPY.taskCard.oneDay;
-    return COPY.taskCard.daysAgo(diffDays);
-  };
-
-  const isOverdue =
-    task.deadline && new Date(task.deadline) < new Date() && task.status !== "done";
-  const timeRemaining = getTimeRemaining(task.deadline);
-  const tier = getUrgencyTier(task.deadline, task.status);
-  const deadlineProgress = getDeadlineProgress(task.created_at, task.deadline);
-  const isDeleted = !!task.deleted_at;
+  const ageInDays = Math.floor(
+    (renderedAt - new Date(task.created_at).getTime()) / (1000 * 60 * 60 * 24)
+  );
+  const age =
+    ageInDays === 0
+      ? COPY.taskCard.today
+      : ageInDays === 1
+        ? COPY.taskCard.oneDay
+        : COPY.taskCard.daysAgo(ageInDays);
 
   const handleDelete = async () => {
-    if (typeof window === "undefined") return;
     const stored = localStorage.getItem("tutrack-user");
     if (!stored) return;
-    const currentUser = JSON.parse(stored);
+
     setDeleting(true);
-    const ok = await softDeleteTask(task.id, currentUser.id);
-    if (ok) {
+    const success = await softDeleteTask(task.id, JSON.parse(stored).id);
+    if (success) {
       toast.success(COPY.taskDetail.deleteSuccess);
       onDeleted?.(task.id);
       setDeleteOpen(false);
@@ -91,172 +89,126 @@ export function TaskCard({
     setDeleting(false);
   };
 
-  const handleAdvance = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const dest = NEXT_STATUS[task.status];
-    if (dest && onStatusChange) {
-      onStatusChange(task.id, dest);
-    }
+  const handleAdvance = (event: React.MouseEvent) => {
+    event.stopPropagation();
+    const destination = NEXT_STATUS[task.status];
+    if (destination) onStatusChange?.(task.id, destination);
   };
-
-  const showAdvance = onStatusChange && task.status !== "done" && !isDeleted;
 
   return (
     <Card
       className={cn(
-        "group relative bg-tunet-surface border-tunet-border border border-tunet-border overflow-hidden",
-        "transition-all duration-200 ease-out cursor-pointer",
-        "hover:-translate-y-px hover:shadow-[inset_0_0_0_1px_rgba(34,211,238,0.35),0_4px_12px_-6px_rgba(0,0,0,0.5)]",
-        tier === "critical" && "border-l-[3px] border-l-red-500",
-        tier === "warning" && "border-l-[3px] border-l-orange-500",
-        tier === "caution" && "border-l-[3px] border-l-amber-400",
-        tier === "overdue" && "border-l-[3px] border-l-status-overdue"
+        "relative border border-tunet-border bg-tunet-surface transition-[transform,box-shadow,border-color] duration-200 motion-reduce:transition-none",
+        "hover:-translate-y-0.5 hover:border-tunet-signal/35 hover:shadow-[0_16px_36px_-28px_rgba(34,211,238,0.7)] motion-reduce:hover:translate-y-0",
+        urgency === "critical" && "border-l-[3px] border-l-priority-critical",
+        urgency === "warning" && "border-l-[3px] border-l-priority-high",
+        urgency === "caution" && "border-l-[3px] border-l-priority-medium",
+        urgency === "overdue" && "border-l-[3px] border-l-status-overdue"
       )}
-      onClick={() => onClick?.(task)}
     >
-      {/* Top status rail — 2px full-width bar matching the status color */}
-      <div className="h-0.5 w-full" style={{ backgroundColor: statusConfig.color }} />
+      {dragHandle && <div className="absolute left-2 top-2">{dragHandle}</div>}
 
       {canDelete && !isDeleted && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setDeleteOpen(true);
-          }}
-          className="absolute top-3 right-3 z-10 opacity-0 group-hover:opacity-100 p-1.5 rounded hover:bg-status-overdue/10 text-tunet-text-muted hover:text-status-overdue transition-opacity"
-          aria-label={COPY.actions.delete}
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={() => setDeleteOpen(true)}
+          className="absolute right-1.5 top-1.5 size-11 text-tunet-text-muted hover:text-status-overdue"
+          aria-label={`${COPY.actions.delete}: ${task.title}`}
         >
-          <Trash2 className="w-3.5 h-3.5" />
-        </button>
+          <Trash2 aria-hidden="true" />
+        </Button>
       )}
 
-      <CardContent className="p-4">
-        <div className="flex items-start gap-2 mb-3">
-          <div className={`w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${priorityConfig.dot}`} />
-          <h3 className="font-medium text-tunet-text text-sm leading-tight pr-6">{task.title}</h3>
-        </div>
-
-        <div className="flex items-center gap-1.5 mb-3 text-tunet-text-muted">
-          <MapPin className="w-3.5 h-3.5" />
-          <span className="text-xs truncate">{task.location_name}</span>
-        </div>
-
-        <div className="flex items-center gap-1.5 mb-3 flex-wrap">
-          <Badge
-            variant="secondary"
-            className="text-xs"
-            style={{ backgroundColor: statusConfig.color + "20", color: statusConfig.color }}
+      <CardContent className="px-0">
+        <button
+          type="button"
+          onClick={() => onClick?.(task)}
+          className="block w-full rounded-lg px-4 pb-3 pt-4 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-tunet-signal"
+        >
+          <div
+            className={cn(
+              "flex items-center gap-2 pr-8",
+              dragHandle && "pl-8"
+            )}
           >
-            {statusConfig.label}
-          </Badge>
-          {isOverdue && (
-            <Badge variant="destructive" className="text-xs">
-              {COPY.taskCard.overdue}
-            </Badge>
-          )}
-          {isDeleted && (
-            <Badge variant="destructive" className="text-xs">
-              Deleted
-            </Badge>
-          )}
-          {timeRemaining && !isOverdue && timeRemaining.isUrgent && task.status !== "done" && (
-            <Badge
-              variant="secondary"
-              className="text-xs bg-status-progress/20 text-status-progress"
-            >
-              <Clock className="w-3 h-3 mr-1" />
-              {timeRemaining.label}
-            </Badge>
-          )}
-          {timeRemaining && isOverdue && task.status !== "done" && (
-            <Badge
-              variant="secondary"
-              className="text-xs bg-status-overdue/20 text-status-overdue"
-            >
-              <AlertTriangle className="w-3 h-3 mr-1" />
-              {timeRemaining.label}
-            </Badge>
-          )}
-          {task.attachments && task.attachments.length > 0 && (
-            <Badge
-              variant="secondary"
-              className="text-xs bg-tunet-surface text-tunet-text-muted"
-            >
-              <Camera className="w-3 h-3 mr-1" />
-              {task.attachments.length}
-            </Badge>
-          )}
-        </div>
+            <Badge variant="secondary">{priority.label}</Badge>
+            <span className="truncate text-xs text-tunet-text-muted">{status.label}</span>
+          </div>
 
-        {deadlineProgress && task.status !== "done" && (
-          <div className="mb-2">
-            <div className="h-1 w-full rounded-full bg-tunet-surface-hover overflow-hidden">
-              <div
-                className="h-full rounded-full transition-all duration-500"
-                style={{ width: `${deadlineProgress.pct}%`, backgroundColor: deadlineProgress.color }}
-              />
-            </div>
-          </div>
-        )}
+          <h3
+            className={cn(
+              "mt-3 text-pretty text-sm font-semibold leading-5 text-tunet-text",
+              dragHandle && "pl-8"
+            )}
+          >
+            {task.title}
+          </h3>
 
-        <div className="flex items-center justify-between text-xs text-tunet-text-muted">
-          <div className="flex items-center gap-1.5">
-            <User className="w-3.5 h-3.5" />
-            <span>{task.assigned_to ? COPY.taskCard.assigned : COPY.taskCard.unassigned}</span>
+          <div className="mt-4 flex flex-col gap-2 text-xs text-tunet-text-muted">
+            <span className="flex items-center gap-2">
+              <MapPin className="size-3.5 shrink-0" aria-hidden="true" />
+              <span className="truncate">{task.location_name}</span>
+            </span>
+            <span className="flex items-center gap-2">
+              <User className="size-3.5 shrink-0" aria-hidden="true" />
+              <span className="truncate">
+                {task.assignee?.name || (task.assigned_to ? COPY.taskCard.assigned : COPY.taskCard.unassigned)}
+              </span>
+            </span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <Clock className="w-3.5 h-3.5" />
-            <span className="font-mono tabular-nums">{getAge(task.created_at)}</span>
+
+          <div className="mt-4 flex items-center justify-between gap-3 border-t border-tunet-border/60 pt-3">
+            <span
+              className={cn(
+                "flex items-center gap-1.5 text-xs",
+                remaining?.isOverdue
+                  ? "font-medium text-status-overdue"
+                  : remaining?.isUrgent
+                    ? "font-medium text-tunet-ember"
+                    : "text-tunet-text-muted"
+              )}
+            >
+              {remaining?.isOverdue ? (
+                <AlertTriangle className="size-3.5" aria-hidden="true" />
+              ) : (
+                <Clock className="size-3.5" aria-hidden="true" />
+              )}
+              {remaining?.label || "Tanpa tenggat"}
+            </span>
+            <span className="font-mono text-xs tabular-nums text-tunet-text-muted">{age}</span>
           </div>
-        </div>
+        </button>
 
         {showAdvance && (
-          <div className="mt-3 pt-3 border-t border-tunet-border/60 flex items-center justify-between">
-            <span className="text-[10px] uppercase tracking-wider text-tunet-text-muted">
-              {COPY.taskCard.advanceTo}
-            </span>
-            <button
+          <div className="border-t border-tunet-border/60 px-3 py-3">
+            <Button
+              type="button"
+              variant="secondary"
               onClick={handleAdvance}
               disabled={!canChangeStatus}
+              className="min-h-11 w-full"
               aria-label={`${COPY.taskCard.advanceTo} ${NEXT_STATUS_LABEL[task.status]}`}
-              className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md bg-tunet-signal/15 text-tunet-signal hover:bg-tunet-signal/25 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-tunet-signal/15"
             >
               {NEXT_STATUS_LABEL[task.status]}
-              <ArrowUpRight className="w-3 h-3" />
-            </button>
+              <ArrowUpRight data-icon="inline-end" aria-hidden="true" />
+            </Button>
           </div>
-        )}
-
-        {!canChangeStatus && showAdvance && (
-          <p className="text-[10px] text-tunet-text-muted text-center mt-2">
-            Status hanya bisa diubah oleh NOC
-          </p>
         )}
       </CardContent>
 
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <DialogContent className="bg-tunet-surface border-tunet-border">
+        <DialogContent className="bg-tunet-surface">
           <DialogHeader>
-            <DialogTitle className="text-tunet-text">
-              {COPY.taskDetail.deleteConfirmTitle}
-            </DialogTitle>
-            <DialogDescription className="text-tunet-text-muted">
-              {COPY.taskDetail.deleteConfirmDesc(task.title)}
-            </DialogDescription>
+            <DialogTitle>{COPY.taskDetail.deleteConfirmTitle}</DialogTitle>
+            <DialogDescription>{COPY.taskDetail.deleteConfirmDesc(task.title)}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setDeleteOpen(false)}
-              className="border-tunet-border text-tunet-text"
-            >
+            <Button variant="outline" onClick={() => setDeleteOpen(false)}>
               {COPY.actions.cancel}
             </Button>
-            <Button
-              onClick={handleDelete}
-              disabled={deleting}
-              className="bg-status-overdue hover:bg-status-overdue/90 text-white"
-            >
+            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
               {deleting ? COPY.taskDetail.deleting : COPY.actions.delete}
             </Button>
           </DialogFooter>

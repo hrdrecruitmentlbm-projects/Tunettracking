@@ -11,6 +11,7 @@ import { useIncrementalLocations } from "@/hooks/use-incremental-locations";
 import { MapPinOff } from "lucide-react";
 import { COPY } from "@/lib/copy";
 import { CoordsHUD } from "./coords-hud";
+import { cn } from "@/lib/utils";
 import "leaflet/dist/leaflet.css";
 
 delete (L.Icon.Default.prototype as { _getIconUrl?: unknown })._getIconUrl;
@@ -166,6 +167,33 @@ function MapFocusController({
   return null;
 }
 
+function MapResizeController({ layoutKey }: { layoutKey?: string | number }) {
+  const map = useMap();
+
+  useEffect(() => {
+    const container = map.getContainer();
+    let frame = 0;
+
+    const invalidate = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => map.invalidateSize({ animate: false }));
+    };
+
+    invalidate();
+    const observer = new ResizeObserver(invalidate);
+    observer.observe(container);
+    const transitionTimer = window.setTimeout(invalidate, 320);
+
+    return () => {
+      cancelAnimationFrame(frame);
+      window.clearTimeout(transitionTimer);
+      observer.disconnect();
+    };
+  }, [layoutKey, map]);
+
+  return null;
+}
+
 function formatTimeWIB(iso: string): string {
   const d = new Date(iso);
   return d.toLocaleString("id-ID", {
@@ -190,6 +218,10 @@ interface RadarMapProps {
   showRoles?: ("foc" | "noc" | "marketing")[];
   focusUserId?: string | null;
   sessionDate?: string; // YYYY-MM-DD; defaults to today's session date
+  incidentFilter?: "all" | "active" | "overdue";
+  layoutKey?: string | number;
+  variant?: "card" | "flush";
+  coordsClassName?: string;
 }
 
 export function RadarMap({
@@ -197,6 +229,10 @@ export function RadarMap({
   showRoles = ["foc"],
   focusUserId = null,
   sessionDate,
+  incidentFilter = "all",
+  layoutKey,
+  variant = "card",
+  coordsClassName,
 }: RadarMapProps) {
   const [locations, setLocations] = useState<Location[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -326,8 +362,33 @@ export function RadarMap({
 
   const visibleLocations = locations.filter((loc) => {
     const role = loc.user?.role;
-    return role && showRoles.includes(role as "foc" | "noc" | "marketing");
+    if (!role || !showRoles.includes(role as "foc" | "noc" | "marketing")) {
+      return false;
+    }
+
+    if (incidentFilter === "all") return true;
+
+    const assignedTasks = tasks.filter(
+      (task) => task.assigned_to === loc.user_id && task.status !== "done"
+    );
+    if (incidentFilter === "active") {
+      return assignedTasks.some((task) => task.status === "in_progress");
+    }
+
+    return assignedTasks.some(
+      (task) => task.deadline && new Date(task.deadline) < new Date()
+    );
   });
+
+  const overdueLocationCount = visibleLocations.filter((location) =>
+    tasks.some(
+      (task) =>
+        task.assigned_to === location.user_id &&
+        task.status !== "done" &&
+        task.deadline &&
+        new Date(task.deadline) < new Date()
+    )
+  ).length;
 
   const getMarkerColor = (location: Location) => {
     if (showRoles.includes("foc") && location.user?.role === "foc") {
@@ -461,7 +522,21 @@ export function RadarMap({
   }
 
   return (
-    <div style={{ height }} className="rounded-xl overflow-hidden border border-tunet-border relative">
+    <div
+      style={{ height }}
+      role="region"
+      aria-label="Peta operasional langsung"
+      className={cn(
+        "overflow-hidden relative bg-[#0A0F1C]",
+        variant === "card" && "rounded-xl border border-tunet-border"
+      )}
+    >
+      <p className="sr-only" aria-live="polite">
+        {visibleLocations.length} personel terlihat di peta.
+        {overdueLocationCount > 0
+          ? ` ${overdueLocationCount} personel memiliki tugas terlambat.`
+          : " Tidak ada personel dengan tugas terlambat pada tampilan ini."}
+      </p>
       {isHistorical && pings.length === 0 && visits.length === 0 && (
         <div className="absolute inset-0 z-[400] flex items-center justify-center bg-black/50 pointer-events-none">
           <div className="text-center space-y-2 px-6 py-4 rounded-lg bg-tunet-surface/80 border border-tunet-border">
@@ -475,7 +550,8 @@ export function RadarMap({
       )}
       <MapContainer center={center} zoom={13} style={{ height: "100%", width: "100%" }}>
         <MapFocusController locations={visibleLocations} focusUserId={focusUserId} />
-        <CoordsHUD />
+        <MapResizeController layoutKey={layoutKey} />
+        <CoordsHUD className={coordsClassName} />
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
           url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"

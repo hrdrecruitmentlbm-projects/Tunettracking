@@ -1,25 +1,38 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
-import { fetchUsers, fetchLocations, fetchTasks, getSessionDate } from "@/lib/db";
+import {
+  ArrowLeft,
+  Calendar,
+  ChevronDown,
+  ChevronUp,
+  Clock,
+  LocateFixed,
+  MapPin,
+  Radio,
+  Search,
+  UserRound,
+  Wifi,
+  X,
+} from "lucide-react";
+import { fetchLocations, fetchTasks, fetchUsers, getSessionDate } from "@/lib/db";
 import { supabase } from "@/lib/supabase";
 import { User, Location, Task, UserRole } from "@/types";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
-import { Wifi, ArrowLeft, Search, MapPin, Users as UsersIcon, Calendar } from "lucide-react";
 import { getRelativeTime } from "@/lib/time";
 import { COPY } from "@/lib/copy";
+import { cn } from "@/lib/utils";
 import { useHeartbeat } from "@/hooks/use-heartbeat";
 
 const RadarMap = dynamic(() => import("@/components/map/radar-map").then((m) => m.RadarMap), {
   ssr: false,
   loading: () => (
-    <div className="h-full w-full rounded-xl bg-tunet-surface border border-tunet-border flex items-center justify-center">
-      <div className="text-tunet-text-muted text-sm">{COPY.loading.map}</div>
+    <div className="h-full w-full bg-[#0A0F1C] flex items-center justify-center">
+      <div className="text-slate-400 text-sm">{COPY.loading.map}</div>
     </div>
   ),
 });
@@ -33,6 +46,12 @@ const DASHBOARD_ROUTES: Record<UserRole, string> = {
 
 type VisibleRole = "foc" | "noc" | "marketing";
 
+const ROLE_FILTERS: Array<{ value: VisibleRole; label: string }> = [
+  { value: "foc", label: "FOC" },
+  { value: "noc", label: "NOC" },
+  { value: "marketing", label: "Marketing" },
+];
+
 export default function MapPage() {
   const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
@@ -45,382 +64,527 @@ export default function MapPage() {
   const [showRoles, setShowRoles] = useState<VisibleRole[]>(["foc"]);
   const [selectedDate, setSelectedDate] = useState<string>(() => getSessionDate());
   const [currentUserId, setCurrentUserId] = useState<string | undefined>(undefined);
-  const [userRole, setUserRole] = useState<string>("noc");
+  const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
 
   useHeartbeat({ userId: currentUserId });
 
   useEffect(() => {
     const stored = localStorage.getItem("tutrack-user");
     if (stored) {
-      const user: User = JSON.parse(stored);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setDashboardPath(DASHBOARD_ROUTES[user.role] || DASHBOARD_ROUTES.noc);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setCurrentUserId(user.id);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setUserRole(user.role);
-      if (user.role === "admin") {
+      try {
+        const user: User = JSON.parse(stored);
         // eslint-disable-next-line react-hooks/set-state-in-effect
-        setShowRoles(["foc", "noc", "marketing"]);
-      } else if (user.role === "marketing") {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setShowRoles(["foc", "marketing"]);
+        setDashboardPath(DASHBOARD_ROUTES[user.role] || DASHBOARD_ROUTES.noc);
+        setCurrentUserId(user.id);
+        if (user.role === "admin") {
+          setShowRoles(["foc", "noc", "marketing"]);
+        } else if (user.role === "marketing") {
+          setShowRoles(["foc", "marketing"]);
+        }
+      } catch {
+        // Invalid cached session is handled by the destination dashboard.
       }
     }
   }, []);
+
   useEffect(() => {
+    let cancelled = false;
+
     async function load() {
-      const [u, l, t] = await Promise.all([fetchUsers(), fetchLocations(), fetchTasks()]);
-      setUsers(u);
-      setLocations(l);
-      setTasks(t);
+      const [nextUsers, nextLocations, nextTasks] = await Promise.all([
+        fetchUsers(),
+        fetchLocations(),
+        fetchTasks(),
+      ]);
+      if (cancelled) return;
+      setUsers(nextUsers);
+      setLocations(nextLocations);
+      setTasks(nextTasks);
       setLoading(false);
     }
+
     load();
 
-    // Live-update sidebar timestamps when a FOC reports a new location.
-    // The RadarMap component has its own internal Realtime subscription;
-    // this one keeps the sidebar in sync without a page refresh.
     const channel = supabase
-      .channel(`map-sidebar-locations-${Date.now()}`)
+      .channel(`map-context-${Date.now()}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "locations" },
         async () => {
-          const l = await fetchLocations();
-          setLocations(l);
+          const nextLocations = await fetchLocations();
+          if (!cancelled) setLocations(nextLocations);
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "tasks" },
+        async () => {
+          const nextTasks = await fetchTasks();
+          if (!cancelled) setTasks(nextTasks);
         }
       )
       .subscribe();
 
     return () => {
+      cancelled = true;
       supabase.removeChannel(channel);
     };
   }, []);
 
-  const focUsers = useMemo(
-    () => users.filter((u) => u.role === "foc"),
-    [users]
-  );
-  const nocUsers = useMemo(
-    () => users.filter((u) => u.role === "noc"),
-    [users]
-  );
-  const marketingUsers = useMemo(
-    () => users.filter((u) => u.role === "marketing"),
-    [users]
-  );
+  const filteredUsers = useMemo(() => {
+    const query = search.toLowerCase().trim();
+    return users.filter((user) => {
+      const roleVisible = showRoles.includes(user.role as VisibleRole);
+      return roleVisible && (!query || user.name.toLowerCase().includes(query));
+    });
+  }, [search, showRoles, users]);
 
-  const filteredFoc = useMemo(() => {
-    const q = search.toLowerCase().trim();
-    if (!q) return focUsers;
-    return focUsers.filter((u) => u.name.toLowerCase().includes(q));
-  }, [focUsers, search]);
+  const focusedUser = users.find((user) => user.id === focusUserId) ?? null;
+  const focusedLocation =
+    locations.find((location) => location.user_id === focusUserId) ?? null;
+  const focusedTasks = tasks.filter(
+    (task) => task.assigned_to === focusUserId && task.status !== "done"
+  );
+  const focusedOverdue = focusedTasks.filter(
+    (task) => task.deadline && new Date(task.deadline) < new Date()
+  ).length;
 
-  const getMarkerColor = (userId: string) => {
-    const hasActiveTask = tasks.some(
-      (t) => t.assigned_to === userId && t.status === "in_progress"
-    );
-    const hasOverdueTask = tasks.some(
-      (t) =>
-        t.assigned_to === userId &&
-        t.deadline &&
-        new Date(t.deadline) < new Date() &&
-        t.status !== "done"
-    );
-
-    if (hasOverdueTask) return "bg-status-overdue";
-    if (hasActiveTask) return "bg-tunet-green";
-    return "bg-status-progress";
-  };
+  const activeLocationCount = locations.filter((location) =>
+    showRoles.includes(location.user?.role as VisibleRole)
+  ).length;
 
   const toggleRole = (role: VisibleRole) => {
-    setShowRoles((prev) =>
-      prev.includes(role) ? prev.filter((r) => r !== role) : [...prev, role]
+    setShowRoles((previous) =>
+      previous.includes(role)
+        ? previous.filter((item) => item !== role)
+        : [...previous, role]
     );
   };
 
-  const handleFocClick = (userId: string) => {
+  const handleUserFocus = (userId: string) => {
     setFocusUserId(userId);
+    setMobilePanelOpen(false);
   };
 
   if (loading) {
-    return (
-      <div className="h-screen flex flex-col bg-tunet-bg">
-        <div className="h-16 border-b border-tunet-border flex items-center justify-between px-6">
-          <div className="flex items-center gap-3">
-            <Skeleton className="w-8 h-8 rounded-lg" />
-            <div className="space-y-2">
-              <Skeleton className="h-4 w-24" />
-              <Skeleton className="h-3 w-40" />
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <Skeleton className="w-3 h-3 rounded-full" />
-                <Skeleton className="h-3 w-12" />
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="flex-1 flex">
-          <div className="flex-1 p-4">
-            <Skeleton className="h-full w-full rounded-xl" />
-          </div>
-          <div className="w-80 border-l border-tunet-border p-4 space-y-4">
-            <Skeleton className="h-4 w-32" />
-            <div className="space-y-2">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="flex items-center gap-3 p-2">
-                  <Skeleton className="w-2 h-2 rounded-full" />
-                  <div className="flex-1 space-y-2">
-                    <Skeleton className="h-3 w-24" />
-                    <Skeleton className="h-2 w-32" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+    return <MapPageSkeleton />;
   }
 
   return (
-    <div className="h-screen flex flex-col bg-tunet-bg">
-      <div className="h-16 border-b border-tunet-border flex items-center justify-between px-6 gap-3 flex-wrap">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => router.push(dashboardPath)}
-            className="p-2 rounded-lg hover:bg-tunet-surface-hover text-tunet-text-muted transition-colors"
-            aria-label={COPY.pages.map.back}
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div>
-            <h1 className="text-lg font-semibold text-tunet-text">{COPY.pages.map.title}</h1>
-            <p className="text-xs text-tunet-text-muted">{COPY.pages.map.subtitle}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-4 flex-wrap">
-          <label className="flex items-center gap-1.5 text-xs text-tunet-text-muted cursor-pointer">
-            <input
-              id="filter-foc"
-              type="checkbox"
-              checked={showRoles.includes("foc")}
-              onChange={() => toggleRole("foc")}
-              className="rounded accent-tunet-green"
-            />
-            {COPY.pages.map.roleFoc}
-          </label>
-          <label className="flex items-center gap-1.5 text-xs text-tunet-text-muted cursor-pointer">
-            <input
-              id="filter-noc"
-              type="checkbox"
-              checked={showRoles.includes("noc")}
-              onChange={() => toggleRole("noc")}
-              className="rounded accent-tunet-green"
-            />
-            {COPY.pages.map.roleNoc}
-          </label>
-          <label className="flex items-center gap-1.5 text-xs text-tunet-text-muted cursor-pointer">
-            <input
-              id="filter-marketing"
-              type="checkbox"
-              checked={showRoles.includes("marketing")}
-              onChange={() => toggleRole("marketing")}
-              className="rounded accent-purple-500"
-            />
-            {COPY.pages.map.roleMarketing}
-          </label>
-          <div className="w-px h-4 bg-tunet-border" />
+    <main className="relative h-[100dvh] min-h-[560px] w-full overflow-hidden bg-[#0A0F1C]">
+      <h1 className="sr-only">{COPY.pages.map.title}</h1>
+      <p className="sr-only" aria-live="polite">
+        {activeLocationCount} lokasi personel tersedia. {filteredUsers.length} personel
+        cocok dengan filter saat ini.
+      </p>
+
+      <RadarMap
+        height="100%"
+        variant="flush"
+        showRoles={showRoles}
+        focusUserId={focusUserId}
+        sessionDate={selectedDate}
+        layoutKey={`${showRoles.join("-")}-${selectedDate}-${mobilePanelOpen}`}
+        coordsClassName="bottom-20 md:bottom-4"
+      />
+
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-[450] h-40 bg-gradient-to-b from-black/75 via-black/30 to-transparent" />
+
+      <div className="absolute left-3 top-3 z-[500] flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => router.push(dashboardPath)}
+          className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-[#0A0F1C]/88 text-white shadow-2xl backdrop-blur-xl transition-colors hover:bg-white hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tunet-signal"
+          aria-label={COPY.pages.map.back}
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </button>
+        <div className="rounded-2xl border border-white/10 bg-[#0A0F1C]/88 px-4 py-2.5 shadow-2xl backdrop-blur-xl">
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-tunet-green" />
-            <span className="text-xs text-tunet-text-muted">{COPY.pages.map.legendActive}</span>
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-tunet-signal opacity-60" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-tunet-signal" />
+            </span>
+            <p className="font-display text-sm font-semibold text-white">
+              Radar operasi
+            </p>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-status-progress" />
-            <span className="text-xs text-tunet-text-muted">{COPY.pages.map.legendIdle}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-status-overdue" />
-            <span className="text-xs text-tunet-text-muted">{COPY.pages.map.legendOverdue}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-0.5 bg-[#94A3B8]" />
-            <span className="text-xs text-tunet-text-muted">{COPY.pages.map.legendRoute}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-tunet-bg border-2 border-tunet-green" />
-            <span className="text-xs text-tunet-text-muted">{COPY.pages.map.legendPing}</span>
-          </div>
-          <div className="w-px h-4 bg-tunet-border" />
-          <div className="flex items-center gap-2">
-            <Calendar className="w-3.5 h-3.5 text-tunet-text-muted" />
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              max={getSessionDate()}
-              className="h-7 px-2 text-xs bg-tunet-bg border border-tunet-border rounded-md text-tunet-text focus:outline-none focus:ring-1 focus:ring-tunet-green"
-            />
-            {selectedDate !== getSessionDate() && (
-              <button
-                onClick={() => setSelectedDate(getSessionDate())}
-                className="text-xs text-tunet-green hover:underline"
-              >
-                Hari ini
-              </button>
-            )}
-          </div>
+          <p className="hidden text-[10px] text-slate-300 sm:block">
+            {activeLocationCount} posisi terhubung
+          </p>
         </div>
       </div>
 
-      <div className="flex-1 flex overflow-hidden">
-        <div className="flex-1 p-4">
-          <RadarMap
-            height="100%"
-            showRoles={showRoles}
-            focusUserId={focusUserId}
-            sessionDate={selectedDate}
+      <div className="absolute left-3 right-3 top-20 z-[500] md:right-[380px]">
+        <div className="flex w-fit max-w-full items-center gap-1 overflow-x-auto rounded-2xl border border-white/10 bg-[#0A0F1C]/88 p-1.5 shadow-2xl backdrop-blur-xl">
+          <span className="flex h-9 shrink-0 items-center gap-1.5 px-2 text-[10px] uppercase tracking-wider text-slate-400">
+            <Radio className="h-3.5 w-3.5 text-tunet-signal" />
+            Tim
+          </span>
+          {ROLE_FILTERS.map((role) => {
+            const selected = showRoles.includes(role.value);
+            return (
+              <button
+                key={role.value}
+                type="button"
+                aria-pressed={selected}
+                onClick={() => toggleRole(role.value)}
+                className={cn(
+                  "min-h-9 shrink-0 rounded-xl px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tunet-signal",
+                  selected
+                    ? "bg-white text-slate-950"
+                    : "text-slate-300 hover:bg-white/10 hover:text-white"
+                )}
+              >
+                {role.label}
+              </button>
+            );
+          })}
+          <span className="mx-1 h-5 w-px shrink-0 bg-white/10" />
+          <label className="flex h-9 shrink-0 items-center gap-2 rounded-xl px-2 text-xs text-slate-300">
+            <Calendar className="h-3.5 w-3.5" aria-hidden="true" />
+            <span className="sr-only">Tanggal sesi</span>
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(event) => setSelectedDate(event.target.value)}
+              max={getSessionDate()}
+              className="bg-transparent font-mono text-[11px] text-white outline-none [color-scheme:dark]"
+            />
+          </label>
+          {selectedDate !== getSessionDate() && (
+            <button
+              type="button"
+              onClick={() => setSelectedDate(getSessionDate())}
+              className="min-h-9 shrink-0 rounded-xl px-3 text-xs text-tunet-signal transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tunet-signal"
+            >
+              Hari ini
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="absolute bottom-4 left-3 z-[500] hidden items-center gap-3 rounded-2xl border border-white/10 bg-[#0A0F1C]/88 px-3 py-2 text-[10px] text-slate-300 shadow-2xl backdrop-blur-xl md:flex">
+        <LegendDot className="bg-tunet-green" label={COPY.pages.map.legendActive} />
+        <LegendDot className="bg-status-progress" label={COPY.pages.map.legendIdle} />
+        <LegendDot className="bg-status-overdue" label={COPY.pages.map.legendOverdue} />
+        <span className="flex items-center gap-1.5">
+          <span className="h-0.5 w-4 bg-slate-400" />
+          {COPY.pages.map.legendRoute}
+        </span>
+      </div>
+
+      <aside className="absolute bottom-3 right-3 top-3 z-[500] hidden w-[360px] overflow-hidden rounded-3xl border border-white/10 bg-tunet-surface/94 shadow-2xl backdrop-blur-2xl md:flex md:flex-col">
+        <RosterPanel
+          users={filteredUsers}
+          locations={locations}
+          tasks={tasks}
+          search={search}
+          onSearchChange={setSearch}
+          focusUserId={focusUserId}
+          focusedUser={focusedUser}
+          focusedLocation={focusedLocation}
+          focusedTaskCount={focusedTasks.length}
+          focusedOverdue={focusedOverdue}
+          selectedDate={selectedDate}
+          onFocus={handleUserFocus}
+          onClearFocus={() => setFocusUserId(null)}
+        />
+      </aside>
+
+      <section
+        aria-label="Daftar personel"
+        className={cn(
+          "absolute inset-x-2 bottom-2 z-[600] flex flex-col overflow-hidden rounded-3xl border border-white/10 bg-tunet-surface/96 shadow-2xl backdrop-blur-2xl transition-[height] duration-300 md:hidden",
+          mobilePanelOpen ? "h-[60vh]" : "h-16"
+        )}
+      >
+        <button
+          type="button"
+          onClick={() => setMobilePanelOpen((open) => !open)}
+          className="flex h-16 shrink-0 items-center justify-between px-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-tunet-signal"
+          aria-expanded={mobilePanelOpen}
+        >
+          <div className="flex items-center gap-3">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-tunet-signal/15 text-tunet-signal">
+              <UserRound className="h-4 w-4" />
+            </span>
+            <div>
+              <p className="text-sm font-medium text-tunet-text">
+                {focusedUser ? focusedUser.name : "Personel lapangan"}
+              </p>
+              <p className="text-[10px] text-tunet-text-muted">
+                {filteredUsers.length} personel pada filter ini
+              </p>
+            </div>
+          </div>
+          {mobilePanelOpen ? (
+            <ChevronDown className="h-5 w-5 text-tunet-text-muted" />
+          ) : (
+            <ChevronUp className="h-5 w-5 text-tunet-text-muted" />
+          )}
+        </button>
+
+        {mobilePanelOpen && (
+          <div className="min-h-0 flex-1 border-t border-tunet-border">
+            <RosterPanel
+              users={filteredUsers}
+              locations={locations}
+              tasks={tasks}
+              search={search}
+              onSearchChange={setSearch}
+              focusUserId={focusUserId}
+              focusedUser={focusedUser}
+              focusedLocation={focusedLocation}
+              focusedTaskCount={focusedTasks.length}
+              focusedOverdue={focusedOverdue}
+              selectedDate={selectedDate}
+              onFocus={handleUserFocus}
+              onClearFocus={() => setFocusUserId(null)}
+              compact
+            />
+          </div>
+        )}
+      </section>
+    </main>
+  );
+}
+
+function RosterPanel({
+  users,
+  locations,
+  tasks,
+  search,
+  onSearchChange,
+  focusUserId,
+  focusedUser,
+  focusedLocation,
+  focusedTaskCount,
+  focusedOverdue,
+  selectedDate,
+  onFocus,
+  onClearFocus,
+  compact = false,
+}: {
+  users: User[];
+  locations: Location[];
+  tasks: Task[];
+  search: string;
+  onSearchChange: (value: string) => void;
+  focusUserId: string | null;
+  focusedUser: User | null;
+  focusedLocation: Location | null;
+  focusedTaskCount: number;
+  focusedOverdue: number;
+  selectedDate: string;
+  onFocus: (userId: string) => void;
+  onClearFocus: () => void;
+  compact?: boolean;
+}) {
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className={cn("border-b border-tunet-border", compact ? "p-3" : "p-4")}>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="font-display text-base font-semibold text-tunet-text">
+              Konteks lapangan
+            </p>
+            <p className="mt-0.5 text-xs text-tunet-text-muted">
+              Pilih personel untuk memusatkan peta
+            </p>
+          </div>
+          {focusUserId && (
+            <button
+              type="button"
+              onClick={onClearFocus}
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-tunet-text-muted transition-colors hover:bg-tunet-surface-hover hover:text-tunet-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tunet-signal"
+              aria-label="Hapus fokus personel"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+
+        {focusedUser && (
+          <div className="mt-4 rounded-2xl border border-tunet-signal/25 bg-tunet-signal/8 p-3">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-tunet-signal/15 font-display text-sm font-semibold text-tunet-signal">
+                {focusedUser.name.charAt(0)}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="truncate text-sm font-medium text-tunet-text">
+                      {focusedUser.name}
+                    </p>
+                    <p className="text-[10px] uppercase tracking-wider text-tunet-text-muted">
+                      {focusedUser.role}
+                    </p>
+                  </div>
+                  <LocateFixed className="h-4 w-4 shrink-0 text-tunet-signal" />
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
+                  <span className="rounded-lg bg-tunet-bg/70 px-2 py-1.5 text-tunet-text-muted">
+                    Tugas aktif{" "}
+                    <strong className="font-mono text-tunet-text">
+                      {focusedTaskCount}
+                    </strong>
+                  </span>
+                  <span className="rounded-lg bg-tunet-bg/70 px-2 py-1.5 text-tunet-text-muted">
+                    Terlambat{" "}
+                    <strong
+                      className={cn(
+                        "font-mono",
+                        focusedOverdue > 0
+                          ? "text-status-overdue"
+                          : "text-tunet-text"
+                      )}
+                    >
+                      {focusedOverdue}
+                    </strong>
+                  </span>
+                </div>
+                <p className="mt-2 flex items-center gap-1.5 text-[10px] text-tunet-text-muted">
+                  <Clock className="h-3 w-3" />
+                  {focusedLocation
+                    ? `Posisi ${getRelativeTime(focusedLocation.updated_at)}`
+                    : COPY.pages.map.neverReported}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="relative mt-4">
+          <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-tunet-text-muted" />
+          <Input
+            placeholder={COPY.pages.map.searchPlaceholder}
+            value={search}
+            onChange={(event) => onSearchChange(event.target.value)}
+            className="h-9 bg-tunet-bg pl-9 text-xs text-tunet-text"
           />
         </div>
 
-        <div className="w-80 border-l border-tunet-border flex flex-col">
-          <div className="p-4 flex-1 overflow-hidden border-b border-tunet-border space-y-3 flex flex-col">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-sm font-medium text-tunet-text">
-                  {COPY.pages.map.focCount(filteredFoc.length)}
-                </h2>
-                {selectedDate !== getSessionDate() && (
-                  <p className="text-[10px] text-tunet-text-muted mt-0.5">
-                    {COPY.pages.map.currentPositionNote}
-                  </p>
-                )}
-              </div>
-            </div>
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-tunet-text-muted" />
-              <Input
-                placeholder={COPY.pages.map.searchPlaceholder}
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-8 h-8 text-xs bg-tunet-bg border-tunet-border text-tunet-text"
-              />
-            </div>
-            <ScrollArea className="flex-1">
-              <div className="space-y-1 pr-2">
-                {filteredFoc.length === 0 ? (
-                  <div className="py-4">
-                    <EmptyState
-                      icon={UsersIcon}
-                      title={COPY.empty.noMatchingMembers.title}
-                      description={COPY.empty.noMatchingMembers.description}
-                      variant="inline"
-                    />
-                  </div>
-                ) : (
-                  filteredFoc.map((user) => {
-                    const location = locations.find((l) => l.user_id === user.id);
-                    const isFocused = focusUserId === user.id;
-                    return (
-                      <button
-                        key={user.id}
-                        onClick={() => handleFocClick(user.id)}
-                        className={`w-full text-left flex items-center gap-3 p-2 rounded-lg transition-colors ${
-                          isFocused
-                            ? "bg-tunet-green/10 ring-1 ring-tunet-green/30"
-                            : "hover:bg-tunet-surface-hover"
-                        }`}
-                      >
-                        <div className={`w-2 h-2 rounded-full flex-shrink-0 ${getMarkerColor(user.id)}`} />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm text-tunet-text truncate">{user.name}</p>
-                          <p className="text-xs text-tunet-text-muted">
-                            {location
-                              ? getRelativeTime(location.updated_at)
-                              : COPY.pages.map.neverReported}
-                          </p>
-                        </div>
-                        {location && <Wifi className="w-3.5 h-3.5 text-tunet-green flex-shrink-0" />}
-                      </button>
-                    );
-                  })
-                )}
-              </div>
-            </ScrollArea>
-          </div>
+        {selectedDate !== getSessionDate() && (
+          <p className="mt-2 text-[10px] text-tunet-text-muted">
+            {COPY.pages.map.currentPositionNote}
+          </p>
+        )}
+      </div>
 
-          <div className="p-4 h-28 overflow-auto">
-            <h2 className="text-sm font-medium text-tunet-text-muted mb-3">
-              {COPY.pages.map.nocCount(nocUsers.length)}
-            </h2>
-            {nocUsers.length === 0 ? (
-              <EmptyState
-                icon={MapPin}
-                title={COPY.empty.noLocations.title}
-                description={COPY.empty.noLocations.description}
-                variant="inline"
-              />
-            ) : (
-              <div className="space-y-2">
-                {nocUsers.map((user) => (
-                  <div key={user.id} className="flex items-center gap-3 p-2">
-                    <div className="w-2 h-2 rounded-full bg-status-assigned" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-tunet-text-muted truncate">{user.name}</p>
-                      <p className="text-xs text-tunet-text-muted">{COPY.pages.map.inOffice}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+      <div className="min-h-0 flex-1 overflow-y-auto p-2">
+        {users.length === 0 ? (
+          <div className="py-8">
+            <EmptyState
+              icon={UserRound}
+              title={COPY.empty.noMatchingMembers.title}
+              description={COPY.empty.noMatchingMembers.description}
+              variant="inline"
+            />
           </div>
+        ) : (
+          <div className="space-y-1">
+            {users.map((user) => {
+              const location = locations.find((item) => item.user_id === user.id);
+              const assignedTasks = tasks.filter(
+                (task) => task.assigned_to === user.id && task.status !== "done"
+              );
+              const overdue = assignedTasks.some(
+                (task) => task.deadline && new Date(task.deadline) < new Date()
+              );
+              const active = assignedTasks.some(
+                (task) => task.status === "in_progress"
+              );
+              const selected = focusUserId === user.id;
 
-          <div className="p-4 border-t border-tunet-border">
-            <h2 className="text-sm font-medium text-tunet-text-muted mb-3">
-              {COPY.pages.map.marketingCount(marketingUsers.length)}
-            </h2>
-            {marketingUsers.length === 0 ? (
-              <EmptyState
-                icon={MapPin}
-                title={COPY.empty.noLocations.title}
-                description={COPY.empty.noLocations.description}
-                variant="inline"
-              />
-            ) : (
-              <div className="space-y-2">
-                {marketingUsers.map((user) => {
-                  const location = locations.find((l) => l.user_id === user.id);
-                  return (
-                    <button
-                      key={user.id}
-                      onClick={() => setFocusUserId(user.id)}
-                      className={`w-full text-left flex items-center gap-3 p-2 rounded-lg transition-colors ${
-                        focusUserId === user.id
-                          ? "bg-purple-500/10 ring-1 ring-purple-500/30"
-                          : "hover:bg-tunet-surface-hover"
-                      }`}
-                    >
-                      <div className="w-2 h-2 rounded-full flex-shrink-0 bg-purple-500" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-tunet-text truncate">{user.name}</p>
-                        <p className="text-xs text-tunet-text-muted">
-                          {location
-                            ? getRelativeTime(location.updated_at)
+              return (
+                <button
+                  key={user.id}
+                  type="button"
+                  onClick={() => onFocus(user.id)}
+                  aria-pressed={selected}
+                  className={cn(
+                    "group flex min-h-14 w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tunet-signal",
+                    selected
+                      ? "bg-tunet-signal/12 ring-1 ring-tunet-signal/30"
+                      : "hover:bg-tunet-surface-hover"
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-xs font-semibold",
+                      user.role === "marketing"
+                        ? "bg-purple-500/15 text-purple-400"
+                        : overdue
+                        ? "bg-status-overdue/15 text-status-overdue"
+                        : active
+                        ? "bg-tunet-green/15 text-tunet-green"
+                        : "bg-status-progress/15 text-status-progress"
+                    )}
+                  >
+                    {user.name.charAt(0)}
+                    {location && (
+                      <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-tunet-surface bg-tunet-green" />
+                    )}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center justify-between gap-2">
+                      <span className="truncate text-sm font-medium text-tunet-text">
+                        {user.name}
+                      </span>
+                      <span className="text-[9px] uppercase tracking-wider text-tunet-text-muted">
+                        {user.role}
+                      </span>
+                    </span>
+                    <span className="mt-0.5 flex items-center gap-1.5 text-[10px] text-tunet-text-muted">
+                      {location ? (
+                        <>
+                          <Wifi className="h-3 w-3 text-tunet-green" />
+                          {getRelativeTime(location.updated_at)}
+                        </>
+                      ) : (
+                        <>
+                          <MapPin className="h-3 w-3" />
+                          {user.role === "noc"
+                            ? COPY.pages.map.inOffice
                             : COPY.pages.map.neverReported}
-                        </p>
-                      </div>
-                      {location && <Wifi className="w-3.5 h-3.5 text-purple-500 flex-shrink-0" />}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+                        </>
+                      )}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
           </div>
-        </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function LegendDot({ className, label }: { className: string; label: string }) {
+  return (
+    <span className="flex items-center gap-1.5">
+      <span className={cn("h-2 w-2 rounded-full", className)} />
+      {label}
+    </span>
+  );
+}
+
+function MapPageSkeleton() {
+  return (
+    <div className="relative h-[100dvh] overflow-hidden bg-[#0A0F1C]">
+      <Skeleton className="h-full w-full rounded-none bg-slate-900" />
+      <div className="absolute left-3 top-3 flex gap-2">
+        <Skeleton className="h-11 w-11 rounded-2xl" />
+        <Skeleton className="h-11 w-36 rounded-2xl" />
+      </div>
+      <div className="absolute bottom-3 right-3 top-3 hidden w-[360px] space-y-3 rounded-3xl bg-tunet-surface p-4 md:block">
+        <Skeleton className="h-5 w-32" />
+        <Skeleton className="h-9 w-full rounded-xl" />
+        {Array.from({ length: 6 }).map((_, index) => (
+          <Skeleton key={index} className="h-14 w-full rounded-xl" />
+        ))}
       </div>
     </div>
   );

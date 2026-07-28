@@ -1,8 +1,8 @@
 "use client";
 
-import { Card, CardContent } from "@/components/ui/card";
 import { COPY } from "@/lib/copy";
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface StatCard {
   label: string;
@@ -73,24 +73,20 @@ export function ActivityStats({
   ];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+    <div className="flex flex-col gap-1 border-t border-tunet-border/70 pt-3">
       {stats.map((s) => (
-        <Card key={s.label} className="bg-tunet-surface border-tunet-border">
-          <CardContent className="p-4">
-            <p className="text-[10px] uppercase tracking-wider text-tunet-text-muted">
-              {s.label}
+        <div key={s.label} className="flex min-h-9 items-center justify-between gap-3">
+          <p className="text-xs text-tunet-text-muted">{s.label}</p>
+          <div className="flex items-center gap-2">
+            <p className={cn("font-mono text-sm font-semibold tabular-nums", s.color)}>
+              {s.value}
             </p>
-            <div className="flex items-baseline gap-2 mt-1">
-              <p className={`font-display text-2xl font-semibold tabular-nums ${s.color}`}>
-                {s.value}
-              </p>
-              <div className="flex items-center gap-1">
-                <TrendIcon delta={s.delta} />
-                <TrendText delta={s.delta} />
-              </div>
+            <div className="flex items-center gap-1">
+              <TrendIcon delta={s.delta} />
+              <TrendText delta={s.delta} />
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       ))}
     </div>
   );

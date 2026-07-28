@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Sidebar } from "./sidebar";
+import { BottomNav } from "./bottom-nav";
 import { User } from "@/types";
 import { Loader2 } from "lucide-react";
 import { useSessionTimer } from "@/hooks/use-session-timer";
@@ -72,18 +73,22 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   }
 
   return (
-    <div className="min-h-screen flex bg-tunet-bg">
+    <div className="dashboard-shell min-h-svh flex bg-tunet-bg">
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[100] focus:px-4 focus:py-2 focus:bg-tunet-green focus:text-white focus:rounded-lg focus:text-sm focus:font-medium focus:outline-none focus:ring-2 focus:ring-tunet-green focus:ring-offset-2 focus:ring-offset-tunet-bg"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:min-h-11 focus:px-4 focus:py-2.5 focus:bg-tunet-signal focus:text-slate-950 focus:rounded-xl focus:text-sm focus:font-semibold focus:outline-none focus:ring-2 focus:ring-white/70 focus:ring-offset-2 focus:ring-offset-tunet-bg"
       >
         Lewati ke konten utama
       </a>
       <Sidebar user={user} />
-      <main id="main-content" className="flex-1 overflow-auto w-full md:w-auto">
+      <main
+        id="main-content"
+        className="relative min-w-0 flex-1 overflow-auto w-full pb-[calc(5rem+env(safe-area-inset-bottom))] md:w-auto md:pb-0"
+      >
         <div aria-live="polite" aria-atomic="true" className="sr-only" id="tutrack-live-region" />
         {children}
       </main>
+      <BottomNav role={user.role} />
     </div>
   );
 }

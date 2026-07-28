@@ -1,15 +1,13 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, Suspense } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, Suspense } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { SignalTower } from "@/components/icons/brand-icons";
-import { BottomNav } from "@/components/layout/bottom-nav";
 import { TaskCard } from "@/components/tasks/task-card";
 import { TaskDetail } from "@/components/tasks/task-detail";
 import { fetchTasks, upsertLocation, updateTaskStatus } from "@/lib/db";
-import { Task, TaskStatus, User } from "@/types";
-import { Card, CardContent } from "@/components/ui/card";
+import { PRIORITY_CONFIG, STATUS_CONFIG, Task, TaskStatus, User } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -21,6 +19,8 @@ import {
   Navigation,
   Send,
   Timer,
+  ArrowUpRight,
+  ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { COPY } from "@/lib/copy";
@@ -30,6 +30,24 @@ import { useHeartbeat } from "@/hooks/use-heartbeat";
 
 const LOCATION_INTERVAL = 2 * 60 * 1000;
 const TELEGRAM_BOT_USERNAME = "TuTrackTrackingBot";
+const NEXT_STATUS: Record<TaskStatus, TaskStatus | null> = {
+  assigned: "in_progress",
+  in_progress: "review",
+  review: "done",
+  done: null,
+};
+const NEXT_STATUS_LABEL: Record<TaskStatus, string | null> = {
+  assigned: COPY.taskCard.start,
+  in_progress: COPY.taskCard.submitReview,
+  review: COPY.taskCard.complete,
+  done: null,
+};
+const FOC_TASK_ORDER: Record<TaskStatus, number> = {
+  in_progress: 0,
+  assigned: 1,
+  review: 2,
+  done: 3,
+};
 
 function formatCountdown(ms: number): string {
   if (ms <= 0) return "0:00";
@@ -39,9 +57,36 @@ function formatCountdown(ms: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
+function compareFieldTasks(a: Task, b: Task): number {
+  const statusDelta = FOC_TASK_ORDER[a.status] - FOC_TASK_ORDER[b.status];
+  if (statusDelta !== 0) return statusDelta;
+  if (!a.deadline && !b.deadline) return 0;
+  if (!a.deadline) return 1;
+  if (!b.deadline) return -1;
+  return new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
+}
+
+function formatTaskDeadline(deadline?: string): string {
+  if (!deadline) return "Tanpa tenggat";
+  const date = new Date(deadline);
+  if (Number.isNaN(date.getTime())) return "Tenggat belum tersedia";
+  return new Intl.DateTimeFormat("id-ID", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
 export default function FOCDashboardPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense
+      fallback={
+        <DashboardLayout>
+          <FOCDashboardSkeleton />
+        </DashboardLayout>
+      }
+    >
       <FOCDashboard />
     </Suspense>
   );
@@ -101,7 +146,6 @@ function FOCDashboard() {
       if (target) {
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setSelectedTask(target);
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setDetailOpen(true);
         const params = new URLSearchParams(Array.from(searchParams.entries()).filter(([k]) => k !== "task"));
         const qs = params.toString();
@@ -178,13 +222,11 @@ function FOCDashboard() {
     }
     const tick = () => {
       if (!lastUpdated) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setCountdownMs(LOCATION_INTERVAL);
         return;
       }
       const elapsed = Date.now() - lastUpdated.getTime();
       const remaining = Math.max(0, LOCATION_INTERVAL - elapsed);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCountdownMs(remaining);
     };
     tick();
@@ -192,9 +234,27 @@ function FOCDashboard() {
     return () => clearInterval(id);
   }, [locationEnabled, lastUpdated]);
 
-  const myTasks = tasks.filter((t) => t.assigned_to === userId);
-  const pendingTasks = myTasks.filter((t) => t.status !== "done");
-  const completedTasks = myTasks.filter((t) => t.status === "done");
+  const myTasks = useMemo(
+    () => tasks.filter((task) => task.assigned_to === userId),
+    [tasks, userId]
+  );
+  const pendingTasks = useMemo(
+    () => myTasks.filter((task) => task.status !== "done").sort(compareFieldTasks),
+    [myTasks]
+  );
+  const completedTasks = useMemo(
+    () =>
+      myTasks
+        .filter((task) => task.status === "done")
+        .sort(
+          (a, b) =>
+            new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+        ),
+    [myTasks]
+  );
+  const activeTask = pendingTasks[0] ?? null;
+  const nextTask = pendingTasks[1] ?? null;
+  const timelineTasks = [...pendingTasks.slice(2), ...completedTasks];
 
   const handleStatusChange = async (taskId: string, newStatus: TaskStatus) => {
     if (!userId) return;
@@ -276,194 +336,149 @@ function FOCDashboard() {
 
   return (
     <DashboardLayout>
-      <div className="min-h-screen bg-tunet-bg pb-20 md:pb-0">
-        <div className="h-16 border-b border-tunet-border flex items-center justify-between px-4 md:px-6 pl-16 md:pl-6">
+      <div className="min-h-screen bg-tunet-bg pb-6">
+        <div className="min-h-16 border-b border-tunet-border flex items-center justify-between gap-3 px-4 py-3 md:px-6 pl-16 md:pl-6">
           <div>
-            <h1 className="text-lg font-semibold text-tunet-text">{COPY.pages.foc.title}</h1>
-            <p className="text-xs text-tunet-text-muted">{COPY.pages.foc.subtitle}</p>
+            <h1 className="font-display text-xl font-semibold text-tunet-text">
+              {COPY.pages.foc.title}
+            </h1>
+            <p className="text-sm text-tunet-text-muted">{COPY.pages.foc.subtitle}</p>
           </div>
-          <div className="flex items-center gap-3">
-            <Badge variant="outline" className="text-tunet-green border-tunet-green">
-              {COPY.pages.foc.pending(pendingTasks.length)}
-            </Badge>
-          </div>
+          <Badge
+            variant="outline"
+            className="shrink-0 border-tunet-green/60 bg-tunet-green/10 text-tunet-green"
+          >
+            {COPY.pages.foc.pending(pendingTasks.length)}
+          </Badge>
         </div>
 
-        {/* Persistent Location Sharing Card (always visible, no tab) */}
-        <div className="p-4 md:p-6 border-b border-tunet-border">
-          <Card className="bg-tunet-surface border-tunet-border">
-            <CardContent className="p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3 min-w-0 flex-1">
-                  <div
-                    className={`w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0 ${
+        <section
+          aria-labelledby="location-sharing-title"
+          className="sticky top-0 z-20 border-b border-tunet-border bg-tunet-bg/95 px-4 py-3 backdrop-blur-md md:px-6"
+        >
+          <div className="mx-auto max-w-3xl">
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <div
+                  className={`flex size-11 shrink-0 items-center justify-center rounded-xl ${
+                    locationEnabled
+                      ? "bg-tunet-green/15 text-tunet-green"
+                      : "bg-tunet-surface text-tunet-text-muted"
+                  }`}
+                >
+                  <SignalTower
+                    aria-hidden="true"
+                    className={`size-5 ${
                       locationEnabled
-                        ? "bg-tunet-green/20 text-tunet-green"
-                        : "bg-tunet-surface-hover text-tunet-text-muted"
+                        ? "motion-safe:animate-pulse motion-reduce:animate-none"
+                        : ""
                     }`}
-                  >
-                    {locationEnabled ? (
-                      <SignalTower className="w-6 h-6 animate-pulse" />
-                    ) : (
-                      <SignalTower className="w-6 h-6" />
-                    )}
+                  />
+                </div>
+                <div className="min-w-0">
+                  <h2 id="location-sharing-title" className="text-sm font-semibold text-tunet-text">
+                    Pelacakan lokasi
+                  </h2>
+                  <p className="truncate text-sm text-tunet-text-muted" role="status">
+                    {locationEnabled
+                      ? lastUpdated
+                        ? `Aktif, diperbarui ${lastUpdated.toLocaleTimeString("id-ID", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}`
+                        : "Aktif, mengambil posisi terbaru"
+                      : "Tidak aktif"}
+                  </p>
+                </div>
+              </div>
+
+              <Button
+                onClick={toggleLocation}
+                aria-pressed={locationEnabled}
+                variant={locationEnabled ? "outline" : "default"}
+                className={
+                  locationEnabled
+                    ? "min-h-11 min-w-24 border-tunet-green/60 text-tunet-green hover:bg-tunet-green/10"
+                    : "min-h-11 min-w-24 bg-emerald-700 text-white hover:bg-emerald-800"
+                }
+              >
+                {locationEnabled ? "Matikan" : "Aktifkan"}
+              </Button>
+            </div>
+
+            {locationEnabled && (
+              <div className="mt-3 grid gap-2 border-t border-tunet-border pt-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                <div className="grid min-w-0 grid-cols-2 gap-2 text-sm text-tunet-text-muted">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <MapPin aria-hidden="true" className="size-4 shrink-0" />
+                    <span className="truncate font-mono text-xs">
+                      {currentLocation
+                        ? `${currentLocation.lat.toFixed(5)}, ${currentLocation.lng.toFixed(5)}`
+                        : "Mengambil lokasi"}
+                    </span>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-tunet-text">Bagikan Lokasi Saya</p>
-                    <p className="text-xs text-tunet-text-muted">
-                      {locationEnabled
-                        ? "Aktif • Pembaruan otomatis setiap 2 menit"
-                        : "Aktifkan agar NOC dapat melacak posisi Anda"}
-                    </p>
+                  <div className="flex items-center justify-end gap-2">
+                    <Timer aria-hidden="true" className="size-4 shrink-0" />
+                    <span className="font-mono text-xs">
+                      Berikutnya {formatCountdown(countdownMs)}
+                    </span>
                   </div>
                 </div>
                 <Button
-                  onClick={toggleLocation}
-                  variant={locationEnabled ? "outline" : "default"}
-                  size="lg"
-                  className={
-                    locationEnabled
-                      ? "border-tunet-green text-tunet-green hover:bg-tunet-green/10"
-                      : "bg-tunet-green hover:bg-tunet-green-dark text-white"
-                  }
+                  onClick={handleManualUpdate}
+                  disabled={updatingLocation}
+                  variant="outline"
+                  className="min-h-11 w-full border-tunet-border text-tunet-text hover:bg-tunet-surface-hover sm:w-auto"
                 >
-                  {locationEnabled ? "Nonaktifkan" : "Aktifkan"}
+                  {updatingLocation ? (
+                    <>
+                      <RefreshCw
+                        aria-hidden="true"
+                        className="mr-2 size-4 motion-safe:animate-spin motion-reduce:animate-none"
+                      />
+                      Memperbarui
+                    </>
+                  ) : (
+                    <>
+                      <Navigation aria-hidden="true" className="mr-2 size-4" />
+                      Perbarui sekarang
+                    </>
+                  )}
                 </Button>
               </div>
+            )}
+          </div>
+        </section>
 
-              {locationEnabled && (
-                <div className="pt-3 border-t border-tunet-border space-y-2">
-                  <div className="flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-2 text-tunet-text-muted">
-                      <MapPin className="w-3.5 h-3.5" />
-                      <span className="font-mono">
-                        {currentLocation
-                          ? `${currentLocation.lat.toFixed(6)}, ${currentLocation.lng.toFixed(6)}`
-                          : "Mengambil lokasi..."}
-                      </span>
-                    </div>
-                    {lastUpdated && (
-                      <div className="flex items-center gap-1.5 text-tunet-text-muted">
-                        <Timer className="w-3.5 h-3.5" />
-                        <span className="font-mono">{formatCountdown(countdownMs)}</span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 text-xs text-tunet-text-muted">
-                    <RefreshCw className="w-3.5 h-3.5" />
-                    <span>Terakhir diperbarui: {lastUpdated ? lastUpdated.toLocaleTimeString() : "—"}</span>
-                  </div>
-                  <Button
-                    onClick={handleManualUpdate}
-                    disabled={updatingLocation}
-                    variant="outline"
-                    size="sm"
-                    className="w-full border-tunet-border text-tunet-text hover:bg-tunet-surface-hover"
-                  >
-                    {updatingLocation ? (
-                      <>
-                        <RefreshCw className="w-3.5 h-3.5 mr-2 animate-spin" />
-                        Memperbarui...
-                      </>
-                    ) : (
-                      <>
-                        <Navigation className="w-3.5 h-3.5 mr-2" />
-                        Perbarui Lokasi Saya Sekarang
-                      </>
-                    )}
-                  </Button>
-                </div>
+        <div className="mx-auto max-w-3xl space-y-8 p-4 md:p-6">
+          {activeTask && (
+            <div className="grid gap-6 lg:grid-cols-[minmax(0,1.12fr)_minmax(0,0.88fr)]">
+              <FOCFocusTask
+                heading={
+                  activeTask.status === "in_progress"
+                    ? "Sedang dikerjakan"
+                    : "Tugas utama"
+                }
+                description="Prioritas pertama untuk diselesaikan di lapangan."
+                task={activeTask}
+                onOpen={handleTaskClick}
+                onAdvance={handleStatusChange}
+                prominent
+              />
+              {nextTask && (
+                <FOCFocusTask
+                  heading="Berikutnya"
+                  description="Siap setelah tugas utama bergerak ke tahap selanjutnya."
+                  task={nextTask}
+                  onOpen={handleTaskClick}
+                  onAdvance={handleStatusChange}
+                />
               )}
-
-              {/* Telegram integration - compact section below */}
-              <div className="pt-3 border-t border-tunet-border">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <div
-                      className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                        telegramUsername
-                          ? "bg-tunet-green/20 text-tunet-green"
-                          : "bg-tunet-surface-hover text-tunet-text-muted"
-                      }`}
-                    >
-                      <Send className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-medium text-tunet-text">Bot Telegram</p>
-                      <p className="text-[10px] text-tunet-text-muted truncate">
-                        {telegramUsername
-                          ? `Terhubung: ${telegramUsername}`
-                          : "Belum terhubung"}
-                      </p>
-                    </div>
-                  </div>
-                  {telegramUsername && (
-                    <a
-                      href={`https://t.me/${TELEGRAM_BOT_USERNAME}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center justify-center px-2 py-1 text-xs rounded-md bg-tunet-green/20 text-tunet-green hover:bg-tunet-green/30"
-                    >
-                      <Send className="w-3 h-3 mr-1" />
-                      Buka
-                    </a>
-                  )}
-                </div>
-                {telegramUsername && (
-                  <p className="text-[10px] text-tunet-text-muted mt-2">
-                    📍 Tap 📎 → Lokasi → Bagikan di bot untuk share lokasi via Telegram (bahkan saat browser ditutup)
-                  </p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="p-4 md:p-6 space-y-4">
-          {pendingTasks.length > 0 && (
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm font-medium text-tunet-text">{COPY.pages.foc.activeTasks}</h2>
-                <span className="text-xs text-tunet-text-muted">
-                  {COPY.pages.foc.taskCountOne(pendingTasks.length)}
-                </span>
-              </div>
-              <div className="space-y-3">
-                {pendingTasks.map((task) => (
-                  <TaskCard
-                    key={task.id}
-                    task={task}
-                    onStatusChange={handleStatusChange}
-                    onClick={handleTaskClick}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {completedTasks.length > 0 && (
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <CheckCircle className="w-4 h-4 text-status-done" />
-                <h2 className="text-sm font-medium text-tunet-text-muted">{COPY.pages.foc.completed}</h2>
-                <span className="text-xs text-tunet-text-muted">({completedTasks.length})</span>
-              </div>
-              <div className="space-y-3">
-                {completedTasks.map((task) => (
-                  <div key={task.id} className="relative">
-                    <div className="absolute -left-1 top-3 bottom-3 w-0.5 bg-status-done/40 rounded-full" />
-                    <TaskCard
-                      task={task}
-                      onClick={handleTaskClick}
-                    />
-                  </div>
-                ))}
-              </div>
             </div>
           )}
 
           {myTasks.length === 0 && (
-            <div className="py-8">
+            <div className="py-10">
               <EmptyState
                 icon={CheckCircle}
                 title={COPY.empty.noActiveTasks.title}
@@ -471,9 +486,86 @@ function FOCDashboard() {
               />
             </div>
           )}
-        </div>
 
-        {currentUser && <BottomNav role={currentUser.role} />}
+          {timelineTasks.length > 0 && (
+            <section aria-labelledby="task-timeline-title">
+              <div className="mb-4 flex items-end justify-between gap-4">
+                <div>
+                  <h2
+                    id="task-timeline-title"
+                    className="font-display text-lg font-semibold text-tunet-text"
+                  >
+                    Alur kerja hari ini
+                  </h2>
+                  <p className="text-sm text-tunet-text-muted">
+                    Sisa antrean dan tugas yang sudah selesai.
+                  </p>
+                </div>
+                <span className="shrink-0 text-sm text-tunet-text-muted">
+                  {timelineTasks.length} tugas
+                </span>
+              </div>
+              <ol className="space-y-3">
+                {timelineTasks.map((task, index) => (
+                  <FOCTimelineTask
+                    key={task.id}
+                    task={task}
+                    isLast={index === timelineTasks.length - 1}
+                    onOpen={handleTaskClick}
+                    onAdvance={handleStatusChange}
+                  />
+                ))}
+              </ol>
+            </section>
+          )}
+
+          <details className="group rounded-2xl border border-tunet-border bg-tunet-surface">
+            <summary className="flex min-h-12 cursor-pointer list-none items-center gap-3 rounded-2xl px-4 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tunet-green/70 [&::-webkit-details-marker]:hidden">
+              <div
+                className={`flex size-10 shrink-0 items-center justify-center rounded-xl ${
+                  telegramUsername
+                    ? "bg-tunet-green/15 text-tunet-green"
+                    : "bg-tunet-surface-hover text-tunet-text-muted"
+                }`}
+              >
+                <Send aria-hidden="true" className="size-4" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-tunet-text">Diagnostik Telegram</p>
+                <p className="truncate text-sm text-tunet-text-muted">
+                  {telegramUsername
+                    ? `Terhubung sebagai ${telegramUsername}`
+                    : "Bot belum terhubung"}
+                </p>
+              </div>
+              <ChevronDown
+                aria-hidden="true"
+                className="size-5 shrink-0 text-tunet-text-muted transition-transform duration-200 motion-reduce:transition-none group-open:rotate-180"
+              />
+            </summary>
+            <div className="space-y-3 border-t border-tunet-border px-4 py-4">
+              <p className="text-sm leading-relaxed text-tunet-text-muted">
+                Bagikan lokasi melalui bot ketika browser tidak dapat tetap terbuka. Di
+                Telegram, pilih lampiran, lalu Lokasi, dan kirimkan ke bot.
+              </p>
+              {telegramUsername ? (
+                <a
+                  href={`https://t.me/${TELEGRAM_BOT_USERNAME}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-tunet-green/60 px-4 text-sm font-medium text-tunet-green transition-colors hover:bg-tunet-green/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tunet-green/70 motion-reduce:transition-none sm:w-auto"
+                >
+                  <Send aria-hidden="true" className="mr-2 size-4" />
+                  Buka bot Telegram
+                </a>
+              ) : (
+                <p className="text-sm text-tunet-text">
+                  Hubungi NOC bila akun Telegram belum terdaftar.
+                </p>
+              )}
+            </div>
+          </details>
+        </div>
 
         <TaskDetail
           task={selectedTask}
@@ -487,47 +579,197 @@ function FOCDashboard() {
   );
 }
 
+interface FOCFocusTaskProps {
+  heading: string;
+  description: string;
+  task: Task;
+  onOpen: (task: Task) => void;
+  onAdvance: (taskId: string, status: TaskStatus) => void;
+  prominent?: boolean;
+}
+
+function FOCFocusTask({
+  heading,
+  description,
+  task,
+  onOpen,
+  onAdvance,
+  prominent = false,
+}: FOCFocusTaskProps) {
+  const nextStatus = NEXT_STATUS[task.status];
+  const actionLabel = NEXT_STATUS_LABEL[task.status];
+
+  return (
+    <section aria-labelledby={`focus-task-${task.id}`}>
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div>
+          <h2
+            id={`focus-task-${task.id}`}
+            className={`font-display font-semibold text-tunet-text ${
+              prominent ? "text-xl" : "text-lg"
+            }`}
+          >
+            {heading}
+          </h2>
+          <p className="mt-1 text-sm text-tunet-text-muted">{description}</p>
+        </div>
+        <Badge
+          variant="outline"
+          className="shrink-0"
+          style={{
+            borderColor: `${STATUS_CONFIG[task.status].color}66`,
+            backgroundColor: `${STATUS_CONFIG[task.status].color}1A`,
+            color: STATUS_CONFIG[task.status].color,
+          }}
+        >
+          {STATUS_CONFIG[task.status].label}
+        </Badge>
+      </div>
+
+      <TaskCard task={task} onClick={onOpen} />
+
+      <div className="mt-3 grid grid-cols-2 gap-3">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => onOpen(task)}
+          className="min-h-12 border-tunet-border text-tunet-text hover:bg-tunet-surface-hover"
+        >
+          Detail tugas
+          <ArrowUpRight aria-hidden="true" className="ml-2 size-4" />
+        </Button>
+        {nextStatus && actionLabel && (
+          <Button
+            type="button"
+            onClick={() => onAdvance(task.id, nextStatus)}
+            aria-label={`${actionLabel}: ${task.title}`}
+            className="min-h-12 bg-emerald-700 text-white hover:bg-emerald-800"
+          >
+            {actionLabel}
+          </Button>
+        )}
+      </div>
+    </section>
+  );
+}
+
+interface FOCTimelineTaskProps {
+  task: Task;
+  isLast: boolean;
+  onOpen: (task: Task) => void;
+  onAdvance: (taskId: string, status: TaskStatus) => void;
+}
+
+function FOCTimelineTask({
+  task,
+  isLast,
+  onOpen,
+  onAdvance,
+}: FOCTimelineTaskProps) {
+  const nextStatus = NEXT_STATUS[task.status];
+  const actionLabel = NEXT_STATUS_LABEL[task.status];
+  const status = STATUS_CONFIG[task.status];
+  const priority = PRIORITY_CONFIG[task.priority];
+
+  return (
+    <li className="relative pl-7">
+      {!isLast && (
+        <span
+          aria-hidden="true"
+          className="absolute bottom-[-0.75rem] left-[0.4375rem] top-5 w-px bg-tunet-border"
+        />
+      )}
+      <span
+        aria-hidden="true"
+        className="absolute left-0 top-5 size-3.5 rounded-full border-[3px] border-tunet-bg"
+        style={{ backgroundColor: status.color }}
+      />
+
+      <div className="rounded-xl border border-tunet-border bg-tunet-surface p-3">
+        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+          <button
+            type="button"
+            onClick={() => onOpen(task)}
+            aria-label={`Buka detail ${task.title}`}
+            className="min-h-14 min-w-0 rounded-lg px-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tunet-green/70"
+          >
+            <span className="flex flex-wrap items-center gap-2">
+              <span className="font-medium text-tunet-text">{task.title}</span>
+              <span
+                className="rounded-full px-2 py-0.5 text-xs font-medium"
+                style={{
+                  backgroundColor: `${status.color}1A`,
+                  color: status.color,
+                }}
+              >
+                {status.label}
+              </span>
+            </span>
+            <span className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-tunet-text-muted">
+              <span className="flex items-center gap-1.5">
+                <MapPin aria-hidden="true" className="size-3.5" />
+                {task.location_name}
+              </span>
+              <span>{formatTaskDeadline(task.deadline)}</span>
+              <span>Prioritas {priority.label}</span>
+            </span>
+          </button>
+
+          {nextStatus && actionLabel && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onAdvance(task.id, nextStatus)}
+              aria-label={`${actionLabel}: ${task.title}`}
+              className="min-h-11 w-full border-tunet-green/60 text-tunet-green hover:bg-tunet-green/10 sm:w-auto"
+            >
+              {actionLabel}
+            </Button>
+          )}
+        </div>
+      </div>
+    </li>
+  );
+}
+
 function FOCDashboardSkeleton() {
   return (
-    <div className="min-h-screen bg-tunet-bg pb-20 md:pb-0">
-      <div className="h-16 border-b border-tunet-border flex items-center justify-between px-4 md:px-6 pl-16 md:pl-6">
+    <div className="min-h-screen bg-tunet-bg pb-6" role="status" aria-label="Memuat tugas lapangan">
+      <div className="min-h-16 border-b border-tunet-border flex items-center justify-between px-4 py-3 md:px-6 pl-16 md:pl-6">
         <div className="space-y-2">
-          <Skeleton className="h-4 w-24" />
-          <Skeleton className="h-3 w-32" />
+          <Skeleton className="h-5 w-28 motion-reduce:animate-none" />
+          <Skeleton className="h-4 w-40 motion-reduce:animate-none" />
         </div>
-        <Skeleton className="h-5 w-16 rounded-full" />
+        <Skeleton className="h-5 w-16 rounded-full motion-reduce:animate-none" />
       </div>
 
-      <div className="p-4 md:p-6 border-b border-tunet-border">
-        <div className="rounded-xl border border-tunet-border bg-tunet-surface p-4 space-y-4">
-          <div className="flex items-center gap-3">
-            <Skeleton className="w-12 h-12 rounded-full" />
-            <div className="flex-1 space-y-2">
-              <Skeleton className="h-4 w-32" />
-              <Skeleton className="h-3 w-48" />
-            </div>
-            <Skeleton className="h-10 w-24" />
+      <div className="border-b border-tunet-border px-4 py-3 md:px-6">
+        <div className="mx-auto flex max-w-3xl items-center gap-3">
+          <Skeleton className="size-11 rounded-xl motion-reduce:animate-none" />
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-4 w-32 motion-reduce:animate-none" />
+            <Skeleton className="h-4 w-48 motion-reduce:animate-none" />
           </div>
+          <Skeleton className="h-11 w-24 rounded-lg motion-reduce:animate-none" />
         </div>
       </div>
 
-      <div className="p-4 md:p-6 space-y-3">
-        {Array.from({ length: 3 }).map((_, i) => (
-          <div
-            key={i}
-            className="rounded-xl border border-tunet-border bg-tunet-surface p-4 space-y-3"
-          >
-            <div className="flex items-center gap-2">
-              <Skeleton className="w-2 h-2 rounded-full" />
-              <Skeleton className="h-3 w-2/3" />
-            </div>
-            <Skeleton className="h-3 w-1/2" />
+      <div className="mx-auto max-w-3xl space-y-5 p-4 md:p-6">
+        <div className="space-y-3">
+          <Skeleton className="h-6 w-40 motion-reduce:animate-none" />
+          <div className="rounded-xl border border-tunet-border bg-tunet-surface p-4 space-y-3">
+            <Skeleton className="h-4 w-2/3 motion-reduce:animate-none" />
+            <Skeleton className="h-4 w-1/2 motion-reduce:animate-none" />
             <div className="flex gap-2">
-              <Skeleton className="h-4 w-16 rounded-full" />
-              <Skeleton className="h-4 w-12 rounded-full" />
+              <Skeleton className="h-5 w-20 rounded-full motion-reduce:animate-none" />
+              <Skeleton className="h-5 w-16 rounded-full motion-reduce:animate-none" />
             </div>
           </div>
-        ))}
+          <div className="grid grid-cols-2 gap-3">
+            <Skeleton className="h-12 rounded-lg motion-reduce:animate-none" />
+            <Skeleton className="h-12 rounded-lg motion-reduce:animate-none" />
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -7,10 +7,10 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
+  --font-sans: var(--font-geist);
   --font-mono: var(--font-mono-data);
-  --font-display: var(--font-display);
-  --font-heading: var(--font-display);
+  --font-display: var(--font-geist);
+  --font-heading: var(--font-geist);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -49,12 +49,12 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 
   /* TuTrack custom colors */
-  --color-tunet-green: #10B981;
-  --color-tunet-green-light: #34D399;
-  --color-tunet-green-dark: #059669;
-  --color-tunet-signal: #22D3EE;
-  --color-tunet-signal-soft: #06B6D4;
-  --color-tunet-ember: #F97316;
+  --color-tunet-green: #18C98B;
+  --color-tunet-green-light: #48DCAA;
+  --color-tunet-green-dark: #0FA975;
+  --color-tunet-signal: #37D9F2;
+  --color-tunet-signal-soft: #12BFD9;
+  --color-tunet-ember: #FF8A4C;
   --color-tunet-surface: var(--tunet-surface);
   --color-tunet-surface-hover: var(--tunet-surface-hover);
   --color-tunet-bg: var(--tunet-bg);
@@ -78,88 +78,88 @@
 }
 
 :root {
-  --background: #F9FAFB;
-  --foreground: #111827;
+  --background: #F2F6F7;
+  --foreground: #101719;
   --card: #FFFFFF;
-  --card-foreground: #111827;
+  --card-foreground: #101719;
   --popover: #FFFFFF;
-  --popover-foreground: #111827;
-  --primary: #10B981;
+  --popover-foreground: #101719;
+  --primary: #0B9DB5;
   --primary-foreground: #FFFFFF;
-  --secondary: #F3F4F6;
-  --secondary-foreground: #111827;
-  --muted: #F3F4F6;
-  --muted-foreground: #6B7280;
-  --accent: #F3F4F6;
-  --accent-foreground: #111827;
-  --destructive: #EF4444;
-  --border: #E5E7EB;
-  --input: #E5E7EB;
-  --ring: #10B981;
-  --chart-1: #10B981;
-  --chart-2: #3B82F6;
-  --chart-3: #F59E0B;
-  --chart-4: #8B5CF6;
-  --chart-5: #EF4444;
-  --radius: 0.625rem;
+  --secondary: #E8EFF1;
+  --secondary-foreground: #101719;
+  --muted: #E8EFF1;
+  --muted-foreground: #617075;
+  --accent: #DDF4F7;
+  --accent-foreground: #075F70;
+  --destructive: #DC3F4B;
+  --border: #D8E1E3;
+  --input: #D8E1E3;
+  --ring: #0B9DB5;
+  --chart-1: #18C98B;
+  --chart-2: #0B9DB5;
+  --chart-3: #F2A23A;
+  --chart-4: #7D6CE0;
+  --chart-5: #DC3F4B;
+  --radius: 0.75rem;
   --sidebar: #FFFFFF;
-  --sidebar-foreground: #111827;
-  --sidebar-primary: #10B981;
+  --sidebar-foreground: #101719;
+  --sidebar-primary: #0B9DB5;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #F3F4F6;
-  --sidebar-accent-foreground: #111827;
-  --sidebar-border: #E5E7EB;
-  --sidebar-ring: #10B981;
+  --sidebar-accent: #E8EFF1;
+  --sidebar-accent-foreground: #101719;
+  --sidebar-border: #D8E1E3;
+  --sidebar-ring: #0B9DB5;
 
   /* TuTrack semantic colors — light */
   --tunet-surface: #FFFFFF;
-  --tunet-surface-hover: #F3F4F6;
-  --tunet-bg: #F9FAFB;
-  --tunet-border: #E5E7EB;
-  --tunet-text: #111827;
-  --tunet-text-muted: #6B7280;
+  --tunet-surface-hover: #E8EFF1;
+  --tunet-bg: #F2F6F7;
+  --tunet-border: #D8E1E3;
+  --tunet-text: #101719;
+  --tunet-text-muted: #617075;
 }
 
 .dark {
-  --background: #0A0F1C;
-  --foreground: #F9FAFB;
-  --card: #111827;
-  --card-foreground: #F9FAFB;
-  --popover: #111827;
-  --popover-foreground: #F9FAFB;
-  --primary: #10B981;
-  --primary-foreground: #FFFFFF;
-  --secondary: #1F2937;
-  --secondary-foreground: #F9FAFB;
-  --muted: #1F2937;
-  --muted-foreground: #9CA3AF;
-  --accent: #1F2937;
-  --accent-foreground: #F9FAFB;
-  --destructive: #EF4444;
-  --border: #1E293B;
-  --input: #1E293B;
-  --ring: #10B981;
-  --chart-1: #10B981;
-  --chart-2: #3B82F6;
-  --chart-3: #F59E0B;
-  --chart-4: #8B5CF6;
-  --chart-5: #EF4444;
-  --sidebar: #111827;
-  --sidebar-foreground: #F9FAFB;
-  --sidebar-primary: #10B981;
-  --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #1F2937;
-  --sidebar-accent-foreground: #F9FAFB;
-  --sidebar-border: #1E293B;
-  --sidebar-ring: #10B981;
+  --background: #080D0F;
+  --foreground: #F3F8F8;
+  --card: #11191C;
+  --card-foreground: #F3F8F8;
+  --popover: #11191C;
+  --popover-foreground: #F3F8F8;
+  --primary: #37D9F2;
+  --primary-foreground: #061013;
+  --secondary: #192427;
+  --secondary-foreground: #F3F8F8;
+  --muted: #192427;
+  --muted-foreground: #8EA0A5;
+  --accent: #173038;
+  --accent-foreground: #92ECF8;
+  --destructive: #F0525D;
+  --border: #223034;
+  --input: #2A3A3E;
+  --ring: #37D9F2;
+  --chart-1: #18C98B;
+  --chart-2: #37D9F2;
+  --chart-3: #FFB454;
+  --chart-4: #9A8AF2;
+  --chart-5: #F0525D;
+  --sidebar: #0D1416;
+  --sidebar-foreground: #F3F8F8;
+  --sidebar-primary: #37D9F2;
+  --sidebar-primary-foreground: #061013;
+  --sidebar-accent: #172428;
+  --sidebar-accent-foreground: #F3F8F8;
+  --sidebar-border: #223034;
+  --sidebar-ring: #37D9F2;
 
   /* TuTrack semantic colors — dark */
-  --tunet-surface: #111827;
-  --tunet-surface-hover: #1F2937;
-  --tunet-bg: #0A0F1C;
-  --tunet-border: #1E293B;
-  --tunet-text: #F9FAFB;
-  --tunet-text-muted: #9CA3AF;
+  --tunet-surface: #11191C;
+  --tunet-surface-hover: #19272B;
+  --tunet-bg: #080D0F;
+  --tunet-border: #223034;
+  --tunet-text: #F3F8F8;
+  --tunet-text-muted: #8EA0A5;
 }
 
 @layer base {
@@ -168,18 +168,65 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-feature-settings: "ss01" 1, "cv05" 1, "cv11" 1;
+    text-rendering: optimizeLegibility;
   }
   html {
     @apply font-sans;
+  }
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+.dashboard-shell {
+  isolation: isolate;
+  background:
+    radial-gradient(circle at 7% 0%, rgb(55 217 242 / 0.07), transparent 28rem),
+    radial-gradient(circle at 96% 100%, rgb(24 201 139 / 0.05), transparent 32rem),
+    var(--tunet-bg);
+}
+
+.dashboard-shell::before {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  content: "";
+  opacity: 0.12;
+  background-image:
+    linear-gradient(rgb(142 160 165 / 0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(142 160 165 / 0.12) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: linear-gradient(to bottom, black, transparent 65%);
+}
+
+.touch-target {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+/* Page-level legacy instances stay hidden; DashboardLayout owns mobile navigation. */
+.mobile-primary-nav {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .dashboard-shell > .mobile-primary-nav {
+    display: block;
   }
 }
 
 /* Leaflet map overrides */
 .dark .leaflet-container {
-  background: #0A0F1C !important;
+  background: #080D0F !important;
 }
 .leaflet-container {
-  background: #F9FAFB !important;
+  background: #F2F6F7 !important;
 }
 
 /* Custom scrollbar */
@@ -189,26 +236,26 @@
 }
 
 .dark ::-webkit-scrollbar-track {
-  background: #111827;
+  background: #11191C;
 }
 ::-webkit-scrollbar-track {
-  background: #F3F4F6;
+  background: #E8EFF1;
 }
 
 .dark ::-webkit-scrollbar-thumb {
-  background: #374151;
+  background: #314247;
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb {
-  background: #D1D5DB;
+  background: #BBC9CC;
   border-radius: 4px;
 }
 
 .dark ::-webkit-scrollbar-thumb:hover {
-  background: #4B5563;
+  background: #42575D;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #9CA3AF;
+  background: #91A4A9;
 }
 
 /* Pulse animation for map markers */
@@ -277,4 +324,17 @@
 
 @media (prefers-reduced-motion: reduce) {
   .notif-row { animation: none; }
+
+  html:focus-within {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

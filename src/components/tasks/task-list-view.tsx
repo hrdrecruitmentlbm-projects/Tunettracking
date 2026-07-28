@@ -17,6 +17,7 @@ import { formatShortDate } from "@/lib/time";
 import { COPY } from "@/lib/copy";
 import { permanentDeleteTask } from "@/lib/db";
 import { toast } from "sonner";
+import { TaskCard } from "@/components/tasks/task-card";
 
 interface TaskListViewProps {
   tasks: Task[];
@@ -52,8 +53,34 @@ export function TaskListView({
   const colCount = canPermanentDelete ? 7 : 6;
 
   return (
-    <div className="w-full overflow-auto">
-      <table className="w-full text-sm">
+    <div className="h-full w-full overflow-auto">
+      <div className="flex flex-col gap-3 pb-24 md:hidden">
+        {tasks.map((task) => (
+          <div key={task.id} className="flex flex-col gap-2">
+            <TaskCard task={task} onClick={onTaskClick} />
+            {canPermanentDelete && (
+              <Button
+                variant="destructive"
+                className="min-h-11"
+                onClick={() => {
+                  setPermDeleteTarget(task);
+                  setPermDeleteOpen(true);
+                }}
+              >
+                <Trash2 data-icon="inline-start" aria-hidden="true" />
+                {COPY.pages.trash.permanentlyDelete}
+              </Button>
+            )}
+          </div>
+        ))}
+        {tasks.length === 0 && (
+          <p className="py-12 text-center text-sm text-tunet-text-muted">
+            {COPY.taskList.emptyMessage}
+          </p>
+        )}
+      </div>
+
+      <table className="hidden w-full text-sm md:table">
         <thead>
           <tr className="border-b border-tunet-border">
             <th className="text-left py-3 px-4 text-xs font-medium text-tunet-text-muted">{COPY.taskList.colTask}</th>

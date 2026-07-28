@@ -21,8 +21,10 @@ import { Task, TaskStatus, STATUS_CONFIG } from "@/types";
 import { TaskCard } from "./task-card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Button } from "@/components/ui/button";
 import { COPY } from "@/lib/copy";
 import { cn } from "@/lib/utils";
+import { GripVertical } from "lucide-react";
 
 interface KanbanBoardProps {
   tasks: Task[];
@@ -101,7 +103,7 @@ export function KanbanBoard({
       collisionDetection={closestCorners}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex gap-4 h-full overflow-x-auto pb-4">
+      <div className="grid h-full grid-flow-col auto-cols-[minmax(17rem,1fr)] gap-3 overflow-x-auto pb-4">
         {COLUMNS.map((status) => (
           <KanbanColumn
             key={status}
@@ -142,24 +144,27 @@ function KanbanColumn({
   const { setNodeRef, isOver } = useDroppable({ id: status });
 
   return (
-    <div className="flex-shrink-0 w-72">
-      <div className="flex items-center gap-2 mb-4 px-1">
-        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: config.color }} />
-        <h3 className="font-medium text-tunet-text text-sm">{config.label}</h3>
-        <span className="text-xs text-tunet-text-muted bg-tunet-surface px-2 py-0.5 rounded-full">
-          {tasks.length}
+    <section className="flex min-h-0 flex-col rounded-xl border border-tunet-border/70 bg-tunet-surface/35">
+      <header className="sticky top-0 z-10 flex min-h-14 items-center gap-2 border-b border-tunet-border/70 bg-tunet-bg/90 px-3 backdrop-blur-xl">
+        <span
+          className="size-2.5 rounded-full"
+          style={{ backgroundColor: config.color }}
+          aria-hidden="true"
+        />
+        <h3 className="text-sm font-medium text-tunet-text">{config.label}</h3>
+        <span className="ml-auto font-mono text-xs tabular-nums text-tunet-text-muted">
+          {tasks.length} tugas
         </span>
-      </div>
-
+      </header>
       <div
         ref={setNodeRef}
         className={cn(
-          "h-[calc(100vh-280px)] rounded-lg transition-colors",
+          "min-h-0 flex-1 rounded-b-xl p-3 transition-colors",
           isOver && "bg-tunet-surface-hover/40"
         )}
       >
         <ScrollArea className="h-full">
-          <div className="space-y-3 pr-4">
+          <div className="flex flex-col gap-3 pr-3">
             {tasks.map((task) => (
               <SortableTaskCard
                 key={task.id}
@@ -181,7 +186,7 @@ function KanbanColumn({
           </div>
         </ScrollArea>
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -204,6 +209,7 @@ function SortableTaskCard({
 }: SortableTaskCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
+    disabled: !canChangeStatus,
   });
 
   const style = {
@@ -213,7 +219,7 @@ function SortableTaskCard({
   };
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+    <div ref={setNodeRef} style={style}>
       <TaskCard
         task={task}
         onStatusChange={onStatusChange}
@@ -221,6 +227,21 @@ function SortableTaskCard({
         canChangeStatus={canChangeStatus}
         canDelete={canDelete}
         onDeleted={onDeleted}
+        dragHandle={
+          canChangeStatus ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-10 cursor-grab touch-none text-tunet-text-muted active:cursor-grabbing"
+              aria-label={`Pindahkan ${task.title}`}
+              {...attributes}
+              {...listeners}
+            >
+              <GripVertical aria-hidden="true" />
+            </Button>
+          ) : undefined
+        }
       />
     </div>
   );

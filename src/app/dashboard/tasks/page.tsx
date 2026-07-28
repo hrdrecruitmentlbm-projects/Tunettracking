@@ -19,6 +19,7 @@ import { COPY } from "@/lib/copy";
 import { toast } from "sonner";
 import { useIncrementalTasks } from "@/hooks/use-incremental-tasks";
 import { useHeartbeat } from "@/hooks/use-heartbeat";
+import { useMediaQuery } from "@/hooks/use-media-query";
 
 export default function TasksPage() {
   return (
@@ -82,8 +83,10 @@ function TasksPageContent() {
   );
 
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const isMobile = useMediaQuery("(max-width: 767px)");
   const canChangeStatus = currentUser?.role !== "foc" && currentUser?.role !== "marketing";
   const canPermanentDelete = currentUser?.role === "admin";
+  const effectiveViewMode = isMobile ? "list" : viewMode;
 
   useHeartbeat({ userId: currentUser?.id });
 
@@ -142,7 +145,6 @@ function TasksPageContent() {
       if (target) {
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setSelectedTask(target);
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setDetailOpen(true);
         // Clean up the URL after opening
         router.replace(pathname + (searchParams.toString() ? `?${new URLSearchParams(Array.from(searchParams.entries()).filter(([k]) => k !== "highlight")).toString()}` : ""), { scroll: false });
@@ -245,85 +247,84 @@ function TasksPageContent() {
 
   return (
     <DashboardLayout>
-      <div className="h-screen flex flex-col">
-        <div className="h-16 border-b border-tunet-border flex items-center justify-between px-6 gap-3 flex-wrap">
-          <div>
-            <h1 className="text-lg font-semibold text-tunet-text">{COPY.pages.tasks.title}</h1>
-            <p className="text-xs text-tunet-text-muted">{COPY.pages.tasks.subtitle}</p>
+      <div className="flex min-h-dvh flex-col overflow-hidden bg-tunet-bg">
+        <header className="flex flex-col gap-4 border-b border-tunet-border px-4 pb-4 pt-16 md:px-6 md:py-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-3xl">
+              <p className="mb-2 text-xs font-medium tracking-[0.16em] text-tunet-signal">
+                Alur kerja langsung
+              </p>
+              <h1 className="text-balance font-display text-2xl font-semibold tracking-[-0.035em] text-tunet-text md:text-3xl">
+                {COPY.pages.tasks.title}
+              </h1>
+              <p className="mt-2 text-sm text-tunet-text-muted">{COPY.pages.tasks.subtitle}</p>
+            </div>
+
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <div className="relative min-w-0 sm:w-72">
+                <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-tunet-text-muted" />
+                <Input
+                  id="task-search"
+                  placeholder={COPY.search.placeholder}
+                  value={searchInput}
+                  onChange={(event) => setSearchInput(event.target.value)}
+                  className="h-11 bg-tunet-surface pl-10 pr-10"
+                  aria-label={COPY.search.placeholder}
+                />
+                {isSearching && (
+                  <Loader2 className="absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-tunet-text-muted motion-reduce:animate-none" />
+                )}
+              </div>
+
+              <Button onClick={() => setFormOpen(true)} size="lg" className="min-h-11">
+                <Plus data-icon="inline-start" aria-hidden="true" />
+                {COPY.pages.tasks.newTask}
+              </Button>
+            </div>
           </div>
-          <div className="flex items-center gap-3 flex-wrap">
+
+          <div className="flex flex-col gap-3 border-t border-tunet-border/60 pt-3 lg:flex-row lg:items-center lg:justify-between">
             <TaskFilters filters={filters} onFiltersChange={setFilters} />
 
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-tunet-text-muted" />
-              <Input
-                id="task-search"
-                placeholder={COPY.search.placeholder}
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                className="pl-9 w-64 bg-tunet-surface border-tunet-border text-tunet-text pr-9"
-                aria-label={COPY.search.placeholder}
-              />
-              {isSearching && (
-                <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-tunet-text-muted animate-spin" />
-              )}
-            </div>
+            <div className="flex items-center gap-2">
+              <div className="hidden overflow-hidden rounded-lg border border-tunet-border md:flex">
+                <Button
+                  variant={viewMode === "kanban" ? "secondary" : "ghost"}
+                  size="icon"
+                  onClick={() => setViewMode("kanban")}
+                  className="size-11 rounded-none"
+                  aria-label={COPY.pages.tasks.viewKanban}
+                >
+                  <LayoutGrid aria-hidden="true" />
+                </Button>
+                <Button
+                  variant={viewMode === "list" ? "secondary" : "ghost"}
+                  size="icon"
+                  onClick={() => setViewMode("list")}
+                  className="size-11 rounded-none"
+                  aria-label={COPY.pages.tasks.viewList}
+                >
+                  <List aria-hidden="true" />
+                </Button>
+              </div>
 
-            <div className="flex border border-tunet-border rounded-md overflow-hidden">
-              <button
-                onClick={() => setViewMode("kanban")}
-                className={`p-1.5 transition-colors ${
-                  viewMode === "kanban"
-                    ? "bg-tunet-green/20 text-tunet-green"
-                    : "text-tunet-text-muted hover:bg-tunet-surface-hover"
-                }`}
-                aria-label={COPY.pages.tasks.viewKanban}
+              <Button
+                variant={showDeleted ? "destructive" : "outline"}
+                size="icon"
+                onClick={() => setShowDeleted(!showDeleted)}
+                className="size-11"
+                aria-label={showDeleted ? COPY.pages.tasks.showActive : COPY.pages.tasks.trash}
+                title={showDeleted ? COPY.pages.tasks.showActive : COPY.pages.tasks.trash}
               >
-                <LayoutGrid className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => setViewMode("list")}
-                className={`p-1.5 transition-colors ${
-                  viewMode === "list"
-                    ? "bg-tunet-green/20 text-tunet-green"
-                    : "text-tunet-text-muted hover:bg-tunet-surface-hover"
-                }`}
-                aria-label={COPY.pages.tasks.viewList}
-              >
-                <List className="w-4 h-4" />
-              </button>
+                <Trash2 aria-hidden="true" />
+              </Button>
             </div>
-
-            <button
-              onClick={() => setShowDeleted(!showDeleted)}
-              className={`p-1.5 border border-tunet-border rounded-md transition-colors ${
-                showDeleted
-                  ? "bg-status-overdue/20 text-status-overdue border-status-overdue/40"
-                  : "text-tunet-text-muted hover:bg-tunet-surface-hover"
-              }`}
-              aria-label={
-                showDeleted
-                  ? COPY.pages.tasks.showActive
-                  : COPY.pages.tasks.trash
-              }
-              title={showDeleted ? COPY.pages.tasks.showActive : COPY.pages.tasks.trash}
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-
-            <Button
-              onClick={() => setFormOpen(true)}
-              className="bg-tunet-green hover:bg-tunet-green-dark text-white"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              {COPY.pages.tasks.newTask}
-            </Button>
           </div>
-        </div>
+        </header>
 
-        <div className="flex-1 p-6 overflow-hidden">
+        <div className="min-h-0 flex-1 overflow-hidden p-3 md:p-4">
           {loading ? (
-            <TasksPageSkeleton viewMode={viewMode} />
+            <TasksPageSkeleton viewMode={effectiveViewMode} />
           ) : filteredTasks.length === 0 ? (
             <div className="h-full flex items-center justify-center">
               <EmptyState
@@ -378,7 +379,7 @@ function TasksPageContent() {
                 }
               />
             </div>
-          ) : viewMode === "kanban" && !showDeleted ? (
+          ) : effectiveViewMode === "kanban" && !showDeleted ? (
             <KanbanBoard
               tasks={filteredTasks}
               onStatusChange={handleStatusChange}

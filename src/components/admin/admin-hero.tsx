@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Activity, Radio } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Radio, Signal } from "lucide-react";
+import { gsap } from "gsap";
+import { useGSAP } from "@gsap/react";
 import { cn } from "@/lib/utils";
 
 interface AdminHeroProps {
@@ -11,104 +13,114 @@ interface AdminHeroProps {
   className?: string;
 }
 
+function formatJakartaTime() {
+  return new Date().toLocaleTimeString("id-ID", {
+    timeZone: "Asia/Jakarta",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+}
+
 function useJakartaClock() {
-  const [now, setNow] = useState<string>("--:--:--");
+  const [now, setNow] = useState(formatJakartaTime);
+
   useEffect(() => {
-    const fmt = () =>
-      new Date().toLocaleTimeString("id-ID", {
-        timeZone: "Asia/Jakarta",
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-        hour12: false,
-      });
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setNow(fmt());
-    const id = setInterval(() => setNow(fmt()), 1000);
+    const id = setInterval(() => setNow(formatJakartaTime()), 1000);
     return () => clearInterval(id);
   }, []);
+
   return now;
 }
 
-export function AdminHero({ totalUsers, activeUsers, overdueCount, className }: AdminHeroProps) {
+export function AdminHero({ overdueCount, className }: AdminHeroProps) {
   const time = useJakartaClock();
-  const status: "live" | "degraded" = overdueCount > 5 ? "degraded" : "live";
+  const root = useRef<HTMLElement>(null);
+  const stable = overdueCount <= 5;
+
+  useGSAP(
+    () => {
+      const media = gsap.matchMedia();
+      media.add("(prefers-reduced-motion: no-preference)", () => {
+        gsap.from("[data-hero-reveal]", {
+          autoAlpha: 0,
+          y: 18,
+          duration: 0.65,
+          stagger: 0.08,
+          ease: "power3.out",
+        });
+      });
+      return () => media.revert();
+    },
+    { scope: root }
+  );
 
   return (
-    <div
+    <header
+      ref={root}
       className={cn(
-        "relative h-16 border-b border-tunet-border px-6 flex items-center justify-between",
-        "bg-gradient-to-r from-tunet-surface via-tunet-surface to-tunet-bg",
+        "relative isolate flex min-h-40 flex-col justify-between gap-8 overflow-hidden border-b border-tunet-border px-4 py-6 md:flex-row md:items-end md:px-8 lg:min-h-48",
         className
       )}
     >
-      {/* subtle grid pattern overlay */}
-      <div
-        className="pointer-events-none absolute inset-0 opacity-[0.04]"
-        style={{
-          backgroundImage:
-            "linear-gradient(to right, currentColor 1px, transparent 1px), linear-gradient(to bottom, currentColor 1px, transparent 1px)",
-          backgroundSize: "32px 32px",
-          color: "rgb(34, 211, 238)",
-        }}
-      />
+      <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(circle_at_12%_20%,color-mix(in_srgb,var(--color-tunet-signal)_14%,transparent),transparent_34%),linear-gradient(115deg,color-mix(in_srgb,var(--color-tunet-surface)_96%,transparent),var(--color-tunet-bg))]" />
+      <div className="pointer-events-none absolute inset-0 -z-10 opacity-[0.05] [background-image:linear-gradient(to_right,currentColor_1px,transparent_1px),linear-gradient(to_bottom,currentColor_1px,transparent_1px)] [background-size:40px_40px]" />
 
-      <div className="relative flex items-center gap-6 min-w-0">
-        <div>
-          <h1 className="font-display text-xl font-semibold tracking-tight text-tunet-text">
-            Network Operations
-          </h1>
-          <p className="text-[11px] text-tunet-text-muted">
-            Tunet division · real-time task and field tracking
-          </p>
-        </div>
+      <div className="relative max-w-5xl">
+        <p
+          data-hero-reveal
+          className="mb-3 flex items-center gap-2 text-xs font-medium tracking-[0.18em] text-tunet-signal"
+        >
+          <Signal className="size-4" aria-hidden="true" />
+          TuTrack command
+        </p>
+        <h1
+          data-hero-reveal
+          className="max-w-5xl text-balance font-display text-3xl font-semibold leading-[0.98] tracking-[-0.045em] text-tunet-text md:text-5xl"
+        >
+          Operasi jaringan, dalam satu pandangan.
+        </h1>
+        <p
+          data-hero-reveal
+          className="mt-4 max-w-2xl text-sm leading-6 text-tunet-text-muted md:text-base"
+        >
+          Prioritaskan gangguan, pantau tim lapangan, dan selesaikan pekerjaan yang paling mendesak.
+        </p>
       </div>
 
-      <div className="relative flex items-center gap-6">
-        {/* Live status pill */}
+      <div data-hero-reveal className="relative flex items-center gap-4 md:flex-col md:items-end">
         <div
           className={cn(
-            "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs",
-            status === "live"
-              ? "bg-tunet-signal/10 text-tunet-signal"
-              : "bg-status-overdue/10 text-status-overdue"
+            "flex min-h-11 items-center gap-2 rounded-lg border px-3 text-xs font-medium",
+            stable
+              ? "border-tunet-signal/25 bg-tunet-signal/10 text-tunet-signal"
+              : "border-status-overdue/25 bg-status-overdue/10 text-status-overdue"
           )}
         >
-          <span className="relative flex h-2 w-2">
+          <span className="relative flex size-2">
             <span
               className={cn(
-                "absolute inline-flex h-full w-full rounded-full opacity-60 animate-ping",
-                status === "live" ? "bg-tunet-signal" : "bg-status-overdue"
+                "absolute inline-flex size-full rounded-full opacity-60 motion-safe:animate-ping",
+                stable ? "bg-tunet-signal" : "bg-status-overdue"
               )}
             />
             <span
               className={cn(
-                "relative inline-flex h-2 w-2 rounded-full",
-                status === "live" ? "bg-tunet-signal" : "bg-status-overdue"
+                "relative inline-flex size-2 rounded-full",
+                stable ? "bg-tunet-signal" : "bg-status-overdue"
               )}
             />
           </span>
-          <span className="font-mono uppercase tracking-wider">
-            {status === "live" ? "All systems live" : "Attention required"}
-          </span>
+          <span>{stable ? "Sistem stabil" : "Perlu perhatian"}</span>
         </div>
 
-        {/* Active users */}
-        <div className="flex items-center gap-2 text-xs text-tunet-text-muted">
-          <Activity className="w-3.5 h-3.5 text-tunet-signal" />
-          <span>
-            <span className="font-mono tabular-nums text-tunet-text">{activeUsers}</span>
-            <span className="text-tunet-text-muted"> / {totalUsers} online</span>
-          </span>
-        </div>
-
-        {/* Jakarta clock */}
         <div className="flex items-baseline gap-2">
-          <Radio className="w-3.5 h-3.5 text-tunet-text-muted" />
-          <span className="font-mono tabular-nums text-base text-tunet-text">{time}</span>
-          <span className="text-[10px] uppercase tracking-wider text-tunet-text-muted">WIB</span>
+          <Radio className="size-3.5 text-tunet-text-muted" aria-hidden="true" />
+          <span className="font-mono text-base tabular-nums text-tunet-text">{time}</span>
+          <span className="text-xs tracking-wider text-tunet-text-muted">WIB</span>
         </div>
       </div>
-    </div>
+    </header>
   );
 }
