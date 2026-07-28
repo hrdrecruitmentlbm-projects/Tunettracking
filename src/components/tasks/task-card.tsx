@@ -100,10 +100,11 @@ export function TaskCard({
       className={cn(
         "relative border border-tunet-border bg-tunet-surface transition-[transform,box-shadow,border-color] duration-200 motion-reduce:transition-none",
         "hover:-translate-y-0.5 hover:border-tunet-signal/35 hover:shadow-[0_16px_36px_-28px_rgba(34,211,238,0.7)] motion-reduce:hover:translate-y-0",
-        urgency === "critical" && "border-l-[3px] border-l-priority-critical",
-        urgency === "warning" && "border-l-[3px] border-l-priority-high",
-        urgency === "caution" && "border-l-[3px] border-l-priority-medium",
-        urgency === "overdue" && "border-l-[3px] border-l-status-overdue"
+        "border-l-[3px]",
+        task.status === "assigned" && "border-l-status-assigned",
+        task.status === "in_progress" && "border-l-status-progress",
+        task.status === "review" && "border-l-status-review",
+        task.status === "done" && "border-l-status-done"
       )}
     >
       {dragHandle && <div className="absolute left-2 top-2">{dragHandle}</div>}
