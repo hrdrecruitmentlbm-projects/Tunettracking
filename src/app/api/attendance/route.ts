@@ -81,14 +81,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // To-do list is mandatory for berangkat (at least 1 item)
-    if (type === "berangkat" && (!todos || todos.length === 0)) {
-      return NextResponse.json(
-        { error: "Minimal 1 to-do list wajib diisi saat absen berangkat" },
-        { status: 400 }
-      );
-    }
-
     let photoFileId: string | null = null;
 
     // Process and upload photo if provided
