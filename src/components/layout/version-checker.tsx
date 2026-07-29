@@ -8,7 +8,7 @@ const LS_KEY = "tutrack-alerted-version";
 const POLL_INTERVAL = 60_000;
 
 export function VersionChecker() {
-  const intervalRef = useRef<ReturnType<typeof setInterval>>();
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     const check = async () => {
