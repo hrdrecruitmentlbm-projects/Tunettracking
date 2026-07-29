@@ -135,7 +135,16 @@ export function TaskCard({
             )}
           >
             <Badge variant="secondary">{priority.label}</Badge>
-            <span className="truncate text-xs text-tunet-text-muted">{status.label}</span>
+            <Badge
+              variant="secondary"
+              className="text-xs"
+              style={{
+                backgroundColor: status.color + "20",
+                color: status.color,
+              }}
+            >
+              {status.label}
+            </Badge>
           </div>
 
           <h3

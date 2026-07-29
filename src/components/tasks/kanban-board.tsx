@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { COPY } from "@/lib/copy";
 import { cn } from "@/lib/utils";
 import { GripVertical } from "lucide-react";
+import { useState } from "react";
 
 interface KanbanBoardProps {
   tasks: Task[];
@@ -49,6 +50,8 @@ export function KanbanBoard({
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
+
+  const [announcement, setAnnouncement] = useState("");
 
   const tasksByStatus = useMemo(() => {
     const map: Record<TaskStatus, Task[]> = {
@@ -94,6 +97,9 @@ export function KanbanBoard({
 
     if (destStatus && destStatus !== activeTask.status) {
       onStatusChange?.(activeId, destStatus);
+      const destLabel = STATUS_CONFIG[destStatus].label;
+      setAnnouncement(`${activeTask.title} dipindahkan ke ${destLabel}`);
+      setTimeout(() => setAnnouncement(""), 1000);
     }
   };
 
@@ -103,6 +109,9 @@ export function KanbanBoard({
       collisionDetection={closestCorners}
       onDragEnd={handleDragEnd}
     >
+      <div aria-live="polite" aria-atomic="true" className="sr-only" role="status">
+        {announcement}
+      </div>
       <div className="grid h-full grid-flow-col auto-cols-[minmax(17rem,1fr)] gap-3 overflow-x-auto pb-4">
         {COLUMNS.map((status) => (
           <KanbanColumn
