@@ -30,7 +30,9 @@ export function VersionChecker() {
     check();
     intervalRef.current = setInterval(check, POLL_INTERVAL);
 
-    return () => clearInterval(intervalRef.current);
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
   }, []);
 
   return null;
