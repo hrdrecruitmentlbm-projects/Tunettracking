@@ -8,13 +8,15 @@ import { TaskForm } from "@/components/tasks/task-form";
 import { TaskDetail } from "@/components/tasks/task-detail";
 import { TaskFilters, FilterState } from "@/components/tasks/task-filters";
 import { TaskListView } from "@/components/tasks/task-list-view";
-import { fetchTasks, updateTaskStatus } from "@/lib/db";
+import { SummaryStrip } from "@/components/tasks/summary-strip";
+import { TimelineView } from "@/components/tasks/timeline-view";
+import { fetchTasks, updateTaskStatus, fetchUsers } from "@/lib/db";
 import { Task, TaskStatus, User } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Search, LayoutGrid, List, Loader2, Inbox, Trash2 } from "lucide-react";
+import { Plus, Search, LayoutGrid, List, CalendarDays, Loader2, Inbox, Trash2, Layers } from "lucide-react";
 import { COPY } from "@/lib/copy";
 import { toast } from "sonner";
 import { useIncrementalTasks } from "@/hooks/use-incremental-tasks";
@@ -74,8 +76,9 @@ function TasksPageContent() {
   const [formOpen, setFormOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<"kanban" | "list">("kanban");
+  const [viewMode, setViewMode] = useState<"kanban" | "list" | "timeline">("kanban");
   const [showDeleted, setShowDeleted] = useState(false);
+  const [groupByStatus, setGroupByStatus] = useState(false);
   const [filters, setFilters] = useState<FilterState>(() =>
     typeof window === "undefined"
       ? DEFAULT_FILTERS
@@ -101,6 +104,9 @@ function TasksPageContent() {
       }
     }
   }, []);
+
+  const [users, setUsers] = useState<User[]>([]);
+  useEffect(() => { fetchUsers().then(setUsers); }, []);
 
   useIncrementalTasks(setTasks, { includeDeleted: showDeleted });
 
@@ -238,6 +244,14 @@ function TasksPageContent() {
     });
   }, [tasks, searchQuery, filters]);
 
+  const summary = useMemo(() => ({
+    total: filteredTasks.length,
+    critical: filteredTasks.filter(t => t.priority === 'critical').length,
+    overdue: filteredTasks.filter(t => t.deadline && new Date(t.deadline) < new Date() && t.status !== 'done').length,
+    inProgress: filteredTasks.filter(t => t.status === 'in_progress').length,
+    done: filteredTasks.filter(t => t.status === 'done').length,
+  }), [filteredTasks]);
+
   const hasActiveFilters =
     filters.status !== "all" ||
     filters.priority !== "all" ||
@@ -306,7 +320,29 @@ function TasksPageContent() {
                 >
                   <List aria-hidden="true" />
                 </Button>
+                <Button
+                  variant={viewMode === "timeline" ? "secondary" : "ghost"}
+                  size="icon"
+                  onClick={() => setViewMode("timeline")}
+                  className="size-11 rounded-none"
+                  aria-label={COPY.pages.tasks.viewTimeline}
+                >
+                  <CalendarDays aria-hidden="true" />
+                </Button>
               </div>
+
+              {viewMode === "list" && (
+                <Button
+                  variant={groupByStatus ? "secondary" : "ghost"}
+                  size="icon"
+                  onClick={() => setGroupByStatus(g => !g)}
+                  className="size-11"
+                  aria-label={groupByStatus ? COPY.taskList.ungroup : COPY.taskList.groupByStatus}
+                  title={groupByStatus ? COPY.taskList.ungroup : COPY.taskList.groupByStatus}
+                >
+                  <Layers aria-hidden="true" />
+                </Button>
+              )}
 
               <Button
                 variant={showDeleted ? "destructive" : "outline"}
@@ -322,11 +358,11 @@ function TasksPageContent() {
           </div>
         </header>
 
-        <div className="min-h-0 flex-1 overflow-hidden p-3 md:p-4">
+        <div className="min-h-0 flex-1 overflow-hidden p-3 md:p-4 flex flex-col">
           {loading ? (
             <TasksPageSkeleton viewMode={effectiveViewMode} />
           ) : filteredTasks.length === 0 ? (
-            <div className="h-full flex items-center justify-center">
+            <div className="flex-1 flex items-center justify-center">
               <EmptyState
                 icon={Inbox}
                 title={
@@ -379,22 +415,36 @@ function TasksPageContent() {
                 }
               />
             </div>
-          ) : effectiveViewMode === "kanban" && !showDeleted ? (
-            <KanbanBoard
-              tasks={filteredTasks}
-              onStatusChange={handleStatusChange}
-              onTaskClick={handleTaskClick}
-              canChangeStatus={canChangeStatus}
-              canDelete={canChangeStatus}
-              onDeleted={handleTaskDeleted}
-            />
           ) : (
-            <TaskListView
-              tasks={filteredTasks}
-              onTaskClick={handleTaskClick}
-              canPermanentDelete={showDeleted ? canPermanentDelete : false}
-              onPermanentDelete={handleTaskPermanentlyDeleted}
-            />
+            <>
+              <SummaryStrip {...summary} />
+              <div className="min-h-0 flex-1 overflow-hidden">
+                {effectiveViewMode === "kanban" && !showDeleted ? (
+                  <KanbanBoard
+                    tasks={filteredTasks}
+                    onStatusChange={handleStatusChange}
+                    onTaskClick={handleTaskClick}
+                    canChangeStatus={canChangeStatus}
+                    canDelete={canChangeStatus}
+                    onDeleted={handleTaskDeleted}
+                  />
+                ) : effectiveViewMode === "timeline" ? (
+                  <TimelineView tasks={filteredTasks} onTaskClick={handleTaskClick} />
+                ) : (
+                  <TaskListView
+                    tasks={filteredTasks}
+                    onTaskClick={handleTaskClick}
+                    canPermanentDelete={showDeleted ? canPermanentDelete : false}
+                    onPermanentDelete={handleTaskPermanentlyDeleted}
+                    groupByStatus={groupByStatus}
+                    onStatusChange={handleStatusChange}
+                    onDeleted={handleTaskDeleted}
+                    onReassign={handleReassigned}
+                    users={users}
+                  />
+                )}
+              </div>
+            </>
           )}
         </div>
 
@@ -421,7 +471,7 @@ function TasksPageContent() {
   );
 }
 
-function TasksPageSkeleton({ viewMode }: { viewMode: "kanban" | "list" }) {
+function TasksPageSkeleton({ viewMode }: { viewMode: "kanban" | "list" | "timeline" }) {
   if (viewMode === "kanban") {
     return (
       <div className="flex gap-4 h-full overflow-x-auto pb-4">
