@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Sidebar } from "./sidebar";
 import { BottomNav } from "./bottom-nav";
+import { VersionChecker } from "./version-checker";
 import { User } from "@/types";
 import { Loader2 } from "lucide-react";
 import { useSessionTimer } from "@/hooks/use-session-timer";
@@ -87,6 +88,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       >
         <div aria-live="polite" aria-atomic="true" className="sr-only" id="tutrack-live-region" />
         {children}
+        <VersionChecker />
       </main>
       <BottomNav role={user.role} />
     </div>

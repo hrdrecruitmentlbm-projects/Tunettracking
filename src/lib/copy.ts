@@ -243,6 +243,7 @@ export const COPY = {
       newTask: "Tugas Baru",
       viewKanban: "Tampilan Kanban",
       viewList: "Tampilan Daftar",
+      viewTimeline: "Tampilan Timeline",
     marketing: "Marketing",
     trash: "Sampah",
       trashEmpty: {
@@ -501,6 +502,22 @@ export const COPY = {
     unassigned: "Belum Ditugaskan",
     overdue: "Terlambat",
     emptyMessage: "Tidak ada tugas yang cocok dengan filter saat ini",
+    groupByStatus: "Kelompokkan",
+    ungroup: "Daftar",
+  },
+  summaryStrip: {
+    total: (n: number) => `${n} tugas`,
+    urgent: (n: number) => `${n} urgent`,
+    overdue: (n: number) => `${n} terlambat`,
+    inProgress: (n: number) => `${n} dikerjakan`,
+    done: (n: number) => `${n} selesai`,
+  },
+  bulkActions: {
+    selected: (n: number) => `${n} tugas dipilih`,
+    changeStatus: "Ubah Status",
+    reassign: "Tugaskan Ulang",
+    delete: "Hapus",
+    clearSelection: "Batal pilih",
   },
   notifications: {
     title: "Notifikasi",
