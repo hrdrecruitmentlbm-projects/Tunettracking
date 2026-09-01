@@ -218,17 +218,21 @@ function formatDuration(minutes: number | null): string {
  *
  * CARTO now requires an API key for basemaps.cartocdn.com — without one the
  * tiles load but render as "API KEY REQUIRED" placeholder images (HTTP 200,
- * so Leaflet shows no error). If NEXT_PUBLIC_CARTO_API_KEY is set we use the
- * CartoDB Dark Matter tiles with the key; otherwise we fall back to Esri's
- * keyless World Dark Gray Canvas so the map never shows the watermark.
+ * so Leaflet shows no error). Keys are ONLY accepted on the new
+ * `/rastertiles/...` endpoint with a `?key=` query param (the legacy
+ * `/dark_all/...?apikey=` format rejects even valid keys and returns the
+ * watermark). If NEXT_PUBLIC_CARTO_API_KEY is set we use the CartoDB Dark
+ * Matter tiles with the key; otherwise we fall back to Esri's keyless
+ * World Dark Gray Canvas so the map never shows the watermark.
  */
 const CARTO_API_KEY = process.env.NEXT_PUBLIC_CARTO_API_KEY;
 
 const CARTO_BASEMAP = {
-  url: `https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?apikey=${CARTO_API_KEY}`,
+  url: `https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png?key=${CARTO_API_KEY}`,
   attribution:
     '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
   maxZoom: 20,
+  subdomains: "abcd",
 };
 
 const ESRI_DARK_BASEMAP = {
@@ -236,6 +240,7 @@ const ESRI_DARK_BASEMAP = {
   attribution:
     "Tiles &copy; Esri &mdash; Sources: GEBCO, NOAA, CHS, OSU, UNH, CSUMB, National Geographic, DeLorme, NAVTEQ, Maxar",
   maxZoom: 16,
+  subdomains: "abc",
 };
 
 const BASEMAP = CARTO_API_KEY ? CARTO_BASEMAP : ESRI_DARK_BASEMAP;
@@ -584,6 +589,7 @@ export function RadarMap({
           attribution={BASEMAP.attribution}
           url={BASEMAP.url}
           maxZoom={BASEMAP.maxZoom}
+          subdomains={BASEMAP.subdomains}
         />
 
         {/* Render ping polylines + numbered ping markers per user */}
