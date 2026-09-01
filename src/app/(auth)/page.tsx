@@ -3,26 +3,32 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { TuTrackMark } from "@/components/icons/brand-icons";
+import { PinInput } from "@/components/auth/pin-input";
+import { PinKeypad } from "@/components/auth/pin-keypad";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import { COPY } from "@/lib/copy";
 
 export default function LoginPage() {
   const router = useRouter();
   const [pin, setPin] = useState("");
+  const [errorCount, setErrorCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  // Touch devices get the on-screen keypad; desktop uses the keyboard.
+  const isTouch = useMediaQuery("(hover: none)");
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleLogin = async (pinToSubmit?: string) => {
+    const value = pinToSubmit ?? pin;
+    if (value.length < 4 || loading) return;
     setLoading(true);
 
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pin }),
+        body: JSON.stringify({ pin: value }),
       });
 
       const data = await res.json();
@@ -30,6 +36,7 @@ export default function LoginPage() {
       if (!res.ok) {
         toast.error(data.error || COPY.auth.invalidPin);
         setPin("");
+        setErrorCount((count) => count + 1);
         return;
       }
 
@@ -46,30 +53,48 @@ export default function LoginPage() {
 
       toast.success(COPY.auth.welcome(user.name));
 
+      // Return the user to where their session expired (if it was a
+      // dashboard route their role can access).
+      let returnUrl: string | null = null;
+      if (typeof window !== "undefined") {
+        returnUrl = sessionStorage.getItem("tutrack-return-url");
+        sessionStorage.removeItem("tutrack-return-url");
+      }
+
+      let destination: string;
       switch (user.role) {
         case "admin":
-          router.push("/dashboard/admin");
+          destination = "/dashboard/admin";
           break;
         case "noc":
-          router.push("/dashboard/noc");
+          destination = "/dashboard/noc";
           break;
         case "foc":
-          router.push("/dashboard/foc");
+          destination = "/dashboard/foc";
           break;
         case "marketing":
-          router.push("/dashboard/marketing");
+          destination = "/dashboard/marketing";
           break;
         default:
-          router.push("/dashboard/noc");
+          destination = "/dashboard/noc";
       }
+
+      if (returnUrl && returnUrl.startsWith("/dashboard")) {
+        destination = returnUrl;
+      }
+
+      router.push(destination);
     } catch (error) {
       console.error("Login error:", error);
-      toast.error(COPY.auth.invalidPin);
+      toast.error(COPY.auth.loginError);
       setPin("");
+      setErrorCount((count) => count + 1);
     } finally {
       setLoading(false);
     }
   };
+
+  const showInlineError = errorCount > 0 && pin.length === 0;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-tunet-bg p-4">
@@ -86,29 +111,51 @@ export default function LoginPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleLogin} className="space-y-4">
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              handleLogin();
+            }}
+            className="space-y-4"
+          >
             <div className="space-y-2">
-              <label htmlFor="pin-input" className="text-sm font-medium text-tunet-text">{COPY.auth.pinLabel}</label>
-              <Input
-                id="pin-input"
-                type="password"
-                placeholder={COPY.auth.pinPlaceholder}
+              <label htmlFor="pin-input" className="text-sm font-medium text-tunet-text">
+                {COPY.auth.pinLabel}
+              </label>
+              <PinInput
                 value={pin}
-                onChange={(e) => setPin(e.target.value)}
-                maxLength={4}
-                className="text-center text-2xl tracking-[0.5em] bg-tunet-bg border-tunet-border text-tunet-text"
-                autoFocus
-                inputMode="numeric"
-                autoComplete="one-time-code"
+                onChange={setPin}
+                onComplete={(value) => handleLogin(value)}
+                hasError={showInlineError}
+                disabled={loading}
               />
+              {showInlineError && (
+                <p
+                  role="alert"
+                  className="text-center text-xs font-medium text-status-overdue"
+                >
+                  {COPY.auth.invalidPin}
+                </p>
+              )}
             </div>
-            <Button
-              type="submit"
-              className="w-full bg-tunet-green hover:bg-tunet-green-dark text-white"
-              disabled={pin.length < 4 || loading}
-            >
-              {loading ? COPY.auth.signingIn : COPY.auth.signIn}
-            </Button>
+
+            {isTouch ? (
+              <PinKeypad
+                onDigit={(digit) => setPin((prev) => (prev + digit).slice(0, 4))}
+                onDelete={() => setPin((prev) => prev.slice(0, -1))}
+                onSubmit={() => handleLogin()}
+                canSubmit={pin.length === 4}
+                disabled={loading}
+              />
+            ) : (
+              <Button
+                type="submit"
+                className="w-full bg-tunet-green hover:bg-tunet-green-dark text-white"
+                disabled={pin.length < 4 || loading}
+              >
+                {loading ? COPY.auth.signingIn : COPY.auth.signIn}
+              </Button>
+            )}
           </form>
           <div className="mt-6 text-center text-xs text-tunet-text-muted">
             <p>{COPY.auth.contactAdmin}</p>
@@ -118,3 +165,4 @@ export default function LoginPage() {
     </div>
   );
 }
+

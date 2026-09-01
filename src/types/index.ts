@@ -93,6 +93,14 @@ export const PRIORITY_CONFIG: Record<TaskPriority, { label: string; color: strin
   critical: { label: "Urgent", color: "bg-priority-critical", dot: "bg-priority-critical" },
 };
 
+/**
+ * Soft per-column WIP limits for the Kanban board. Warning-only — drops are
+ * never blocked. Statuses absent from this map have no limit.
+ */
+export const WIP_LIMITS: Partial<Record<TaskStatus, number>> = {
+  in_progress: 8,
+};
+
 export type AttendanceType = "berangkat" | "pulang";
 
 export interface Attendance {

@@ -35,6 +35,10 @@ export default function SettingsPage() {
   const [taskAssignments, setTaskAssignments] = useState(true);
   const [statusUpdates, setStatusUpdates] = useState(true);
   const [overdueAlerts, setOverdueAlerts] = useState(true);
+  const [criticalAlerts, setCriticalAlerts] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return localStorage.getItem("tutrack-critical-alerts") !== "false";
+  });
 
   const [tags, setTags] = useState<Tag[]>([]);
   const [tagName, setTagName] = useState("");
@@ -112,6 +116,7 @@ export default function SettingsPage() {
     localStorage.setItem("tutrack-taskAssignments", String(taskAssignments));
     localStorage.setItem("tutrack-statusUpdates", String(statusUpdates));
     localStorage.setItem("tutrack-overdueAlerts", String(overdueAlerts));
+    localStorage.setItem("tutrack-critical-alerts", String(criticalAlerts));
     toast.success(COPY.pages.settings.saved);
   };
 
@@ -245,6 +250,16 @@ export default function SettingsPage() {
                 </div>
                 <label htmlFor="settings-overdue-alerts">
                   <Switch id="settings-overdue-alerts" checked={overdueAlerts} onCheckedChange={setOverdueAlerts} aria-label={COPY.pages.settings.overdueAlerts} />
+                </label>
+              </div>
+              <Separator className="bg-tunet-border" />
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-tunet-text">{COPY.pages.settings.criticalAlerts}</p>
+                  <p className="text-xs text-tunet-text-muted">{COPY.pages.settings.criticalAlertsDesc}</p>
+                </div>
+                <label htmlFor="settings-critical-alerts">
+                  <Switch id="settings-critical-alerts" checked={criticalAlerts} onCheckedChange={setCriticalAlerts} aria-label={COPY.pages.settings.criticalAlerts} />
                 </label>
               </div>
             </CardContent>

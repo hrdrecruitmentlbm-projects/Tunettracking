@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -61,6 +62,18 @@ export function BottomNav({ role }: BottomNavProps) {
   const items = NAV_ITEMS[role] || NAV_ITEMS.noc;
   const hasPrimaryMatch = items.some((item) => isRouteMatch(pathname, item.href));
 
+  // Unread notification count, broadcast by NotificationsPanel. Shown on the
+  // "Lainnya" overflow button — the bell lives inside that drawer.
+  const [unreadCount, setUnreadCount] = useState(0);
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<number>).detail;
+      setUnreadCount(typeof detail === "number" ? detail : 0);
+    };
+    window.addEventListener("tutrack:unread-count", handler);
+    return () => window.removeEventListener("tutrack:unread-count", handler);
+  }, []);
+
   const openMore = () => {
     window.dispatchEvent(new CustomEvent("tutrack:open-mobile-nav"));
   };
@@ -110,10 +123,20 @@ export function BottomNav({ role }: BottomNavProps) {
               : "bg-tunet-signal/12 text-tunet-signal"
           )}
         >
-          <Menu
-            className="w-[19px] h-[19px]"
-            strokeWidth={hasPrimaryMatch ? 1.8 : 2.2}
-          />
+          <span className="relative">
+            <Menu
+              className="w-[19px] h-[19px]"
+              strokeWidth={hasPrimaryMatch ? 1.8 : 2.2}
+            />
+            {unreadCount > 0 && (
+              <span
+                aria-hidden="true"
+                className="absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-status-overdue px-1 text-[9px] font-bold text-white"
+              >
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
+          </span>
           <span className="text-[9px] font-medium tracking-tight">Lainnya</span>
         </button>
       </div>

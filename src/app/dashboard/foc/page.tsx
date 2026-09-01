@@ -13,6 +13,14 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   MapPin,
   CheckCircle,
   RefreshCw,
@@ -24,6 +32,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { COPY } from "@/lib/copy";
+import { buildRouteUrl } from "@/lib/maps";
+import { notifyStatusTransition } from "@/lib/task-transitions";
 import { useTelegramDispatch } from "@/hooks/use-telegram-dispatch";
 import { useIncrementalTasks } from "@/hooks/use-incremental-tasks";
 import { useHeartbeat } from "@/hooks/use-heartbeat";
@@ -107,6 +117,7 @@ function FOCDashboard() {
   const [updatingLocation, setUpdatingLocation] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [evidencePromptTask, setEvidencePromptTask] = useState<Task | null>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [countdownMs, setCountdownMs] = useState(LOCATION_INTERVAL);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -256,7 +267,11 @@ function FOCDashboard() {
   const nextTask = pendingTasks[1] ?? null;
   const timelineTasks = [...pendingTasks.slice(2), ...completedTasks];
 
-  const handleStatusChange = async (taskId: string, newStatus: TaskStatus) => {
+  const handleStatusChange = async (
+    taskId: string,
+    newStatus: TaskStatus,
+    options?: { silent?: boolean }
+  ) => {
     if (!userId) return;
     const previous = tasks.find((t) => t.id === taskId);
     if (previous) {
@@ -272,14 +287,34 @@ function FOCDashboard() {
         setTasks((prev) => prev.map((t) => (t.id === taskId ? previous : t)));
       }
       toast.error(COPY.toasts.taskStatusUpdateFailed);
-    } else {
-      toast.success(COPY.toasts.taskStatusUpdated);
+    } else if (previous && previous.status !== newStatus && !options?.silent) {
+      notifyStatusTransition({
+        taskId,
+        taskTitle: previous.title,
+        from: previous.status,
+        to: newStatus,
+        onUndo: (id, previousStatus) =>
+          handleStatusChange(id, previousStatus, { silent: true }),
+      });
     }
   };
 
   const handleTaskClick = (task: Task) => {
     setSelectedTask(task);
     setDetailOpen(true);
+  };
+
+  /** Advance with an evidence nudge: completing a task with zero attached
+   * photos prompts for documentation first (never blocks — "Selesaikan
+   * tanpa foto" still advances). */
+  const handleAdvance = (task: Task) => {
+    const nextStatus = NEXT_STATUS[task.status];
+    if (!nextStatus) return;
+    if (nextStatus === "done" && (task.attachments?.length ?? 0) === 0) {
+      setEvidencePromptTask(task);
+      return;
+    }
+    handleStatusChange(task.id, nextStatus);
   };
 
   const handleManualUpdate = async () => {
@@ -462,7 +497,7 @@ function FOCDashboard() {
                 description="Prioritas pertama untuk diselesaikan di lapangan."
                 task={activeTask}
                 onOpen={handleTaskClick}
-                onAdvance={handleStatusChange}
+                onAdvance={handleAdvance}
                 prominent
               />
               {nextTask && (
@@ -471,7 +506,7 @@ function FOCDashboard() {
                   description="Siap setelah tugas utama bergerak ke tahap selanjutnya."
                   task={nextTask}
                   onOpen={handleTaskClick}
-                  onAdvance={handleStatusChange}
+                  onAdvance={handleAdvance}
                 />
               )}
             </div>
@@ -512,7 +547,7 @@ function FOCDashboard() {
                     task={task}
                     isLast={index === timelineTasks.length - 1}
                     onOpen={handleTaskClick}
-                    onAdvance={handleStatusChange}
+                    onAdvance={handleAdvance}
                   />
                 ))}
               </ol>
@@ -574,6 +609,47 @@ function FOCDashboard() {
           onStatusChange={handleStatusChange}
           canChangeStatus={true}
         />
+
+        {/* Evidence nudge: completing a task with no attached photos. */}
+        <Dialog
+          open={evidencePromptTask !== null}
+          onOpenChange={(open) => !open && setEvidencePromptTask(null)}
+        >
+          <DialogContent className="bg-tunet-surface sm:max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="text-tunet-text">
+                {COPY.taskCard.evidenceTitle}
+              </DialogTitle>
+              <DialogDescription>{COPY.taskCard.evidenceDesc}</DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  const task = evidencePromptTask;
+                  setEvidencePromptTask(null);
+                  if (task) handleStatusChange(task.id, "done");
+                }}
+              >
+                {COPY.taskCard.evidenceSkip}
+              </Button>
+              <Button
+                className="bg-tunet-green hover:bg-tunet-green-dark text-white"
+                onClick={() => {
+                  const task = evidencePromptTask;
+                  setEvidencePromptTask(null);
+                  if (task) {
+                    // The task detail sheet has the attachment upload UI.
+                    setSelectedTask(task);
+                    setDetailOpen(true);
+                  }
+                }}
+              >
+                {COPY.taskCard.evidenceAttach}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );
@@ -584,7 +660,7 @@ interface FOCFocusTaskProps {
   description: string;
   task: Task;
   onOpen: (task: Task) => void;
-  onAdvance: (taskId: string, status: TaskStatus) => void;
+  onAdvance: (task: Task) => void;
   prominent?: boolean;
 }
 
@@ -628,7 +704,7 @@ function FOCFocusTask({
 
       <TaskCard task={task} onClick={onOpen} />
 
-      <div className="mt-3 grid grid-cols-2 gap-3">
+      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
         <Button
           type="button"
           variant="outline"
@@ -638,10 +714,20 @@ function FOCFocusTask({
           Detail tugas
           <ArrowUpRight aria-hidden="true" className="ml-2 size-4" />
         </Button>
+        <a
+          href={buildRouteUrl(task)}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={`${COPY.taskCard.route}: ${task.title}`}
+          className="inline-flex min-h-12 items-center justify-center rounded-lg border border-tunet-border px-4 text-sm font-medium text-tunet-text transition-colors hover:bg-tunet-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tunet-green/70"
+        >
+          <Navigation aria-hidden="true" className="mr-2 size-4" />
+          {COPY.taskCard.route}
+        </a>
         {nextStatus && actionLabel && (
           <Button
             type="button"
-            onClick={() => onAdvance(task.id, nextStatus)}
+            onClick={() => onAdvance(task)}
             aria-label={`${actionLabel}: ${task.title}`}
             className="min-h-12 bg-emerald-700 text-white hover:bg-emerald-800"
           >
@@ -657,7 +743,7 @@ interface FOCTimelineTaskProps {
   task: Task;
   isLast: boolean;
   onOpen: (task: Task) => void;
-  onAdvance: (taskId: string, status: TaskStatus) => void;
+  onAdvance: (task: Task) => void;
 }
 
 function FOCTimelineTask({
@@ -715,17 +801,29 @@ function FOCTimelineTask({
             </span>
           </button>
 
-          {nextStatus && actionLabel && (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onAdvance(task.id, nextStatus)}
-              aria-label={`${actionLabel}: ${task.title}`}
-              className="min-h-11 w-full border-tunet-green/60 text-tunet-green hover:bg-tunet-green/10 sm:w-auto"
+          <div className="flex flex-col gap-2">
+            {nextStatus && actionLabel && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onAdvance(task)}
+                aria-label={`${actionLabel}: ${task.title}`}
+                className="min-h-11 w-full border-tunet-green/60 text-tunet-green hover:bg-tunet-green/10 sm:w-auto"
+              >
+                {actionLabel}
+              </Button>
+            )}
+            <a
+              href={buildRouteUrl(task)}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`${COPY.taskCard.route}: ${task.title}`}
+              className="inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-tunet-border px-4 text-sm font-medium text-tunet-text transition-colors hover:bg-tunet-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tunet-green/70 sm:w-auto"
             >
-              {actionLabel}
-            </Button>
-          )}
+              <Navigation aria-hidden="true" className="mr-1.5 size-4" />
+              {COPY.taskCard.route}
+            </a>
+          </div>
         </div>
       </div>
     </li>

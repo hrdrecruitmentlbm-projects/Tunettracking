@@ -1,4 +1,18 @@
 import { COPY } from "./copy";
+import { Task } from "@/types";
+
+/**
+ * A task is overdue when its deadline has passed and it is not done.
+ * Single source of truth — used by the Kanban column headers, the NOC
+ * incident list, and the admin summary.
+ */
+export function isTaskOverdue(task: Pick<Task, "deadline" | "status">): boolean {
+  return Boolean(
+    task.deadline &&
+      new Date(task.deadline) < new Date() &&
+      task.status !== "done"
+  );
+}
 
 export function getRelativeTime(date: Date | string): string {
   const d = typeof date === "string" ? new Date(date) : date;

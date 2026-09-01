@@ -86,6 +86,7 @@ export const COPY = {
     refresh: "Segarkan",
     back: "Kembali",
     cancel: "Batal",
+    undo: "Batalkan",
     save: "Simpan",
     close: "Tutup",
     delete: "Hapus",
@@ -118,6 +119,24 @@ export const COPY = {
     welcome: (name: string) => `Selamat datang, ${name}!`,
     invalidPin: "PIN tidak valid. Silakan coba lagi.",
     contactAdmin: "Hubungi admin Anda untuk akses PIN",
+    pinAriaLabel: "PIN 4 digit",
+    keypadLabel: "Keypad PIN",
+    keypadDelete: "Hapus digit terakhir",
+    loginError: "Terjadi kesalahan. Silakan coba lagi.",
+  },
+  session: {
+    warningTitle: "Sesi akan berakhir",
+    expiresIn: (time: string) => `Sesi berakhir dalam ${time}`,
+    extend: "Perpanjang sesi",
+    logout: "Logout sekarang",
+    expiredTitle: "Sesi anda telah berakhir",
+    expiredDesc: "Silakan login kembali untuk melanjutkan pekerjaan Anda.",
+    loginAgain: "Login kembali",
+  },
+  command: {
+    title: "Palet perintah",
+    placeholder: "Cari tugas atau navigasi…",
+    empty: (query: string) => `Tidak ada hasil untuk "${query}"`,
   },
   pages: {
     admin: {
@@ -391,6 +410,8 @@ export const COPY = {
     settings: {
       title: "Pengaturan",
       subtitle: "Kelola preferensi akun Anda",
+      criticalAlerts: "Peringatan tugas kritis",
+      criticalAlertsDesc: "Tampilkan popup untuk tugas urgent dan terlambat",
       profile: "Profil",
       profileDesc: "Perbarui informasi pribadi Anda",
       appearance: "Tampilan",
@@ -412,6 +433,12 @@ export const COPY = {
       role: "Peran",
     },
   },
+  kanban: {
+    taskCount: (n: number) => `${n} tugas`,
+    overdueCount: (n: number) => `${n} terlambat`,
+    wipOf: (current: number, limit: number) => `${current} dari ${limit} kapasitas kolom`,
+    dragHint: "Tahan kartu untuk memindahkan antar kolom",
+  },
   taskCard: {
     today: "Hari ini",
     oneDay: "1 hari",
@@ -423,6 +450,11 @@ export const COPY = {
     submitReview: "Kirim ke Review",
     complete: "Selesaikan",
     advanceTo: "Lanjut ke",
+    route: "Rute",
+    evidenceTitle: "Lampirkan foto pekerjaan?",
+    evidenceDesc: "Tugas ini belum memiliki foto dokumentasi. Lampirkan foto sebagai bukti pekerjaan selesai.",
+    evidenceAttach: "Lampirkan foto",
+    evidenceSkip: "Selesaikan tanpa foto",
   },
   taskDetail: {
     title: "Detail dan riwayat tugas",
@@ -430,6 +462,7 @@ export const COPY = {
     assignee: "Penerima Tugas",
     createdBy: "Dibuat oleh",
     location: "Lokasi",
+    route: "Rute ke lokasi",
     deadline: "Tenggat",
     created: "Dibuat",
     updated: "Diperbarui",
@@ -522,6 +555,7 @@ export const COPY = {
   notifications: {
     title: "Notifikasi",
     markAllRead: "Tandai semua dibaca",
+    review: "Tinjau",
     groups: {
       today: "Hari ini",
       yesterday: "Kemarin",

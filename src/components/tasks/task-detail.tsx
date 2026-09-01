@@ -36,6 +36,7 @@ import {
   Tag,
   ArrowRight,
   History,
+  Navigation,
   Pencil,
   Trash2,
   Camera,
@@ -44,6 +45,7 @@ import {
 } from "lucide-react";
 import { COPY } from "@/lib/copy";
 import { formatLongDate } from "@/lib/time";
+import { buildRouteUrl } from "@/lib/maps";
 import { TaskForm } from "./task-form";
 
 interface TaskDetailProps {
@@ -244,6 +246,17 @@ export function TaskDetail({
   const priorityConfig = PRIORITY_CONFIG[task.priority];
 
   const handleStatusChange = async (newStatus: Task["status"]) => {
+    // Delegate to the parent's handler when available — it performs the DB
+    // update, optimistic state refresh, and the undo toast in one place.
+    // (Previously this component updated the DB itself AND the parent
+    // handler updated it again — a redundant double write.)
+    if (onStatusChange) {
+      onStatusChange(task.id, newStatus);
+      onOpenChange(false);
+      return;
+    }
+
+    // Fallback: no parent handler — update the DB directly.
     const storedUser = localStorage.getItem("tutrack-user");
     const currentUser = storedUser ? JSON.parse(storedUser) : null;
     if (!currentUser) return;
@@ -251,7 +264,6 @@ export function TaskDetail({
     const success = await updateTaskStatus(task.id, newStatus, currentUser.id);
     if (success) {
       toast.success(COPY.taskDetail.movedTo(STATUS_CONFIG[newStatus].label));
-      onStatusChange?.(task.id, newStatus);
       onOpenChange(false);
     } else {
       toast.error(COPY.taskDetail.failedUpdate);
@@ -394,6 +406,15 @@ export function TaskDetail({
                 <span className="text-xs font-medium">{COPY.taskDetail.location}</span>
               </div>
               <p className="text-sm text-tunet-text">{task.location_name}</p>
+              <a
+                href={buildRouteUrl(task)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 rounded text-xs font-medium text-tunet-signal transition-colors hover:text-tunet-signal-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tunet-green/70"
+              >
+                <Navigation className="size-3" aria-hidden="true" />
+                {COPY.taskDetail.route}
+              </a>
             </div>
 
             <div className="space-y-1">

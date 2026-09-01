@@ -34,6 +34,9 @@ interface NotificationsPanelProps {
 export function NotificationsPanel({ userId, onCountChange }: NotificationsPanelProps) {
   const router = useRouter();
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  // Mirror of state used by the realtime handler so unread counts are
+  // always computed from fresh data (the old closure-based count drifted).
+  const notificationsRef = useRef<Notification[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [mountId] = useState(() => Math.random().toString(36).slice(2));
@@ -41,40 +44,26 @@ export function NotificationsPanel({ userId, onCountChange }: NotificationsPanel
   const panelRef = useRef<HTMLDivElement>(null);
   const isMobile = useMediaQuery("(max-width: 767px)");
 
+  /** Single write path: syncs the ref, reports the unread count to the
+   * parent, and broadcasts it so the bottom-nav badge can update. */
+  const commitNotifications = useCallback((next: Notification[]) => {
+    notificationsRef.current = next;
+    setNotifications(next);
+    const unread = next.filter((n) => !n.read).length;
+    onCountChange?.(unread);
+    try {
+      window.dispatchEvent(new CustomEvent("tutrack:unread-count", { detail: unread }));
+    } catch {
+      // ignore
+    }
+  }, [onCountChange]);
+
   const loadNotifications = async () => {
     setLoading(true);
     const data = await fetchNotifications(userId);
-    setNotifications(data);
-    onCountChange?.(data.filter((n) => !n.read).length);
+    commitNotifications(data);
     setLoading(false);
   };
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadNotifications();
-
-    const channel = supabase
-      .channel(`notifications-realtime-${userId}-${mountId}`)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` },
-        (payload) => {
-          // Apply incremental insert
-          const newNotif = payload.new as Notification;
-          setNotifications((prev) => {
-            if (prev.some((n) => n.id === newNotif.id)) return prev;
-            return [newNotif, ...prev];
-          });
-          onCountChange?.(notifications.filter((n) => !n.read).length + 1);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
@@ -82,10 +71,11 @@ export function NotificationsPanel({ userId, onCountChange }: NotificationsPanel
     // Mark as read if unread
     if (!notification.read) {
       await markNotificationRead(notification.id);
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === notification.id ? { ...n, read: true } : n))
+      commitNotifications(
+        notificationsRef.current.map((n) =>
+          n.id === notification.id ? { ...n, read: true } : n
+        )
       );
-      onCountChange?.(notifications.filter((n) => !n.read && n.id !== notification.id).length);
     }
     // Navigate to task if task_id exists
     const taskId = notification.task_id || (notification.metadata?.task_id as string | undefined);
@@ -105,10 +95,61 @@ export function NotificationsPanel({ userId, onCountChange }: NotificationsPanel
 
   const handleMarkAllRead = async () => {
     await markAllNotificationsRead(userId);
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-    onCountChange?.(0);
+    commitNotifications(notificationsRef.current.map((n) => ({ ...n, read: true })));
     toast.success(COPY.notifications.markAllRead);
   };
+
+  /** Toast + deep-link for critical notifications (urgent tasks, overdue).
+   * Opt-out via Settings ("tutrack-critical-alerts"). */
+  const maybeNotifyCritical = (notification: Notification) => {
+    let enabled = true;
+    try {
+      enabled = localStorage.getItem("tutrack-critical-alerts") !== "false";
+    } catch {
+      // ignore
+    }
+    if (!enabled) return;
+    const isCritical =
+      notification.type === "overdue" || notification.metadata?.priority === "critical";
+    if (!isCritical) return;
+    toast.warning(notification.title, {
+      description: notification.message,
+      action: {
+        label: COPY.notifications.review,
+        onClick: () => handleNotificationClick(notification),
+      },
+      duration: 8000,
+    });
+  };
+
+  // Load initial notifications and subscribe to realtime inserts.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadNotifications();
+
+    const channel = supabase
+      .channel(`notifications-realtime-${userId}-${mountId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` },
+        (payload) => {
+          // Apply incremental insert from the fresh ref (no stale closures).
+          const newNotif = payload.new as Notification;
+          const next = [
+            newNotif,
+            ...notificationsRef.current.filter((n) => n.id !== newNotif.id),
+          ];
+          commitNotifications(next);
+          maybeNotifyCritical(newNotif);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
 
   const getIcon = (type: Notification["type"]) => {
     switch (type) {
@@ -192,6 +233,14 @@ export function NotificationsPanel({ userId, onCountChange }: NotificationsPanel
         className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-tunet-text-muted hover:bg-tunet-surface-hover cursor-pointer relative w-full"
       >
         <Bell className="w-5 h-5 flex-shrink-0" />
+        {unreadCount > 0 && (
+          <span
+            aria-hidden="true"
+            className="absolute right-2 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-status-overdue px-1 text-[9px] font-bold text-white"
+          >
+            {unreadCount > 9 ? "9+" : unreadCount}
+          </span>
+        )}
         <span className="text-sm">{(COPY.notifications as { title: string }).title || "Notifikasi"}</span>
         {unreadCount > 0 && (
           <span className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 bg-tunet-green text-white text-xs rounded-full flex items-center justify-center" aria-hidden="true">

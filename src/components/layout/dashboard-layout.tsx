@@ -5,9 +5,13 @@ import { useRouter } from "next/navigation";
 import { Sidebar } from "./sidebar";
 import { BottomNav } from "./bottom-nav";
 import { VersionChecker } from "./version-checker";
+import { SessionWarningDialog } from "./session-warning-dialog";
+import { CommandPalette } from "./command-palette";
 import { User } from "@/types";
 import { Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { useSessionTimer } from "@/hooks/use-session-timer";
+import { COPY } from "@/lib/copy";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -17,16 +21,17 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [ready, setReady] = useState(false);
-  const { isExpired } = useSessionTimer();
+  const { phase, timeLeft, extendSession, expireSession } = useSessionTimer();
 
-  useEffect(() => {
-    if (isExpired) {
-      const redirectTimer = setTimeout(() => {
-        router.push("/");
-      }, 2000);
-      return () => clearTimeout(redirectTimer);
+  // Remember where the user was so login can send them back.
+  const handleReLogin = () => {
+    try {
+      sessionStorage.setItem("tutrack-return-url", window.location.pathname);
+    } catch {
+      // ignore
     }
-  }, [isExpired, router]);
+    router.push("/");
+  };
 
   useEffect(() => {
     const stored = localStorage.getItem("tutrack-user");
@@ -58,12 +63,20 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     );
   }
 
-  if (isExpired) {
+  if (phase === "expired") {
+    // No blind redirect — the user chooses when to re-login, and their
+    // current path is preserved so they land back where they were.
     return (
-      <div className="min-h-screen flex items-center justify-center bg-tunet-bg">
-        <div className="text-center space-y-4">
-          <p className="text-tunet-text text-lg">Sesi anda telah berakhir, harap login kembali.</p>
-          <Loader2 className="w-6 h-6 text-tunet-green animate-spin mx-auto" />
+      <div className="min-h-svh flex items-center justify-center bg-tunet-bg p-4">
+        <div className="max-w-sm text-center space-y-4">
+          <p className="text-tunet-text text-lg font-medium">{COPY.session.expiredTitle}</p>
+          <p className="text-sm text-tunet-text-muted">{COPY.session.expiredDesc}</p>
+          <Button
+            onClick={handleReLogin}
+            className="min-h-11 w-full bg-tunet-green hover:bg-tunet-green-dark text-white"
+          >
+            {COPY.session.loginAgain}
+          </Button>
         </div>
       </div>
     );
@@ -81,7 +94,15 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       >
         Lewati ke konten utama
       </a>
+      {phase === "warning" && timeLeft !== null && (
+        <SessionWarningDialog
+          timeLeftMs={timeLeft}
+          onExtend={extendSession}
+          onLogout={expireSession}
+        />
+      )}
       <Sidebar user={user} />
+      <CommandPalette role={user.role} />
       <main
         id="main-content"
         className="relative min-w-0 flex-1 overflow-auto w-full pb-[calc(5rem+env(safe-area-inset-bottom))] md:w-auto md:pb-0"

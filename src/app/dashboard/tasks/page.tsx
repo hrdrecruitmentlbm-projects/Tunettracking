@@ -22,6 +22,8 @@ import { toast } from "sonner";
 import { useIncrementalTasks } from "@/hooks/use-incremental-tasks";
 import { useHeartbeat } from "@/hooks/use-heartbeat";
 import { useMediaQuery } from "@/hooks/use-media-query";
+import { useLocalStorageState } from "@/hooks/use-local-storage-state";
+import { notifyStatusTransition } from "@/lib/task-transitions";
 
 export default function TasksPage() {
   return (
@@ -44,6 +46,23 @@ function isTaskStatus(v: string | null): v is TaskStatus {
 
 function isTaskPriority(v: string | null): v is Task["priority"] {
   return v === "critical" || v === "high" || v === "medium" || v === "low";
+}
+
+type ViewMode = "kanban" | "list" | "timeline";
+
+function isViewMode(v: unknown): v is ViewMode {
+  return v === "kanban" || v === "list" || v === "timeline";
+}
+
+function isValidFilters(v: unknown): v is FilterState {
+  if (!v || typeof v !== "object") return false;
+  const f = v as FilterState;
+  return (
+    (f.status === "all" || isTaskStatus(f.status)) &&
+    (f.priority === "all" || isTaskPriority(f.priority)) &&
+    typeof f.assignee === "string" &&
+    typeof f.tag === "string"
+  );
 }
 
 function readFiltersFromParams(params: URLSearchParams): FilterState {
@@ -76,14 +95,42 @@ function TasksPageContent() {
   const [formOpen, setFormOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<"kanban" | "list" | "timeline">("kanban");
+  const [viewMode, setViewMode] = useLocalStorageState<ViewMode>("tutrack-task-view", {
+    initial: "kanban",
+    validate: isViewMode,
+  });
   const [showDeleted, setShowDeleted] = useState(false);
   const [groupByStatus, setGroupByStatus] = useState(false);
-  const [filters, setFilters] = useState<FilterState>(() =>
-    typeof window === "undefined"
-      ? DEFAULT_FILTERS
-      : readFiltersFromParams(new URLSearchParams(window.location.search))
-  );
+  const [filters, setFilters] = useState<FilterState>(() => {
+    // URL params win (deep links / shared views), then last-used filters,
+    // then defaults.
+    if (typeof window === "undefined") return DEFAULT_FILTERS;
+    const params = new URLSearchParams(window.location.search);
+    const hasUrlFilters = ["status", "priority", "assignee", "tag"].some((k) =>
+      params.has(k)
+    );
+    if (hasUrlFilters) return readFiltersFromParams(params);
+    try {
+      const raw = window.localStorage.getItem("tutrack-task-filters");
+      if (raw) {
+        const parsed: unknown = JSON.parse(raw);
+        if (isValidFilters(parsed)) return parsed;
+      }
+    } catch {
+      // Corrupted JSON — fall back to defaults.
+    }
+    return DEFAULT_FILTERS;
+  });
+
+  // Persist last-used filters so they survive reloads (URL stays the source
+  // of truth for sharable views).
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("tutrack-task-filters", JSON.stringify(filters));
+    } catch {
+      // Storage unavailable — filters still work for this session.
+    }
+  }, [filters]);
 
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const isMobile = useMediaQuery("(max-width: 767px)");
@@ -159,7 +206,11 @@ function TasksPageContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tasks, searchParams]);
 
-  const handleStatusChange = async (taskId: string, newStatus: TaskStatus) => {
+  const handleStatusChange = async (
+    taskId: string,
+    newStatus: TaskStatus,
+    options?: { silent?: boolean }
+  ) => {
     const previous = tasks.find((t) => t.id === taskId);
     if (previous) {
       setTasks((prev) =>
@@ -176,6 +227,15 @@ function TasksPageContent() {
         if (previous) {
           setTasks((prev) => prev.map((t) => (t.id === taskId ? previous : t)));
         }
+      } else if (previous && previous.status !== newStatus && !options?.silent) {
+        notifyStatusTransition({
+          taskId,
+          taskTitle: previous.title,
+          from: previous.status,
+          to: newStatus,
+          onUndo: (id, previousStatus) =>
+            handleStatusChange(id, previousStatus, { silent: true }),
+        });
       }
     }
   };

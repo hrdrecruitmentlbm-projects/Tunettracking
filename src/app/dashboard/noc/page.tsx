@@ -20,12 +20,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { fetchTasks } from "@/lib/db";
 import { COPY } from "@/lib/copy";
 import { cn } from "@/lib/utils";
-import { getTimeRemaining } from "@/lib/time";
+import { getTimeRemaining, isTaskOverdue } from "@/lib/time";
 import { Task, TaskStatus, STATUS_CONFIG } from "@/types";
 import { toast } from "sonner";
 import { useTelegramDispatch } from "@/hooks/use-telegram-dispatch";
 import { useIncrementalTasks } from "@/hooks/use-incremental-tasks";
 import { useHeartbeat } from "@/hooks/use-heartbeat";
+import { useLocalStorageState } from "@/hooks/use-local-storage-state";
+import { notifyStatusTransition } from "@/lib/task-transitions";
 
 const RadarMap = dynamic(() => import("@/components/map/radar-map").then((m) => m.RadarMap), {
   ssr: false,
@@ -59,6 +61,16 @@ const FILTER_OPTIONS: Array<{
   { value: "overdue", label: "Terlambat" },
 ];
 
+function isLayoutMode(value: unknown): value is LayoutMode {
+  return (
+    value === "balanced" || value === "map" || value === "tasks" || value === "full"
+  );
+}
+
+function isIncidentFilter(value: unknown): value is IncidentFilter {
+  return value === "all" || value === "active" || value === "overdue";
+}
+
 const PRIORITY_WEIGHT: Record<Task["priority"], number> = {
   critical: 0,
   high: 1,
@@ -66,22 +78,21 @@ const PRIORITY_WEIGHT: Record<Task["priority"], number> = {
   low: 3,
 };
 
-function isTaskOverdue(task: Task) {
-  return Boolean(
-    task.deadline &&
-      new Date(task.deadline) < new Date() &&
-      task.status !== "done"
-  );
-}
-
 export default function NOCDashboard() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | undefined>(undefined);
-  const [layoutMode, setLayoutMode] = useState<LayoutMode>("balanced");
-  const [incidentFilter, setIncidentFilter] = useState<IncidentFilter>("all");
+  // Layout + filter preferences persist across reloads and shifts.
+  const [layoutMode, setLayoutMode] = useLocalStorageState<LayoutMode>(
+    "tutrack-noc-layout",
+    { initial: "balanced", validate: isLayoutMode }
+  );
+  const [incidentFilter, setIncidentFilter] = useLocalStorageState<IncidentFilter>(
+    "tutrack-noc-incident-filter",
+    { initial: "all", validate: isIncidentFilter }
+  );
 
   useTelegramDispatch(currentUserId);
   useHeartbeat({ userId: currentUserId });
@@ -109,21 +120,36 @@ export default function NOCDashboard() {
 
   useIncrementalTasks(setTasks);
 
-  const handleStatusChange = async (taskId: string, newStatus: TaskStatus) => {
+  const handleStatusChange = async (
+    taskId: string,
+    newStatus: TaskStatus,
+    options?: { silent?: boolean }
+  ) => {
     const storedUser = localStorage.getItem("tutrack-user");
     const currentUser = storedUser ? JSON.parse(storedUser) : null;
 
     if (currentUser) {
+      const previous = tasks.find((task) => task.id === taskId);
       const { updateTaskStatus } = await import("@/lib/db");
       const success = await updateTaskStatus(taskId, newStatus, currentUser.id);
       if (success) {
-        setTasks((previous) =>
-          previous.map((task) =>
+        setTasks((previousTasks) =>
+          previousTasks.map((task) =>
             task.id === taskId
               ? { ...task, status: newStatus, updated_at: new Date().toISOString() }
               : task
           )
         );
+        if (previous && previous.status !== newStatus && !options?.silent) {
+          notifyStatusTransition({
+            taskId,
+            taskTitle: previous.title,
+            from: previous.status,
+            to: newStatus,
+            onUndo: (id, previousStatus) =>
+              handleStatusChange(id, previousStatus, { silent: true }),
+          });
+        }
       } else {
         toast.error("Failed to update task status");
       }
