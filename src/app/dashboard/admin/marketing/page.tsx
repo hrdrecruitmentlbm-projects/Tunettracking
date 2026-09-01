@@ -33,7 +33,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Target, Search, Edit, Trash2, ClipboardCheck, MapPin, History } from "lucide-react";
+import { Target, Search, Edit, Trash2, ClipboardCheck, MapPin, History, Download, ExternalLink, Phone, Eye, Filter } from "lucide-react";
 import { COPY } from "@/lib/copy";
 import { toast } from "sonner";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
@@ -52,6 +52,8 @@ export default function AdminMarketingPage() {
   const [historyProspect, setHistoryProspect] = useState<Prospect | null>(null);
   const [history, setHistory] = useState<ProspectHistory[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [detailVisit, setDetailVisit] = useState<VisitLog | null>(null);
 
   useEffect(() => {
     const stored = localStorage.getItem("tutrack-user");
@@ -87,29 +89,33 @@ export default function AdminMarketingPage() {
 
   const filteredProspects = useMemo(() => {
     const q = search.toLowerCase().trim();
-    if (!q) return prospects;
-    return prospects.filter(
-      (p) =>
+    return prospects.filter((p) => {
+      const matchesSearch =
+        !q ||
         p.name.toLowerCase().includes(q) ||
         p.phone.includes(q) ||
-        p.area.toLowerCase().includes(q)
-    );
-  }, [prospects, search]);
+        p.area.toLowerCase().includes(q);
+      const matchesStatus = statusFilter === "all" || p.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [prospects, search, statusFilter]);
 
   const filteredVisits = useMemo(() => {
     const q = search.toLowerCase().trim();
-    if (!q) return visits;
     return visits.filter((v) => {
       const name =
         v.type === "prospek"
           ? v.prospect?.name || ""
           : v.tower?.name || "";
-      return (
+      const matchesSearch =
+        !q ||
         name.toLowerCase().includes(q) ||
-        v.notes?.toLowerCase().includes(q)
-      );
+        v.notes?.toLowerCase().includes(q) ||
+        v.visitor?.name?.toLowerCase().includes(q);
+      const matchesStatus = statusFilter === "all" || v.status_snapshot === statusFilter;
+      return matchesSearch && matchesStatus;
     });
-  }, [visits, search]);
+  }, [visits, search, statusFilter]);
 
   const today = new Date().toISOString().slice(0, 10);
   const activeProspects = prospects.filter(
@@ -168,6 +174,51 @@ export default function AdminMarketingPage() {
     setProspects(fresh);
   };
 
+  const handleExportCSV = () => {
+    if (activeTab === "prospek") {
+      const headers = ["Nama", "Telepon", "Area", "Alamat", "Status", "Penanggung Jawab", "Tanggal Dibuat"];
+      const rows = filteredProspects.map((p) => [
+        `"${p.name.replace(/"/g, '""')}"`,
+        `"${p.phone}"`,
+        `"${p.area.replace(/"/g, '""')}"`,
+        `"${(p.address || "").replace(/"/g, '""')}"`,
+        `"${PROSPECT_STATUS_CONFIG[p.status]?.label || p.status}"`,
+        `"${p.assignee?.name || "-"}"`,
+        `"${new Date(p.created_at).toLocaleDateString("id-ID")}"`,
+      ]);
+      const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `prospek_export_${new Date().toISOString().slice(0, 10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success("Data prospek berhasil di-export ke CSV");
+    } else {
+      const headers = ["Tipe", "Nama", "Status", "Catatan", "Latitude", "Longitude", "Oleh", "Tanggal"];
+      const rows = filteredVisits.map((v) => [
+        `"${v.type === "prospek" ? "Prospek" : "Tower"}"`,
+        `"${(v.type === "prospek" ? v.prospect?.name : v.tower?.name) || "-"}"`,
+        `"${v.status_snapshot}"`,
+        `"${(v.notes || "").replace(/"/g, '""')}"`,
+        `"${v.location_lat}"`,
+        `"${v.location_lng}"`,
+        `"${v.visitor?.name || "-"}"`,
+        `"${new Date(v.created_at).toLocaleString("id-ID")}"`,
+      ]);
+      const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `kunjungan_export_${new Date().toISOString().slice(0, 10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success("Data kunjungan berhasil di-export ke CSV");
+    }
+  };
+
   if (loading) {
     return (
       <DashboardLayout>
@@ -186,7 +237,25 @@ export default function AdminMarketingPage() {
             <h1 className="text-lg font-semibold text-tunet-text">Marketing</h1>
             <p className="text-xs text-tunet-text-muted">Kelola data prospek dan kunjungan</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v ?? "all")}>
+                <SelectTrigger id="filter-status" className="w-36 h-9 bg-tunet-surface border-tunet-border text-tunet-text text-xs">
+                  <div className="flex items-center gap-1.5 truncate">
+                    <Filter className="w-3.5 h-3.5 text-tunet-text-muted" />
+                    <SelectValue placeholder="Status" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent className="bg-tunet-surface border-tunet-border">
+                  <SelectItem value="all">Semua Status</SelectItem>
+                  {Object.entries(PROSPECT_STATUS_CONFIG).map(([key, cfg]) => (
+                    <SelectItem key={key} value={key}>
+                      {cfg.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-tunet-text-muted" />
               <Input
@@ -194,12 +263,21 @@ export default function AdminMarketingPage() {
                 placeholder="Cari..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="pl-9 w-64 bg-tunet-surface border-tunet-border text-tunet-text"
+                className="pl-9 w-64 bg-tunet-surface border-tunet-border text-tunet-text h-9 text-xs"
               />
             </div>
+            <Button
+              onClick={handleExportCSV}
+              variant="outline"
+              size="sm"
+              className="border-tunet-border bg-tunet-surface text-tunet-text hover:bg-tunet-surface-hover h-9 text-xs"
+            >
+              <Download className="w-3.5 h-3.5 mr-1.5" />
+              Export CSV
+            </Button>
             {activeTab === "prospek" && (
-              <Button onClick={handleCreate} className="bg-tunet-green hover:bg-tunet-green-dark text-white">
-                <Target className="w-4 h-4 mr-2" />
+              <Button onClick={handleCreate} size="sm" className="bg-tunet-green hover:bg-tunet-green-dark text-white h-9 text-xs">
+                <Target className="w-3.5 h-3.5 mr-1.5" />
                 {COPY.pages.prospects.addNew}
               </Button>
             )}
@@ -298,7 +376,23 @@ export default function AdminMarketingPage() {
                                     <span className="text-sm text-tunet-text">{prospect.name}</span>
                                   </div>
                                 </td>
-                                <td className="py-3 px-4 text-sm text-tunet-text-muted">{prospect.phone}</td>
+                                <td className="py-3 px-4 text-sm text-tunet-text-muted">
+                                  <div className="flex items-center gap-1.5">
+                                    <span>{prospect.phone}</span>
+                                    {prospect.phone && (
+                                      <a
+                                        href={`https://wa.me/${prospect.phone.replace(/[^0-9]/g, "").replace(/^0/, "62")}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="p-1 rounded hover:bg-emerald-500/20 text-emerald-400 transition-colors"
+                                        title="Chat WhatsApp"
+                                        aria-label="Chat WhatsApp"
+                                      >
+                                        <Phone className="w-3.5 h-3.5" />
+                                      </a>
+                                    )}
+                                  </div>
+                                </td>
                                 <td className="py-3 px-4 text-sm text-tunet-text-muted">{prospect.area}</td>
                                 <td className="py-3 px-4">
                                   <div className="flex items-center gap-2">
@@ -384,10 +478,11 @@ export default function AdminMarketingPage() {
                             <th className="text-left py-3 px-4 text-xs font-medium text-tunet-text-muted">Tipe</th>
                             <th className="text-left py-3 px-4 text-xs font-medium text-tunet-text-muted">Nama</th>
                             <th className="text-left py-3 px-4 text-xs font-medium text-tunet-text-muted">Status</th>
-                            <th className="text-left py-3 px-4 text-xs font-medium text-tunet-text-muted">Catatan</th>
+                            <th className="text-left py-3 px-4 text-xs font-medium text-tunet-text-muted min-w-[220px]">Catatan</th>
                             <th className="text-left py-3 px-4 text-xs font-medium text-tunet-text-muted">Koordinat</th>
                             <th className="text-left py-3 px-4 text-xs font-medium text-tunet-text-muted">Oleh</th>
                             <th className="text-left py-3 px-4 text-xs font-medium text-tunet-text-muted">Tanggal</th>
+                            <th className="text-left py-3 px-4 text-xs font-medium text-tunet-text-muted">Aksi</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -422,15 +517,32 @@ export default function AdminMarketingPage() {
                                     <span className="text-sm text-tunet-text-muted">{visit.status_snapshot || "-"}</span>
                                   )}
                                 </td>
-                                <td className="py-3 px-4 text-sm text-tunet-text-muted max-w-[200px] truncate">{visit.notes || "-"}</td>
+                                <td className="py-3 px-4 text-sm text-tunet-text whitespace-normal break-words max-w-xs">{visit.notes || "-"}</td>
                                 <td className="py-3 px-4">
-                                  <div className="flex items-center gap-1 text-xs text-tunet-text-muted">
-                                    <MapPin className="w-3 h-3" />
+                                  <a
+                                    href={`https://maps.google.com/?q=${visit.location_lat},${visit.location_lng}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-1 text-xs text-blue-400 hover:underline group"
+                                    title="Buka di Google Maps"
+                                  >
+                                    <MapPin className="w-3 h-3 text-tunet-text-muted group-hover:text-blue-400" />
                                     <span className="font-mono">{visit.location_lat.toFixed(4)}, {visit.location_lng.toFixed(4)}</span>
-                                  </div>
+                                    <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                  </a>
                                 </td>
                                 <td className="py-3 px-4 text-sm text-tunet-text-muted">{visit.visitor?.name || "-"}</td>
                                 <td className="py-3 px-4 text-xs text-tunet-text-muted">{new Date(visit.created_at).toLocaleDateString("id-ID")}</td>
+                                <td className="py-3 px-4">
+                                  <button
+                                    onClick={() => setDetailVisit(visit)}
+                                    className="p-1.5 rounded hover:bg-tunet-surface-hover text-tunet-text-muted hover:text-tunet-text transition-colors"
+                                    title="Lihat Detail Kunjungan"
+                                    aria-label="Detail Kunjungan"
+                                  >
+                                    <Eye className="w-4 h-4" />
+                                  </button>
+                                </td>
                               </tr>
                             );
                           })}
@@ -443,6 +555,82 @@ export default function AdminMarketingPage() {
             </>
           )}
         </div>
+
+        {/* Visit Detail Dialog */}
+        <Dialog open={!!detailVisit} onOpenChange={() => setDetailVisit(null)}>
+          <DialogContent className="bg-tunet-surface border-tunet-border max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-tunet-text flex items-center gap-2">
+                <ClipboardCheck className="w-5 h-5 text-tunet-green" />
+                Detail Log Kunjungan
+              </DialogTitle>
+            </DialogHeader>
+            {detailVisit && (
+              <div className="space-y-4 py-2">
+                <div className="grid grid-cols-2 gap-3 p-3 rounded-lg bg-tunet-bg border border-tunet-border">
+                  <div>
+                    <p className="text-xs text-tunet-text-muted">Tipe Kunjungan</p>
+                    <Badge variant="secondary" className={`mt-1 text-xs ${detailVisit.type === "prospek" ? "bg-blue-500/20 text-blue-400" : "bg-amber-500/20 text-amber-400"}`}>
+                      {detailVisit.type === "prospek" ? "Prospek" : "Tower"}
+                    </Badge>
+                  </div>
+                  <div>
+                    <p className="text-xs text-tunet-text-muted">Status</p>
+                    <p className="text-sm font-medium text-tunet-text mt-0.5">
+                      {detailVisit.type === "prospek"
+                        ? PROSPECT_STATUS_CONFIG[detailVisit.status_snapshot as keyof typeof PROSPECT_STATUS_CONFIG]?.label || detailVisit.status_snapshot
+                        : detailVisit.status_snapshot}
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-xs text-tunet-text-muted">Nama Targets</p>
+                  <p className="text-sm font-semibold text-tunet-text mt-0.5">
+                    {detailVisit.type === "prospek" ? detailVisit.prospect?.name || "-" : detailVisit.tower?.name || "-"}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs text-tunet-text-muted mb-1">Catatan Kunjungan</p>
+                  <div className="p-3 rounded-lg bg-tunet-bg border border-tunet-border text-sm text-tunet-text whitespace-pre-wrap leading-relaxed">
+                    {detailVisit.notes || "Tidak ada catatan."}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <p className="text-tunet-text-muted">Petugas Kunjungan</p>
+                    <p className="text-tunet-text font-medium mt-0.5">{detailVisit.visitor?.name || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-tunet-text-muted">Waktu Kunjungan</p>
+                    <p className="text-tunet-text font-medium mt-0.5">{new Date(detailVisit.created_at).toLocaleString("id-ID")}</p>
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-xs text-tunet-text-muted mb-1">Lokasi GPS</p>
+                  <a
+                    href={`https://maps.google.com/?q=${detailVisit.location_lat},${detailVisit.location_lng}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 p-2.5 rounded-lg bg-tunet-bg border border-tunet-border text-xs text-blue-400 hover:bg-tunet-surface-hover transition-colors"
+                  >
+                    <MapPin className="w-4 h-4 text-blue-400" />
+                    <span className="font-mono flex-1">{detailVisit.location_lat}, {detailVisit.location_lng}</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+              </div>
+            )}
+            <DialogFooter>
+              <Button onClick={() => setDetailVisit(null)} className="bg-tunet-surface border-tunet-border text-tunet-text hover:bg-tunet-surface-hover">
+                Tutup
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Delete Dialog */}
         <Dialog open={!!deleteProspect} onOpenChange={() => setDeleteProspect(null)}>
