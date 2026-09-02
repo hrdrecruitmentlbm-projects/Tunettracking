@@ -1,5 +1,4 @@
 import { createClient } from "@supabase/supabase-js";
-import sharp from "sharp";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
@@ -28,6 +27,13 @@ export interface ProcessedPhoto {
  * - Generates 200px thumbnail
  */
 export async function processImage(inputBuffer: Buffer): Promise<ProcessedPhoto> {
+  // Lazy-load sharp at call time instead of module scope. sharp 0.35.x
+  // dynamically links libvips (@img/sharp-libvips-*), which failed to dlopen
+  // on Vercel's Linux runtime and crashed the whole attendance route at
+  // import time. Loading here means a sharp failure only skips the photo —
+  // the caller's try/catch keeps the attendance record itself intact.
+  const sharp = (await import("sharp")).default;
+
   const metadata = await sharp(inputBuffer).metadata();
 
   // Process main image: resize, convert to WebP, strip EXIF

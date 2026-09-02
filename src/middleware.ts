@@ -56,5 +56,9 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
+  // Node.js runtime so verifySessionToken() can use the Node `crypto` module.
+  // The default Edge runtime cannot load it, which 500s every protected API
+  // route (e.g. /api/version) with "The edge runtime does not support...".
+  runtime: "nodejs",
   matcher: ["/api/:path*"],
 };
