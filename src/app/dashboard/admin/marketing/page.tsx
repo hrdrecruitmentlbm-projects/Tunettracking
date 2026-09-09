@@ -11,7 +11,7 @@ import {
   softDeleteProspect,
   fetchProspectHistory,
 } from "@/lib/db";
-import { Prospect, VisitLog, User, PROSPECT_STATUS_CONFIG, ProspectHistory } from "@/types";
+import { Prospect, VisitLog, User, ProspectStatusConfig, ProspectHistory } from "@/types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,12 +37,14 @@ import { Target, Search, Edit, Trash2, ClipboardCheck, MapPin, History, Download
 import { COPY } from "@/lib/copy";
 import { toast } from "sonner";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
+import { useProspectStatuses } from "@/hooks/use-prospect-statuses";
 
 export default function AdminMarketingPage() {
   const [prospects, setProspects] = useState<Prospect[]>([]);
   const [visits, setVisits] = useState<VisitLog[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const { statuses: prospectStatuses, getConfig: getProspectStatusConfig } = useProspectStatuses();
   const [activeTab, setActiveTab] = useState<"prospek" | "kunjungan">("prospek");
   const [search, setSearch] = useState("");
   const [formOpen, setFormOpen] = useState(false);
@@ -182,7 +184,7 @@ export default function AdminMarketingPage() {
         `"${p.phone}"`,
         `"${p.area.replace(/"/g, '""')}"`,
         `"${(p.address || "").replace(/"/g, '""')}"`,
-        `"${PROSPECT_STATUS_CONFIG[p.status]?.label || p.status}"`,
+        `"${getProspectStatusConfig(p.status).label}"`,
         `"${p.assignee?.name || "-"}"`,
         `"${new Date(p.created_at).toLocaleDateString("id-ID")}"`,
       ]);
@@ -248,9 +250,9 @@ export default function AdminMarketingPage() {
                 </SelectTrigger>
                 <SelectContent className="bg-tunet-surface border-tunet-border">
                   <SelectItem value="all">Semua Status</SelectItem>
-                  {Object.entries(PROSPECT_STATUS_CONFIG).map(([key, cfg]) => (
-                    <SelectItem key={key} value={key}>
-                      {cfg.label}
+                  {prospectStatuses.map((s) => (
+                    <SelectItem key={s.key} value={s.key}>
+                      {s.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -403,13 +405,13 @@ export default function AdminMarketingPage() {
                                       onChange={(e) => handleStatusChange(prospect.id, e.target.value)}
                                       className="text-xs font-medium rounded-full px-3 py-1 border-0 cursor-pointer focus:ring-2 focus:ring-tunet-green/50 outline-none"
                                       style={{
-                                        backgroundColor: PROSPECT_STATUS_CONFIG[prospect.status].color + "20",
-                                        color: PROSPECT_STATUS_CONFIG[prospect.status].color,
+                                        backgroundColor: getProspectStatusConfig(prospect.status).color + "20",
+                                        color: getProspectStatusConfig(prospect.status).color,
                                       }}
                                     >
-                                      {Object.entries(PROSPECT_STATUS_CONFIG).map(([key, cfg]) => (
-                                        <option key={key} value={key} className="bg-tunet-surface text-tunet-text">
-                                          {cfg.label}
+                                      {prospectStatuses.map((s) => (
+                                        <option key={s.key} value={s.key} className="bg-tunet-surface text-tunet-text">
+                                          {s.label}
                                         </option>
                                       ))}
                                     </select>
@@ -489,7 +491,7 @@ export default function AdminMarketingPage() {
                           {filteredVisits.map((visit) => {
                             const isProspek = visit.type === "prospek";
                             const statusConfig = isProspek
-                              ? PROSPECT_STATUS_CONFIG[visit.status_snapshot as keyof typeof PROSPECT_STATUS_CONFIG]
+                              ? getProspectStatusConfig(visit.status_snapshot)
                               : undefined;
                             return (
                               <tr key={visit.id} className="border-b border-tunet-border last:border-0 hover:bg-tunet-surface-hover">
@@ -578,7 +580,7 @@ export default function AdminMarketingPage() {
                     <p className="text-xs text-tunet-text-muted">Status</p>
                     <p className="text-sm font-medium text-tunet-text mt-0.5">
                       {detailVisit.type === "prospek"
-                        ? PROSPECT_STATUS_CONFIG[detailVisit.status_snapshot as keyof typeof PROSPECT_STATUS_CONFIG]?.label || detailVisit.status_snapshot
+                        ? getProspectStatusConfig(detailVisit.status_snapshot).label
                         : detailVisit.status_snapshot}
                     </p>
                   </div>
@@ -684,16 +686,16 @@ export default function AdminMarketingPage() {
                       <div className="flex items-center gap-2 mt-1 text-xs">
                         <span
                           className="px-2 py-0.5 rounded-full"
-                          style={{ backgroundColor: (PROSPECT_STATUS_CONFIG[h.old_status as keyof typeof PROSPECT_STATUS_CONFIG]?.color || "#6B7280") + "20", color: PROSPECT_STATUS_CONFIG[h.old_status as keyof typeof PROSPECT_STATUS_CONFIG]?.color || "#6B7280" }}
+                          style={{ backgroundColor: getProspectStatusConfig(h.old_status).color + "20", color: getProspectStatusConfig(h.old_status).color }}
                         >
-                          {PROSPECT_STATUS_CONFIG[h.old_status as keyof typeof PROSPECT_STATUS_CONFIG]?.label || h.old_status}
+                          {getProspectStatusConfig(h.old_status).label}
                         </span>
                         <span className="text-tunet-text-muted">→</span>
                         <span
                           className="px-2 py-0.5 rounded-full"
-                          style={{ backgroundColor: (PROSPECT_STATUS_CONFIG[h.new_status as keyof typeof PROSPECT_STATUS_CONFIG]?.color || "#6B7280") + "20", color: PROSPECT_STATUS_CONFIG[h.new_status as keyof typeof PROSPECT_STATUS_CONFIG]?.color || "#6B7280" }}
+                          style={{ backgroundColor: getProspectStatusConfig(h.new_status).color + "20", color: getProspectStatusConfig(h.new_status).color }}
                         >
-                          {PROSPECT_STATUS_CONFIG[h.new_status as keyof typeof PROSPECT_STATUS_CONFIG]?.label || h.new_status}
+                          {getProspectStatusConfig(h.new_status).label}
                         </span>
                       </div>
                       <p className="text-xs text-tunet-text-muted mt-1">
@@ -716,6 +718,7 @@ export default function AdminMarketingPage() {
           users={users}
           onSaved={handleSaved}
           currentUser={currentUser}
+          statuses={prospectStatuses}
         />
       </div>
     </DashboardLayout>
@@ -747,6 +750,7 @@ function AdminProspectForm({
   users,
   onSaved,
   currentUser,
+  statuses,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -754,6 +758,7 @@ function AdminProspectForm({
   users: User[];
   onSaved: () => void;
   currentUser: User | null;
+  statuses: ProspectStatusConfig[];
 }) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -870,8 +875,8 @@ function AdminProspectForm({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-tunet-surface border-tunet-border">
-                  {Object.entries(PROSPECT_STATUS_CONFIG).map(([key, cfg]) => (
-                    <SelectItem key={key} value={key}>{cfg.label}</SelectItem>
+                  {statuses.map((s) => (
+                    <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

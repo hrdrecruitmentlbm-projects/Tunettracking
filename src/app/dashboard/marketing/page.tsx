@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { fetchProspects, fetchTowerSites, fetchVisitLogs } from "@/lib/db";
-import { Prospect, TowerSite, VisitLog, PROSPECT_STATUS_CONFIG, TOWER_SITE_STATUS_CONFIG } from "@/types";
+import { Prospect, TowerSite, VisitLog, TOWER_SITE_STATUS_CONFIG } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { COPY } from "@/lib/copy";
 import { useHeartbeat } from "@/hooks/use-heartbeat";
+import { useProspectStatuses } from "@/hooks/use-prospect-statuses";
 
 export default function MarketingDashboardPage() {
   const [prospects, setProspects] = useState<Prospect[]>([]);
@@ -23,6 +24,7 @@ export default function MarketingDashboardPage() {
   const [visits, setVisits] = useState<VisitLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | undefined>(undefined);
+  const { statuses: prospectStatuses, getConfig: getProspectStatusConfig } = useProspectStatuses();
 
   useHeartbeat({ userId: currentUserId });
 
@@ -63,11 +65,11 @@ export default function MarketingDashboardPage() {
   const visitsToday = visits.filter((v) => v.created_at.startsWith(today));
 
   // Pipeline data
-  const prospectPipeline = Object.entries(PROSPECT_STATUS_CONFIG).map(([key, config]) => ({
-    status: key,
-    label: config.label,
-    color: config.color,
-    count: prospects.filter((p) => p.status === key).length,
+  const prospectPipeline = prospectStatuses.map((s) => ({
+    status: s.key,
+    label: s.label,
+    color: s.color,
+    count: prospects.filter((p) => p.status === s.key).length,
   }));
 
   const towerPipeline = Object.entries(TOWER_SITE_STATUS_CONFIG).map(([key, config]) => ({
@@ -219,7 +221,11 @@ export default function MarketingDashboardPage() {
                 />
               ) : (
                 <div className="space-y-3">
-                  {visits.slice(0, 5).map((visit) => (
+                  {visits.slice(0, 5).map((visit) => {
+                    const statusConfig = visit.type === "prospek"
+                      ? getProspectStatusConfig(visit.status_snapshot)
+                      : TOWER_SITE_STATUS_CONFIG[visit.status_snapshot as keyof typeof TOWER_SITE_STATUS_CONFIG];
+                    return (
                     <div
                       key={visit.id}
                       className="flex items-center gap-3 p-3 rounded-lg bg-tunet-bg border border-tunet-border"
@@ -246,27 +252,19 @@ export default function MarketingDashboardPage() {
                           variant="secondary"
                           className="text-xs"
                           style={{
-                            backgroundColor: (visit.type === "prospek"
-                              ? PROSPECT_STATUS_CONFIG[visit.status_snapshot as keyof typeof PROSPECT_STATUS_CONFIG]
-                              : TOWER_SITE_STATUS_CONFIG[visit.status_snapshot as keyof typeof TOWER_SITE_STATUS_CONFIG]
-                            )?.color + "20",
-                            color: (visit.type === "prospek"
-                              ? PROSPECT_STATUS_CONFIG[visit.status_snapshot as keyof typeof PROSPECT_STATUS_CONFIG]
-                              : TOWER_SITE_STATUS_CONFIG[visit.status_snapshot as keyof typeof TOWER_SITE_STATUS_CONFIG]
-                            )?.color,
+                            backgroundColor: statusConfig?.color + "20",
+                            color: statusConfig?.color,
                           }}
                         >
-                          {(visit.type === "prospek"
-                            ? PROSPECT_STATUS_CONFIG[visit.status_snapshot as keyof typeof PROSPECT_STATUS_CONFIG]
-                            : TOWER_SITE_STATUS_CONFIG[visit.status_snapshot as keyof typeof TOWER_SITE_STATUS_CONFIG]
-                          )?.label || visit.status_snapshot}
+                          {statusConfig?.label || visit.status_snapshot}
                         </Badge>
                         <p className="text-[10px] text-tunet-text-muted mt-1">
                           {new Date(visit.created_at).toLocaleDateString("id-ID")}
                         </p>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </CardContent>

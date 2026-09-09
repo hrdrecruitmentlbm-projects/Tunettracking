@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { fetchProspects, createProspect, updateProspect, softDeleteProspect, fetchUsers, fetchProspectHistory } from "@/lib/db";
-import { Prospect, User, PROSPECT_STATUS_CONFIG, ProspectHistory } from "@/types";
+import { Prospect, User, ProspectStatusConfig, ProspectHistory } from "@/types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
+import { useProspectStatuses } from "@/hooks/use-prospect-statuses";
 import { Plus, Search, Edit, Trash2, History } from "lucide-react";
 import { COPY } from "@/lib/copy";
 import { toast } from "sonner";
@@ -34,6 +35,7 @@ export default function ProspectsPage() {
   const [prospects, setProspects] = useState<Prospect[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const { statuses: prospectStatuses, getConfig: getProspectStatusConfig } = useProspectStatuses();
   const [search, setSearch] = useState("");
   const [formOpen, setFormOpen] = useState(false);
   const [editProspect, setEditProspect] = useState<Prospect | null>(null);
@@ -209,13 +211,13 @@ export default function ProspectsPage() {
                                   onChange={(e) => handleStatusChange(prospect.id, e.target.value)}
                                   className="text-xs font-medium rounded-full px-3 py-1 border-0 cursor-pointer focus:ring-2 focus:ring-tunet-green/50 outline-none"
                                   style={{
-                                    backgroundColor: PROSPECT_STATUS_CONFIG[prospect.status].color + "20",
-                                    color: PROSPECT_STATUS_CONFIG[prospect.status].color,
+                                    backgroundColor: getProspectStatusConfig(prospect.status).color + "20",
+                                    color: getProspectStatusConfig(prospect.status).color,
                                   }}
                                 >
-                                  {Object.entries(PROSPECT_STATUS_CONFIG).map(([key, cfg]) => (
-                                    <option key={key} value={key} className="bg-tunet-surface text-tunet-text">
-                                      {cfg.label}
+                                  {prospectStatuses.map((s) => (
+                                    <option key={s.key} value={s.key} className="bg-tunet-surface text-tunet-text">
+                                      {s.label}
                                     </option>
                                   ))}
                                 </select>
@@ -269,6 +271,7 @@ export default function ProspectsPage() {
           users={users}
           onSaved={handleSaved}
           currentUser={currentUser}
+          statuses={prospectStatuses}
         />
 
         <Dialog open={!!deleteProspect} onOpenChange={() => setDeleteProspect(null)}>
@@ -321,16 +324,16 @@ export default function ProspectsPage() {
                       <div className="flex items-center gap-2 mt-1 text-xs">
                         <span
                           className="px-2 py-0.5 rounded-full"
-                          style={{ backgroundColor: (PROSPECT_STATUS_CONFIG[h.old_status as keyof typeof PROSPECT_STATUS_CONFIG]?.color || "#6B7280") + "20", color: PROSPECT_STATUS_CONFIG[h.old_status as keyof typeof PROSPECT_STATUS_CONFIG]?.color || "#6B7280" }}
+                          style={{ backgroundColor: getProspectStatusConfig(h.old_status).color + "20", color: getProspectStatusConfig(h.old_status).color }}
                         >
-                          {PROSPECT_STATUS_CONFIG[h.old_status as keyof typeof PROSPECT_STATUS_CONFIG]?.label || h.old_status}
+                          {getProspectStatusConfig(h.old_status).label}
                         </span>
                         <span className="text-tunet-text-muted">→</span>
                         <span
                           className="px-2 py-0.5 rounded-full"
-                          style={{ backgroundColor: (PROSPECT_STATUS_CONFIG[h.new_status as keyof typeof PROSPECT_STATUS_CONFIG]?.color || "#6B7280") + "20", color: PROSPECT_STATUS_CONFIG[h.new_status as keyof typeof PROSPECT_STATUS_CONFIG]?.color || "#6B7280" }}
+                          style={{ backgroundColor: getProspectStatusConfig(h.new_status).color + "20", color: getProspectStatusConfig(h.new_status).color }}
                         >
-                          {PROSPECT_STATUS_CONFIG[h.new_status as keyof typeof PROSPECT_STATUS_CONFIG]?.label || h.new_status}
+                          {getProspectStatusConfig(h.new_status).label}
                         </span>
                       </div>
                       <p className="text-xs text-tunet-text-muted mt-1">
@@ -356,6 +359,7 @@ function ProspectForm({
   users,
   onSaved,
   currentUser,
+  statuses,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -363,6 +367,7 @@ function ProspectForm({
   users: User[];
   onSaved: () => void;
   currentUser: User | null;
+  statuses: ProspectStatusConfig[];
 }) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -486,8 +491,8 @@ function ProspectForm({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-tunet-surface border-tunet-border">
-                  {Object.entries(PROSPECT_STATUS_CONFIG).map(([key, config]) => (
-                    <SelectItem key={key} value={key}>{config.label}</SelectItem>
+                  {statuses.map((s) => (
+                    <SelectItem key={s.key} value={s.key}>{s.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

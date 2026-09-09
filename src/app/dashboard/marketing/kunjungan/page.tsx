@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback, Suspense } from "react";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { fetchVisitLogs, createVisitLog, fetchProspects, fetchTowerSites, updateProspect, updateTowerSite, upsertLocation, createTowerSite } from "@/lib/db";
-import { VisitLog, Prospect, TowerSite, PROSPECT_STATUS_CONFIG, TOWER_SITE_STATUS_CONFIG } from "@/types";
+import { VisitLog, Prospect, TowerSite, ProspectStatusConfig, TOWER_SITE_STATUS_CONFIG } from "@/types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
+import { useProspectStatuses } from "@/hooks/use-prospect-statuses";
 import { ClipboardCheck, Plus, MapPin, Navigation, RefreshCw } from "lucide-react";
 import { COPY } from "@/lib/copy";
 import { toast } from "sonner";
@@ -45,6 +46,7 @@ function KunjunganContent() {
   const [activeTab, setActiveTab] = useState<"prospek" | "tower">("prospek");
   const [formOpen, setFormOpen] = useState(false);
   const [currentUser, setCurrentUserId] = useState<{ id: string; name: string } | null>(null);
+  const { statuses: prospectStatuses, getConfig: getProspectStatusConfig } = useProspectStatuses();
 
   useEffect(() => {
     const stored = localStorage.getItem("tutrack-user");
@@ -145,7 +147,7 @@ function KunjunganContent() {
               {filteredVisits.map((visit) => {
                 const isProspek = visit.type === "prospek";
                 const statusConfig = isProspek
-                  ? PROSPECT_STATUS_CONFIG[visit.status_snapshot as keyof typeof PROSPECT_STATUS_CONFIG]
+                  ? getProspectStatusConfig(visit.status_snapshot)
                   : TOWER_SITE_STATUS_CONFIG[visit.status_snapshot as keyof typeof TOWER_SITE_STATUS_CONFIG];
 
                 return (
@@ -207,6 +209,7 @@ function KunjunganContent() {
           towerSites={towerSites}
           onSaved={handleSaved}
           currentUser={currentUser}
+          prospectStatuses={prospectStatuses}
         />
       </div>
     </DashboardLayout>
@@ -220,6 +223,7 @@ function VisitForm({
   towerSites,
   onSaved,
   currentUser,
+  prospectStatuses,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -227,6 +231,7 @@ function VisitForm({
   towerSites: TowerSite[];
   onSaved: () => void;
   currentUser: { id: string; name: string } | null;
+  prospectStatuses: ProspectStatusConfig[];
 }) {
   const [type, setType] = useState<"prospek" | "tower">("prospek");
   const [selectedId, setSelectedId] = useState("");
@@ -372,7 +377,11 @@ function VisitForm({
   };
 
   const items = type === "prospek" ? prospects : towerSites;
-  const statusConfig = type === "prospek" ? PROSPECT_STATUS_CONFIG : TOWER_SITE_STATUS_CONFIG;
+  const prospectStatusMap = useMemo(
+    () => Object.fromEntries(prospectStatuses.map((s) => [s.key, { label: s.label, color: s.color }])),
+    [prospectStatuses]
+  );
+  const statusConfig = type === "prospek" ? prospectStatusMap : TOWER_SITE_STATUS_CONFIG;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

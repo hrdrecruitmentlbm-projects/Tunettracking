@@ -3,16 +3,16 @@
 import { useState, useEffect, useCallback } from "react";
 import { useTheme } from "next-themes";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
-import { User, Tag } from "@/types";
+import { User, Tag, ProspectStatusConfig } from "@/types";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { User as UserIcon, Bell, Moon, Sun, Tag as TagIcon, Plus, Pencil, Trash2 } from "lucide-react";
+import { User as UserIcon, Bell, Moon, Sun, Tag as TagIcon, Target, Plus, Pencil, Trash2 } from "lucide-react";
 import { COPY } from "@/lib/copy";
-import { fetchTags, createTag, updateTag, deleteTag } from "@/lib/db";
+import { fetchTags, createTag, updateTag, deleteTag, fetchProspectStatuses, createProspectStatus, updateProspectStatus, deleteProspectStatus } from "@/lib/db";
 
 function getStoredUser() {
   if (typeof window === "undefined") return null;
@@ -46,17 +46,29 @@ export default function SettingsPage() {
   const [editingTagId, setEditingTagId] = useState<string | null>(null);
   const [savingTag, setSavingTag] = useState(false);
 
+  const [prospectStatuses, setProspectStatuses] = useState<ProspectStatusConfig[]>([]);
+  const [psLabel, setPsLabel] = useState("");
+  const [psColor, setPsColor] = useState("#3B82F6");
+  const [editingPsId, setEditingPsId] = useState<string | null>(null);
+  const [savingPs, setSavingPs] = useState(false);
+
   const loadTags = useCallback(async () => {
     const data = await fetchTags();
     setTags(data);
+  }, []);
+
+  const loadProspectStatuses = useCallback(async () => {
+    const data = await fetchProspectStatuses();
+    setProspectStatuses(data);
   }, []);
 
   useEffect(() => {
     if (user?.role === "admin") {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       loadTags();
+      loadProspectStatuses();
     }
-  }, [user, loadTags]);
+  }, [user, loadTags, loadProspectStatuses]);
 
   const handleSaveTag = async () => {
     if (!tagName.trim()) {
@@ -104,6 +116,60 @@ export default function SettingsPage() {
       }
     } else {
       toast.error("Gagal menghapus label");
+    }
+  };
+
+  const handleSaveProspectStatus = async () => {
+    if (!psLabel.trim()) {
+      toast.error("Nama label harus diisi");
+      return;
+    }
+    setSavingPs(true);
+    if (editingPsId) {
+      const updated = await updateProspectStatus(editingPsId, psLabel.trim(), psColor);
+      if (updated) {
+        toast.success("Label status diperbarui");
+        setEditingPsId(null);
+      } else {
+        toast.error("Gagal memperbarui label status");
+      }
+    } else {
+      const created = await createProspectStatus(psLabel.trim(), psColor);
+      if (created) {
+        toast.success("Label status ditambahkan");
+      } else {
+        toast.error("Gagal menambahkan label status. Pastikan migrasi prospect_statuses sudah dijalankan.");
+      }
+    }
+    setPsLabel("");
+    setPsColor("#3B82F6");
+    await loadProspectStatuses();
+    setSavingPs(false);
+  };
+
+  const handleEditProspectStatus = (status: ProspectStatusConfig) => {
+    setEditingPsId(status.id || null);
+    setPsLabel(status.label);
+    setPsColor(status.color);
+  };
+
+  const handleDeleteProspectStatus = async (status: ProspectStatusConfig) => {
+    if (status.is_deletable === false) return;
+    const ok = window.confirm(
+      `Hapus label "${status.label}"? Prospek yang sudah memakai label ini akan tetap menyimpan statusnya dan tampil sebagai teks biasa.`
+    );
+    if (!ok) return;
+    const deleted = await deleteProspectStatus(status.id!);
+    if (deleted) {
+      toast.success("Label status dihapus");
+      await loadProspectStatuses();
+      if (editingPsId === status.id) {
+        setEditingPsId(null);
+        setPsLabel("");
+        setPsColor("#3B82F6");
+      }
+    } else {
+      toast.error("Gagal menghapus label status");
     }
   };
 
@@ -354,6 +420,108 @@ export default function SettingsPage() {
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {user?.role === "admin" && (
+            <Card className="bg-tunet-surface border-tunet-border">
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-tunet-green/20 flex items-center justify-center">
+                    <Target className="w-5 h-5 text-tunet-green" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-tunet-text">Label Status Prospek</CardTitle>
+                    <CardDescription>Kelola label status untuk prospek marketing</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex gap-2">
+                  <label htmlFor="prospect-status-color" className="sr-only">Warna label status</label>
+                  <input
+                    id="prospect-status-color"
+                    type="color"
+                    value={psColor}
+                    onChange={(e) => setPsColor(e.target.value)}
+                    className="w-9 h-9 rounded cursor-pointer border-0 bg-transparent"
+                  />
+                  <Input
+                    id="prospect-status-label"
+                    placeholder="Nama label status"
+                    value={psLabel}
+                    onChange={(e) => setPsLabel(e.target.value)}
+                    className="bg-tunet-bg border-tunet-border text-tunet-text flex-1"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={handleSaveProspectStatus}
+                    disabled={savingPs || !psLabel.trim()}
+                    className="bg-tunet-green hover:bg-tunet-green-dark text-white"
+                  >
+                    {editingPsId ? <Pencil className="w-3.5 h-3.5 mr-1" /> : <Plus className="w-3.5 h-3.5 mr-1" />}
+                    {editingPsId ? "Simpan" : "Tambah"}
+                  </Button>
+                  {editingPsId && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setEditingPsId(null);
+                        setPsLabel("");
+                        setPsColor("#3B82F6");
+                      }}
+                      className="border-tunet-border text-tunet-text-muted"
+                    >
+                      Batal
+                    </Button>
+                  )}
+                </div>
+
+                <Separator className="bg-tunet-border" />
+
+                <div className="space-y-2">
+                  {prospectStatuses.length === 0 ? (
+                    <p className="text-xs text-tunet-text-muted text-center py-4">Belum ada label status</p>
+                  ) : (
+                    prospectStatuses.map((status) => (
+                      <div
+                        key={status.id || status.key}
+                        className="flex items-center justify-between px-3 py-2 rounded-lg bg-tunet-bg border border-tunet-border"
+                      >
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-3 h-3 rounded-full"
+                            style={{ backgroundColor: status.color }}
+                          />
+                          <span className="text-sm text-tunet-text">{status.label}</span>
+                          {status.is_deletable === false && (
+                            <span className="text-[10px] text-tunet-text-muted">(bawaan)</span>
+                          )}
+                        </div>
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => handleEditProspectStatus(status)}
+                            className="p-1 text-tunet-text-muted hover:text-tunet-text"
+                            aria-label={`Edit label status ${status.label}`}
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          {status.is_deletable !== false && (
+                            <button
+                              onClick={() => handleDeleteProspectStatus(status)}
+                              className="p-1 text-tunet-text-muted hover:text-status-overdue"
+                              aria-label={`Hapus label status ${status.label}`}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                       </div>
                     ))

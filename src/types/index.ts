@@ -161,6 +161,23 @@ export interface AttendanceTodo {
 
 export type ProspectStatus = "belum_diproses" | "sudah_followup" | "acc" | "tidak";
 
+/**
+ * Prospect statuses are admin-managed via Settings > Label Status Prospek
+ * (backed by the `prospect_statuses` table). Prospect rows store the stable
+ * `key`, so labels can be renamed without breaking history. Anything not in
+ * the table falls back to rendering the raw key with UNKNOWN_STATUS_COLOR.
+ */
+export interface ProspectStatusConfig {
+  id?: string;
+  key: string;
+  label: string;
+  color: string;
+  sort_order?: number;
+  is_deletable?: boolean;
+}
+
+export const UNKNOWN_STATUS_COLOR = "#6B7280";
+
 export type TowerSiteStatus = "baru_ditugaskan" | "pending" | "diproses" | "acc" | "rejected";
 
 export type CardType = "task" | "prospect" | "tower";
@@ -172,7 +189,7 @@ export interface Prospect {
   address: string;
   location_lat: number;
   location_lng: number;
-  status: ProspectStatus;
+  status: string;
   notes: string;
   assigned_to: string;
   area: string;
@@ -235,6 +252,17 @@ export const PROSPECT_STATUS_CONFIG: Record<ProspectStatus, { label: string; col
   acc: { label: "Acc", color: "#10B981" },
   tidak: { label: "Tidak", color: "#EF4444" },
 };
+
+/** Fallback list used before the prospect_statuses migration runs / in demo mode */
+export const DEFAULT_PROSPECT_STATUSES: ProspectStatusConfig[] = Object.entries(
+  PROSPECT_STATUS_CONFIG
+).map(([key, cfg], i) => ({
+  key,
+  label: cfg.label,
+  color: cfg.color,
+  sort_order: (i + 1) * 10,
+  is_deletable: false,
+}));
 
 export const TOWER_SITE_STATUS_CONFIG: Record<TowerSiteStatus, { label: string; color: string }> = {
   baru_ditugaskan: { label: "Baru Ditugaskan", color: "#6B7280" },

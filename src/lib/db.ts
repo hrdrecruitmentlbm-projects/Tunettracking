@@ -1,5 +1,5 @@
 import { supabase } from "./supabase";
-import { User, Task, Location, Tag, Notification, TaskStatus, Prospect, TowerSite, VisitLog, ProspectHistory } from "@/types";
+import { User, Task, Location, Tag, Notification, TaskStatus, Prospect, TowerSite, VisitLog, ProspectHistory, ProspectStatusConfig, DEFAULT_PROSPECT_STATUSES } from "@/types";
 
 export async function loginByPin(pin: string): Promise<User | null> {
   const { data, error } = await supabase
@@ -265,6 +265,92 @@ export async function deleteTag(id: string): Promise<boolean> {
 
   if (error) {
     console.error("Error deleting tag:", error);
+    return false;
+  }
+  return true;
+}
+
+// ===== Prospect statuses (admin-managed labels via Settings) =====
+
+function slugifyStatusKey(label: string): string {
+  const slug = label
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 40);
+  return slug || "status";
+}
+
+export async function fetchProspectStatuses(): Promise<ProspectStatusConfig[]> {
+  const { data, error } = await supabase
+    .from("prospect_statuses")
+    .select("*")
+    .order("sort_order");
+
+  if (error) {
+    // Table may not exist yet (migration not run) or Supabase not configured — use defaults
+    console.warn("fetchProspectStatuses failed, using default statuses:", error.message);
+    return DEFAULT_PROSPECT_STATUSES;
+  }
+  if (!data || data.length === 0) {
+    return DEFAULT_PROSPECT_STATUSES;
+  }
+  return data as ProspectStatusConfig[];
+}
+
+export async function createProspectStatus(
+  label: string,
+  color: string
+): Promise<ProspectStatusConfig | null> {
+  // Pick a unique slug key (prospect rows store the key, so it must be stable)
+  const { data: existing } = await supabase.from("prospect_statuses").select("key");
+  const keys = new Set(((existing || []) as { key: string }[]).map((r) => r.key));
+  const base = slugifyStatusKey(label);
+  let key = base;
+  let n = 2;
+  while (keys.has(key)) {
+    key = `${base}_${n}`;
+    n += 1;
+  }
+
+  const { data, error } = await supabase
+    .from("prospect_statuses")
+    .insert({ key, label, color, sort_order: 100, is_deletable: true })
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Error creating prospect status:", error);
+    return null;
+  }
+  return data as ProspectStatusConfig;
+}
+
+export async function updateProspectStatus(
+  id: string,
+  label: string,
+  color: string
+): Promise<ProspectStatusConfig | null> {
+  const { data, error } = await supabase
+    .from("prospect_statuses")
+    .update({ label, color })
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Error updating prospect status:", error);
+    return null;
+  }
+  return data as ProspectStatusConfig;
+}
+
+export async function deleteProspectStatus(id: string): Promise<boolean> {
+  const { error } = await supabase.from("prospect_statuses").delete().eq("id", id);
+
+  if (error) {
+    console.error("Error deleting prospect status:", error);
     return false;
   }
   return true;
