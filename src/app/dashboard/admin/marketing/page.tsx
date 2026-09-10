@@ -33,11 +33,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Target, Search, Edit, Trash2, ClipboardCheck, MapPin, History, Download, ExternalLink, Phone, Eye, Filter } from "lucide-react";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Target, Search, Edit, Trash2, ClipboardCheck, MapPin, Download, ExternalLink, Phone, Filter } from "lucide-react";
 import { COPY } from "@/lib/copy";
 import { toast } from "sonner";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { useProspectStatuses } from "@/hooks/use-prospect-statuses";
+
+type DetailTarget =
+  | { kind: "prospek"; prospectId: string }
+  | { kind: "kunjungan"; visit: VisitLog };
 
 export default function AdminMarketingPage() {
   const [prospects, setProspects] = useState<Prospect[]>([]);
@@ -51,11 +64,10 @@ export default function AdminMarketingPage() {
   const [editProspect, setEditProspect] = useState<Prospect | null>(null);
   const [deleteProspect, setDeleteProspect] = useState<Prospect | null>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [historyProspect, setHistoryProspect] = useState<Prospect | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [drawer, setDrawer] = useState<DetailTarget | null>(null);
   const [history, setHistory] = useState<ProspectHistory[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [detailVisit, setDetailVisit] = useState<VisitLog | null>(null);
 
   useEffect(() => {
     const stored = localStorage.getItem("tutrack-user");
@@ -96,7 +108,9 @@ export default function AdminMarketingPage() {
         !q ||
         p.name.toLowerCase().includes(q) ||
         p.phone.includes(q) ||
-        p.area.toLowerCase().includes(q);
+        p.area.toLowerCase().includes(q) ||
+        (p.address || "").toLowerCase().includes(q) ||
+        (p.notes || "").toLowerCase().includes(q);
       const matchesStatus = statusFilter === "all" || p.status === statusFilter;
       return matchesSearch && matchesStatus;
     });
@@ -136,12 +150,35 @@ export default function AdminMarketingPage() {
     setFormOpen(true);
   };
 
+  const drawerProspect = drawer?.kind === "prospek" ? prospects.find((p) => p.id === drawer.prospectId) ?? null : null;
+  const drawerVisit = drawer?.kind === "kunjungan" ? drawer.visit : null;
+
+  const loadHistory = async (prospectId: string) => {
+    setHistoryLoading(true);
+    try {
+      const data = await fetchProspectHistory(prospectId);
+      setHistory(data);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const openProspectDrawer = (prospect: Prospect) => {
+    setDrawer({ kind: "prospek", prospectId: prospect.id });
+    loadHistory(prospect.id);
+  };
+
+  const openVisitDrawer = (visit: VisitLog) => {
+    setDrawer({ kind: "kunjungan", visit });
+  };
+
   const handleDelete = async () => {
     if (!deleteProspect || !currentUser) return;
     const ok = await softDeleteProspect(deleteProspect.id, currentUser.id);
     if (ok) {
       toast.success("Prospek berhasil dihapus");
       setProspects((prev) => prev.filter((p) => p.id !== deleteProspect.id));
+      setDrawer((d) => (d?.kind === "prospek" && d.prospectId === deleteProspect.id ? null : d));
     } else {
       toast.error("Gagal menghapus prospek");
     }
@@ -155,19 +192,11 @@ export default function AdminMarketingPage() {
         prev.map((p) => (p.id === prospectId ? { ...p, status: newStatus as Prospect["status"] } : p))
       );
       toast.success("Status berhasil diperbarui");
+      if (drawer?.kind === "prospek" && drawer.prospectId === prospectId) {
+        loadHistory(prospectId);
+      }
     } else {
       toast.error("Gagal memperbarui status");
-    }
-  };
-
-  const handleHistory = async (prospect: Prospect) => {
-    setHistoryProspect(prospect);
-    setHistoryLoading(true);
-    try {
-      const data = await fetchProspectHistory(prospect.id);
-      setHistory(data);
-    } finally {
-      setHistoryLoading(false);
     }
   };
 
@@ -178,13 +207,14 @@ export default function AdminMarketingPage() {
 
   const handleExportCSV = () => {
     if (activeTab === "prospek") {
-      const headers = ["Nama", "Telepon", "Area", "Alamat", "Status", "Penanggung Jawab", "Tanggal Dibuat"];
+      const headers = ["Nama", "Telepon", "Area", "Alamat", "Status", "Catatan", "Penanggung Jawab", "Tanggal Dibuat"];
       const rows = filteredProspects.map((p) => [
         `"${p.name.replace(/"/g, '""')}"`,
         `"${p.phone}"`,
         `"${p.area.replace(/"/g, '""')}"`,
         `"${(p.address || "").replace(/"/g, '""')}"`,
         `"${getProspectStatusConfig(p.status).label}"`,
+        `"${(p.notes || "").replace(/"/g, '""')}"`,
         `"${p.assignee?.name || "-"}"`,
         `"${new Date(p.created_at).toLocaleDateString("id-ID")}"`,
       ]);
@@ -361,6 +391,7 @@ export default function AdminMarketingPage() {
                             <th className="text-left py-3 px-4 text-xs font-medium text-tunet-text-muted">{COPY.pages.prospects.colPhone}</th>
                             <th className="text-left py-3 px-4 text-xs font-medium text-tunet-text-muted">{COPY.pages.prospects.colArea}</th>
                             <th className="text-left py-3 px-4 text-xs font-medium text-tunet-text-muted">{COPY.pages.prospects.colStatus}</th>
+                            <th className="text-left py-3 px-4 text-xs font-medium text-tunet-text-muted min-w-[180px]">Catatan</th>
                             <th className="text-left py-3 px-4 text-xs font-medium text-tunet-text-muted">{COPY.pages.prospects.colAssignee}</th>
                             <th className="text-left py-3 px-4 text-xs font-medium text-tunet-text-muted">{COPY.pages.prospects.colDateAdded}</th>
                             <th className="text-left py-3 px-4 text-xs font-medium text-tunet-text-muted">{COPY.pages.prospects.colActions}</th>
@@ -369,7 +400,19 @@ export default function AdminMarketingPage() {
                         <tbody>
                           {filteredProspects.map((prospect) => {
                             return (
-                              <tr key={prospect.id} className="border-b border-tunet-border last:border-0 hover:bg-tunet-surface-hover">
+                              <tr
+                                key={prospect.id}
+                                tabIndex={0}
+                                aria-label={`Detail prospek ${prospect.name}`}
+                                onClick={() => openProspectDrawer(prospect)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    openProspectDrawer(prospect);
+                                  }
+                                }}
+                                className="border-b border-tunet-border last:border-0 hover:bg-tunet-surface-hover cursor-pointer focus-visible:outline focus-visible:outline-1 focus-visible:outline-tunet-green"
+                              >
                                 <td className="py-3 px-4">
                                   <div className="flex items-center gap-3">
                                     <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 text-sm font-medium">
@@ -386,6 +429,7 @@ export default function AdminMarketingPage() {
                                         href={`https://wa.me/${prospect.phone.replace(/[^0-9]/g, "").replace(/^0/, "62")}`}
                                         target="_blank"
                                         rel="noopener noreferrer"
+                                        onClick={(e) => e.stopPropagation()}
                                         className="p-1 rounded hover:bg-emerald-500/20 text-emerald-400 transition-colors"
                                         title="Chat WhatsApp"
                                         aria-label="Chat WhatsApp"
@@ -397,7 +441,11 @@ export default function AdminMarketingPage() {
                                 </td>
                                 <td className="py-3 px-4 text-sm text-tunet-text-muted">{prospect.area}</td>
                                 <td className="py-3 px-4">
-                                  <div className="flex items-center gap-2">
+                                  <div
+                                    className="flex items-center gap-2"
+                                    onClick={(e) => e.stopPropagation()}
+                                    onKeyDown={(e) => e.stopPropagation()}
+                                  >
                                     <select
                                       id={`prospect-status-${prospect.id}`}
                                       aria-label="Status prospek"
@@ -415,15 +463,27 @@ export default function AdminMarketingPage() {
                                         </option>
                                       ))}
                                     </select>
-                                    <button
-                                      onClick={() => handleHistory(prospect)}
-                                      className="p-1 rounded hover:bg-tunet-surface-hover text-tunet-text-muted"
-                                      title="Riwayat"
-                                      aria-label="Riwayat"
-                                    >
-                                      <History className="w-3.5 h-3.5" />
-                                    </button>
                                   </div>
+                                </td>
+                                <td className="py-3 px-4 max-w-[220px]">
+                                  {prospect.notes ? (
+                                    <TooltipProvider delay={300}>
+                                      <Tooltip>
+                                        <TooltipTrigger
+                                          render={
+                                            <span className="block text-sm text-tunet-text-muted line-clamp-2 break-words cursor-default" />
+                                          }
+                                        >
+                                          {prospect.notes}
+                                        </TooltipTrigger>
+                                        <TooltipContent side="top" align="start" className="max-w-72">
+                                          <p className="text-xs whitespace-pre-wrap break-words">{prospect.notes}</p>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  ) : (
+                                    <span className="text-sm text-tunet-text-muted/50">—</span>
+                                  )}
                                 </td>
                                 <td className="py-3 px-4 text-sm text-tunet-text-muted">{prospect.assignee?.name || "-"}</td>
                                 <td className="py-3 px-4 text-xs text-tunet-text-muted">
@@ -432,14 +492,20 @@ export default function AdminMarketingPage() {
                                 <td className="py-3 px-4">
                                   <div className="flex items-center gap-2">
                                     <button
-                                      onClick={() => handleEdit(prospect)}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleEdit(prospect);
+                                      }}
                                       className="p-1.5 rounded hover:bg-tunet-surface-hover text-tunet-text-muted"
                                       aria-label="Edit prospek"
                                     >
                                       <Edit className="w-4 h-4" />
                                     </button>
                                     <button
-                                      onClick={() => setDeleteProspect(prospect)}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setDeleteProspect(prospect);
+                                      }}
                                       className="p-1.5 rounded hover:bg-status-overdue/10 text-tunet-text-muted hover:text-status-overdue"
                                       aria-label="Hapus prospek"
                                     >
@@ -484,7 +550,6 @@ export default function AdminMarketingPage() {
                             <th className="text-left py-3 px-4 text-xs font-medium text-tunet-text-muted">Koordinat</th>
                             <th className="text-left py-3 px-4 text-xs font-medium text-tunet-text-muted">Oleh</th>
                             <th className="text-left py-3 px-4 text-xs font-medium text-tunet-text-muted">Tanggal</th>
-                            <th className="text-left py-3 px-4 text-xs font-medium text-tunet-text-muted">Aksi</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -494,7 +559,19 @@ export default function AdminMarketingPage() {
                               ? getProspectStatusConfig(visit.status_snapshot)
                               : undefined;
                             return (
-                              <tr key={visit.id} className="border-b border-tunet-border last:border-0 hover:bg-tunet-surface-hover">
+                              <tr
+                                key={visit.id}
+                                tabIndex={0}
+                                aria-label={`Detail kunjungan ${isProspek ? visit.prospect?.name || "" : visit.tower?.name || ""}`}
+                                onClick={() => openVisitDrawer(visit)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    openVisitDrawer(visit);
+                                  }
+                                }}
+                                className="border-b border-tunet-border last:border-0 hover:bg-tunet-surface-hover cursor-pointer focus-visible:outline focus-visible:outline-1 focus-visible:outline-tunet-green"
+                              >
                                 <td className="py-3 px-4">
                                   <Badge
                                     variant="secondary"
@@ -525,6 +602,7 @@ export default function AdminMarketingPage() {
                                     href={`https://maps.google.com/?q=${visit.location_lat},${visit.location_lng}`}
                                     target="_blank"
                                     rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
                                     className="flex items-center gap-1 text-xs text-blue-400 hover:underline group"
                                     title="Buka di Google Maps"
                                   >
@@ -535,16 +613,6 @@ export default function AdminMarketingPage() {
                                 </td>
                                 <td className="py-3 px-4 text-sm text-tunet-text-muted">{visit.visitor?.name || "-"}</td>
                                 <td className="py-3 px-4 text-xs text-tunet-text-muted">{new Date(visit.created_at).toLocaleDateString("id-ID")}</td>
-                                <td className="py-3 px-4">
-                                  <button
-                                    onClick={() => setDetailVisit(visit)}
-                                    className="p-1.5 rounded hover:bg-tunet-surface-hover text-tunet-text-muted hover:text-tunet-text transition-colors"
-                                    title="Lihat Detail Kunjungan"
-                                    aria-label="Detail Kunjungan"
-                                  >
-                                    <Eye className="w-4 h-4" />
-                                  </button>
-                                </td>
                               </tr>
                             );
                           })}
@@ -558,81 +626,222 @@ export default function AdminMarketingPage() {
           )}
         </div>
 
-        {/* Visit Detail Dialog */}
-        <Dialog open={!!detailVisit} onOpenChange={() => setDetailVisit(null)}>
-          <DialogContent className="bg-tunet-surface border-tunet-border max-w-md">
-            <DialogHeader>
-              <DialogTitle className="text-tunet-text flex items-center gap-2">
-                <ClipboardCheck className="w-5 h-5 text-tunet-green" />
-                Detail Log Kunjungan
-              </DialogTitle>
-            </DialogHeader>
-            {detailVisit && (
-              <div className="space-y-4 py-2">
-                <div className="grid grid-cols-2 gap-3 p-3 rounded-lg bg-tunet-bg border border-tunet-border">
-                  <div>
-                    <p className="text-xs text-tunet-text-muted">Tipe Kunjungan</p>
-                    <Badge variant="secondary" className={`mt-1 text-xs ${detailVisit.type === "prospek" ? "bg-blue-500/20 text-blue-400" : "bg-amber-500/20 text-amber-400"}`}>
-                      {detailVisit.type === "prospek" ? "Prospek" : "Tower"}
-                    </Badge>
+        {/* Detail Drawer (Prospek / Kunjungan) */}
+        <Sheet open={!!drawer} onOpenChange={() => setDrawer(null)}>
+          <SheetContent side="right" className="bg-tunet-surface border-tunet-border w-full sm:max-w-md gap-0">
+            {drawerProspect ? (
+              <>
+                <SheetHeader className="border-b border-tunet-border">
+                  <div className="flex items-center gap-3">
+                    <div className="w-11 h-11 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 text-lg font-medium flex-shrink-0">
+                      {drawerProspect.name.charAt(0)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <SheetTitle className="text-tunet-text truncate">{drawerProspect.name}</SheetTitle>
+                      <SheetDescription className="text-tunet-text-muted truncate">
+                        {drawerProspect.area || "Tanpa area"} ·{" "}
+                        {new Date(drawerProspect.created_at).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
+                      </SheetDescription>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-xs text-tunet-text-muted">Status</p>
-                    <p className="text-sm font-medium text-tunet-text mt-0.5">
-                      {detailVisit.type === "prospek"
-                        ? getProspectStatusConfig(detailVisit.status_snapshot).label
-                        : detailVisit.status_snapshot}
-                    </p>
+                  <div className="flex items-center gap-2 mt-3 flex-wrap">
+                    <select
+                      aria-label="Status prospek"
+                      value={drawerProspect.status}
+                      onChange={(e) => handleStatusChange(drawerProspect.id, e.target.value)}
+                      className="text-xs font-medium rounded-full px-3 py-1 border-0 cursor-pointer focus:ring-2 focus:ring-tunet-green/50 outline-none"
+                      style={{
+                        backgroundColor: getProspectStatusConfig(drawerProspect.status).color + "20",
+                        color: getProspectStatusConfig(drawerProspect.status).color,
+                      }}
+                    >
+                      {prospectStatuses.map((s) => (
+                        <option key={s.key} value={s.key} className="bg-tunet-surface text-tunet-text">
+                          {s.label}
+                        </option>
+                      ))}
+                    </select>
+                    {drawerProspect.phone && (
+                      <a
+                        href={`https://wa.me/${drawerProspect.phone.replace(/[^0-9]/g, "").replace(/^0/, "62")}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors"
+                        title="Chat WhatsApp"
+                      >
+                        <Phone className="w-3 h-3" />
+                        {drawerProspect.phone}
+                      </a>
+                    )}
                   </div>
+                </SheetHeader>
+
+                <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
+                  <div className="grid grid-cols-1 gap-4">
+                    <div>
+                      <p className="text-xs text-tunet-text-muted mb-1">{COPY.pages.prospects.address}</p>
+                      <p className="text-sm text-tunet-text whitespace-pre-wrap break-words">{drawerProspect.address || "-"}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-tunet-text-muted mb-1">Koordinat</p>
+                      <a
+                        href={`https://maps.google.com/?q=${drawerProspect.location_lat},${drawerProspect.location_lng}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 p-2.5 rounded-lg bg-tunet-bg border border-tunet-border text-xs text-blue-400 hover:bg-tunet-surface-hover transition-colors"
+                      >
+                        <MapPin className="w-4 h-4 text-blue-400" />
+                        <span className="font-mono flex-1">{drawerProspect.location_lat}, {drawerProspect.location_lng}</span>
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-xs text-tunet-text-muted mb-1">{COPY.pages.prospects.notes}</p>
+                    <div className="p-3 rounded-lg bg-tunet-bg border border-tunet-border text-sm text-tunet-text whitespace-pre-wrap leading-relaxed">
+                      {drawerProspect.notes || "Tidak ada catatan."}
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-xs text-tunet-text-muted mb-2">Riwayat Status</p>
+                    {historyLoading ? (
+                      <div className="space-y-3">
+                        {Array.from({ length: 3 }).map((_, i) => (
+                          <Skeleton key={i} className="h-16 w-full" />
+                        ))}
+                      </div>
+                    ) : history.length === 0 ? (
+                      <p className="text-sm text-tunet-text-muted">Belum ada riwayat perubahan status</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {history.map((h) => (
+                          <div key={h.id} className="flex items-start gap-3 p-3 rounded-lg bg-tunet-bg border border-tunet-border">
+                            <div className="w-8 h-8 rounded-full bg-tunet-green/20 flex items-center justify-center text-tunet-green text-sm font-medium flex-shrink-0">
+                              {h.changer?.name?.charAt(0) || "?"}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-sm text-tunet-text font-medium">{h.changer?.name || "Unknown"}</span>
+                                <span className="text-xs text-tunet-text-muted">mengubah status</span>
+                              </div>
+                              <div className="flex items-center gap-2 mt-1 text-xs">
+                                <span
+                                  className="px-2 py-0.5 rounded-full"
+                                  style={{ backgroundColor: getProspectStatusConfig(h.old_status).color + "20", color: getProspectStatusConfig(h.old_status).color }}
+                                >
+                                  {getProspectStatusConfig(h.old_status).label}
+                                </span>
+                                <span className="text-tunet-text-muted">→</span>
+                                <span
+                                  className="px-2 py-0.5 rounded-full"
+                                  style={{ backgroundColor: getProspectStatusConfig(h.new_status).color + "20", color: getProspectStatusConfig(h.new_status).color }}
+                                >
+                                  {getProspectStatusConfig(h.new_status).label}
+                                </span>
+                              </div>
+                              <p className="text-xs text-tunet-text-muted mt-1">
+                                {new Date(h.changed_at).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })},{" "}
+                                {new Date(h.changed_at).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
                 </div>
 
-                <div>
-                  <p className="text-xs text-tunet-text-muted">Nama Targets</p>
-                  <p className="text-sm font-semibold text-tunet-text mt-0.5">
-                    {detailVisit.type === "prospek" ? detailVisit.prospect?.name || "-" : detailVisit.tower?.name || "-"}
-                  </p>
-                </div>
-
-                <div>
-                  <p className="text-xs text-tunet-text-muted mb-1">Catatan Kunjungan</p>
-                  <div className="p-3 rounded-lg bg-tunet-bg border border-tunet-border text-sm text-tunet-text whitespace-pre-wrap leading-relaxed">
-                    {detailVisit.notes || "Tidak ada catatan."}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 text-xs">
-                  <div>
-                    <p className="text-tunet-text-muted">Petugas Kunjungan</p>
-                    <p className="text-tunet-text font-medium mt-0.5">{detailVisit.visitor?.name || "-"}</p>
-                  </div>
-                  <div>
-                    <p className="text-tunet-text-muted">Waktu Kunjungan</p>
-                    <p className="text-tunet-text font-medium mt-0.5">{new Date(detailVisit.created_at).toLocaleString("id-ID")}</p>
-                  </div>
-                </div>
-
-                <div>
-                  <p className="text-xs text-tunet-text-muted mb-1">Lokasi GPS</p>
-                  <a
-                    href={`https://maps.google.com/?q=${detailVisit.location_lat},${detailVisit.location_lng}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 p-2.5 rounded-lg bg-tunet-bg border border-tunet-border text-xs text-blue-400 hover:bg-tunet-surface-hover transition-colors"
+                <SheetFooter className="border-t border-tunet-border flex-row gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => handleEdit(drawerProspect)}
+                    className="flex-1 border-tunet-border text-tunet-text hover:bg-tunet-surface-hover"
                   >
-                    <MapPin className="w-4 h-4 text-blue-400" />
-                    <span className="font-mono flex-1">{detailVisit.location_lat}, {detailVisit.location_lng}</span>
-                    <ExternalLink className="w-3.5 h-3.5" />
-                  </a>
+                    <Edit className="w-4 h-4 mr-1.5" />
+                    Edit
+                  </Button>
+                  <Button
+                    onClick={() => setDeleteProspect(drawerProspect)}
+                    className="flex-1 bg-status-overdue hover:bg-status-overdue/90 text-white"
+                  >
+                    <Trash2 className="w-4 h-4 mr-1.5" />
+                    Hapus
+                  </Button>
+                </SheetFooter>
+              </>
+            ) : drawerVisit ? (
+              <>
+                <SheetHeader className="border-b border-tunet-border">
+                  <SheetTitle className="text-tunet-text flex items-center gap-2">
+                    <ClipboardCheck className="w-5 h-5 text-tunet-green flex-shrink-0" />
+                    <span className="truncate">
+                      {drawerVisit.type === "prospek" ? drawerVisit.prospect?.name || "-" : drawerVisit.tower?.name || "-"}
+                    </span>
+                  </SheetTitle>
+                  <SheetDescription className="text-tunet-text-muted">Detail Log Kunjungan</SheetDescription>
+                  <div className="flex items-center gap-2 mt-2">
+                    <Badge
+                      variant="secondary"
+                      className={`text-xs ${drawerVisit.type === "prospek" ? "bg-blue-500/20 text-blue-400" : "bg-amber-500/20 text-amber-400"}`}
+                    >
+                      {drawerVisit.type === "prospek" ? "Prospek" : "Tower"}
+                    </Badge>
+                    {drawerVisit.type === "prospek" ? (
+                      <span
+                        className="text-xs font-medium px-2 py-0.5 rounded-full"
+                        style={{
+                          backgroundColor: getProspectStatusConfig(drawerVisit.status_snapshot).color + "20",
+                          color: getProspectStatusConfig(drawerVisit.status_snapshot).color,
+                        }}
+                      >
+                        {getProspectStatusConfig(drawerVisit.status_snapshot).label}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-tunet-text-muted">{drawerVisit.status_snapshot}</span>
+                    )}
+                  </div>
+                </SheetHeader>
+
+                <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+                  <div>
+                    <p className="text-xs text-tunet-text-muted mb-1">Catatan Kunjungan</p>
+                    <div className="p-3 rounded-lg bg-tunet-bg border border-tunet-border text-sm text-tunet-text whitespace-pre-wrap leading-relaxed">
+                      {drawerVisit.notes || "Tidak ada catatan."}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <p className="text-tunet-text-muted">Petugas Kunjungan</p>
+                      <p className="text-tunet-text font-medium mt-0.5">{drawerVisit.visitor?.name || "-"}</p>
+                    </div>
+                    <div>
+                      <p className="text-tunet-text-muted">Waktu Kunjungan</p>
+                      <p className="text-tunet-text font-medium mt-0.5">{new Date(drawerVisit.created_at).toLocaleString("id-ID")}</p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-xs text-tunet-text-muted mb-1">Lokasi GPS</p>
+                    <a
+                      href={`https://maps.google.com/?q=${drawerVisit.location_lat},${drawerVisit.location_lng}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 p-2.5 rounded-lg bg-tunet-bg border border-tunet-border text-xs text-blue-400 hover:bg-tunet-surface-hover transition-colors"
+                    >
+                      <MapPin className="w-4 h-4 text-blue-400" />
+                      <span className="font-mono flex-1">{drawerVisit.location_lat}, {drawerVisit.location_lng}</span>
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                  </div>
                 </div>
-              </div>
-            )}
-            <DialogFooter>
-              <Button onClick={() => setDetailVisit(null)} className="bg-tunet-surface border-tunet-border text-tunet-text hover:bg-tunet-surface-hover">
-                Tutup
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+              </>
+            ) : null}
+          </SheetContent>
+        </Sheet>
 
         {/* Delete Dialog */}
         <Dialog open={!!deleteProspect} onOpenChange={() => setDeleteProspect(null)}>
@@ -651,62 +860,6 @@ export default function AdminMarketingPage() {
                 {COPY.actions.delete}
               </Button>
             </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* History Dialog */}
-        <Dialog open={!!historyProspect} onOpenChange={() => { setHistoryProspect(null); setHistory([]); }}>
-          <DialogContent className="bg-tunet-surface border-tunet-border max-w-md">
-            <DialogHeader>
-              <DialogTitle className="text-tunet-text">Riwayat Status</DialogTitle>
-              <DialogDescription className="text-tunet-text-muted">
-                {historyProspect?.name}
-              </DialogDescription>
-            </DialogHeader>
-            {historyLoading ? (
-              <div className="space-y-3 py-4">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <Skeleton key={i} className="h-16 w-full" />
-                ))}
-              </div>
-            ) : history.length === 0 ? (
-              <p className="text-sm text-tunet-text-muted py-4 text-center">Belum ada riwayat perubahan status</p>
-            ) : (
-              <div className="space-y-3 max-h-80 overflow-y-auto py-2">
-                {history.map((h) => (
-                  <div key={h.id} className="flex items-start gap-3 p-3 rounded-lg bg-tunet-bg border border-tunet-border">
-                    <div className="w-8 h-8 rounded-full bg-tunet-green/20 flex items-center justify-center text-tunet-green text-sm font-medium flex-shrink-0">
-                      {h.changer?.name?.charAt(0) || "?"}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-sm text-tunet-text font-medium">{h.changer?.name || "Unknown"}</span>
-                        <span className="text-xs text-tunet-text-muted">mengubah status</span>
-                      </div>
-                      <div className="flex items-center gap-2 mt-1 text-xs">
-                        <span
-                          className="px-2 py-0.5 rounded-full"
-                          style={{ backgroundColor: getProspectStatusConfig(h.old_status).color + "20", color: getProspectStatusConfig(h.old_status).color }}
-                        >
-                          {getProspectStatusConfig(h.old_status).label}
-                        </span>
-                        <span className="text-tunet-text-muted">→</span>
-                        <span
-                          className="px-2 py-0.5 rounded-full"
-                          style={{ backgroundColor: getProspectStatusConfig(h.new_status).color + "20", color: getProspectStatusConfig(h.new_status).color }}
-                        >
-                          {getProspectStatusConfig(h.new_status).label}
-                        </span>
-                      </div>
-                      <p className="text-xs text-tunet-text-muted mt-1">
-                        {new Date(h.changed_at).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })},{" "}
-                        {new Date(h.changed_at).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
           </DialogContent>
         </Dialog>
 
