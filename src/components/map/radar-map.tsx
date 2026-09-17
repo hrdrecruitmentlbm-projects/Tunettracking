@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-leaflet";
+import { useTheme } from "next-themes";
 import L from "leaflet";
 import { Location, Task } from "@/types";
 import { fetchLocations, fetchTasks, fetchVisits, fetchPings, getFocColor, getSessionDate, LocationVisit, LocationPing } from "@/lib/db";
@@ -227,23 +228,40 @@ function formatDuration(minutes: number | null): string {
  */
 const CARTO_API_KEY = process.env.NEXT_PUBLIC_CARTO_API_KEY;
 
-const CARTO_BASEMAP = {
-  url: `https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png?key=${CARTO_API_KEY}`,
-  attribution:
-    '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-  maxZoom: 20,
-  subdomains: "abcd",
+function cartoBasemap(style: "dark_all" | "light_all") {
+  return {
+    url: `https://{s}.basemaps.cartocdn.com/rastertiles/${style}/{z}/{x}/{y}{r}.png?key=${CARTO_API_KEY}`,
+    attribution:
+      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    maxZoom: 20,
+    subdomains: "abcd",
+  };
+}
+
+const ESRI_BASEMAPS = {
+  dark: {
+    url: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+    attribution:
+      "Tiles &copy; Esri &mdash; Sources: GEBCO, NOAA, CHS, OSU, UNH, CSUMB, National Geographic, DeLorme, NAVTEQ, Maxar",
+    maxZoom: 16,
+    subdomains: "abc",
+  },
+  light: {
+    url: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+    attribution:
+      "Tiles &copy; Esri &mdash; Sources: GEBCO, NOAA, CHS, OSU, UNH, CSUMB, National Geographic, DeLorme, NAVTEQ, Maxar",
+    maxZoom: 16,
+    subdomains: "abc",
+  },
 };
 
-const ESRI_DARK_BASEMAP = {
-  url: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",
-  attribution:
-    "Tiles &copy; Esri &mdash; Sources: GEBCO, NOAA, CHS, OSU, UNH, CSUMB, National Geographic, DeLorme, NAVTEQ, Maxar",
-  maxZoom: 16,
-  subdomains: "abc",
-};
-
-const BASEMAP = CARTO_API_KEY ? CARTO_BASEMAP : ESRI_DARK_BASEMAP;
+/** Pick the basemap matching the active theme, keeping the key-vs-Esri
+ * fallback per theme. Falls back to dark when the theme isn't resolved yet
+ * (matches the app's defaultTheme="dark"). */
+function selectBasemap(resolvedTheme: string | undefined) {
+  const theme = resolvedTheme === "light" ? "light" : "dark";
+  return CARTO_API_KEY ? cartoBasemap(theme === "dark" ? "dark_all" : "light_all") : ESRI_BASEMAPS[theme];
+}
 
 interface RadarMapProps {
   height?: string;
@@ -266,6 +284,7 @@ export function RadarMap({
   variant = "card",
   coordsClassName,
 }: RadarMapProps) {
+  const { resolvedTheme } = useTheme();
   const [locations, setLocations] = useState<Location[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [visits, setVisits] = useState<LocationVisit[]>([]);
@@ -422,6 +441,8 @@ export function RadarMap({
     )
   ).length;
 
+  const basemap = selectBasemap(resolvedTheme);
+
   const getMarkerColor = (location: Location) => {
     if (showRoles.includes("foc") && location.user?.role === "foc") {
       return getFocColor(location.user_id);
@@ -559,7 +580,7 @@ export function RadarMap({
       role="region"
       aria-label="Peta operasional langsung"
       className={cn(
-        "overflow-hidden relative bg-[#0A0F1C]",
+        "overflow-hidden relative bg-map-panel",
         variant === "card" && "rounded-xl border border-tunet-border"
       )}
     >
@@ -585,11 +606,11 @@ export function RadarMap({
         <MapResizeController layoutKey={layoutKey} />
         <CoordsHUD className={coordsClassName} />
         <TileLayer
-          key={BASEMAP.url}
-          attribution={BASEMAP.attribution}
-          url={BASEMAP.url}
-          maxZoom={BASEMAP.maxZoom}
-          subdomains={BASEMAP.subdomains}
+          key={basemap.url}
+          attribution={basemap.attribution}
+          url={basemap.url}
+          maxZoom={basemap.maxZoom}
+          subdomains={basemap.subdomains}
         />
 
         {/* Render ping polylines + numbered ping markers per user */}

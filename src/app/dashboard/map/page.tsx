@@ -31,8 +31,8 @@ import { useHeartbeat } from "@/hooks/use-heartbeat";
 const RadarMap = dynamic(() => import("@/components/map/radar-map").then((m) => m.RadarMap), {
   ssr: false,
   loading: () => (
-    <div className="h-full w-full bg-[#0A0F1C] flex items-center justify-center">
-      <div className="text-slate-400 text-sm">{COPY.loading.map}</div>
+    <div className="h-full w-full bg-map-panel flex items-center justify-center">
+      <div className="text-map-panel-text-muted text-sm">{COPY.loading.map}</div>
     </div>
   ),
 });
@@ -171,7 +171,7 @@ export default function MapPage() {
   }
 
   return (
-    <main className="relative h-[100dvh] min-h-[560px] w-full overflow-hidden bg-[#0A0F1C]">
+    <main className="relative h-[100dvh] min-h-[560px] w-full overflow-hidden bg-map-panel">
       <h1 className="sr-only">{COPY.pages.map.title}</h1>
       <p className="sr-only" aria-live="polite">
         {activeLocationCount} lokasi personel tersedia. {filteredUsers.length} personel
@@ -188,36 +188,36 @@ export default function MapPage() {
         coordsClassName="bottom-20 md:bottom-4"
       />
 
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-[450] h-40 bg-gradient-to-b from-black/75 via-black/30 to-transparent" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-[450] h-40 bg-gradient-to-b from-map-scrim/75 via-map-scrim/30 to-transparent" />
 
       <div className="absolute left-3 top-3 z-[500] flex items-center gap-2">
         <button
           type="button"
           onClick={() => router.push(dashboardPath)}
-          className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-[#0A0F1C]/88 text-white shadow-2xl backdrop-blur-xl transition-colors hover:bg-white hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tunet-signal"
+          className="flex h-11 w-11 items-center justify-center rounded-2xl border-map-panel-border bg-map-panel/88 text-map-panel-text shadow-2xl backdrop-blur-xl transition-colors hover:bg-map-panel-text hover:text-tunet-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tunet-signal"
           aria-label={COPY.pages.map.back}
         >
           <ArrowLeft className="h-5 w-5" />
         </button>
-        <div className="rounded-2xl border border-white/10 bg-[#0A0F1C]/88 px-4 py-2.5 shadow-2xl backdrop-blur-xl">
+        <div className="rounded-2xl border-map-panel-border bg-map-panel/88 px-4 py-2.5 shadow-2xl backdrop-blur-xl">
           <div className="flex items-center gap-2">
             <span className="relative flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-tunet-signal opacity-60" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-tunet-signal" />
             </span>
-            <p className="font-display text-sm font-semibold text-white">
+            <p className="font-display text-sm font-semibold text-map-panel-text">
               Radar operasi
             </p>
           </div>
-          <p className="hidden text-[10px] text-slate-300 sm:block">
+          <p className="hidden text-[10px] text-map-panel-text-muted sm:block">
             {activeLocationCount} posisi terhubung
           </p>
         </div>
       </div>
 
       <div className="absolute left-3 right-3 top-20 z-[500] md:right-[380px]">
-        <div className="flex w-fit max-w-full items-center gap-1 overflow-x-auto rounded-2xl border border-white/10 bg-[#0A0F1C]/88 p-1.5 shadow-2xl backdrop-blur-xl">
-          <span className="flex h-9 shrink-0 items-center gap-1.5 px-2 text-[10px] uppercase tracking-wider text-slate-400">
+        <div className="flex w-fit max-w-full items-center gap-1 overflow-x-auto rounded-2xl border-map-panel-border bg-map-panel/88 p-1.5 shadow-2xl backdrop-blur-xl">
+          <span className="flex h-9 shrink-0 items-center gap-1.5 px-2 text-[10px] uppercase tracking-wider text-map-panel-text-muted">
             <Radio className="h-3.5 w-3.5 text-tunet-signal" />
             Tim
           </span>
@@ -232,16 +232,16 @@ export default function MapPage() {
                 className={cn(
                   "min-h-9 shrink-0 rounded-xl px-3 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tunet-signal",
                   selected
-                    ? "bg-white text-slate-950"
-                    : "text-slate-300 hover:bg-white/10 hover:text-white"
+                    ? "bg-map-panel-text text-tunet-bg"
+                    : "text-map-panel-text-muted hover:bg-map-panel-hover hover:text-map-panel-text"
                 )}
               >
                 {role.label}
               </button>
             );
           })}
-          <span className="mx-1 h-5 w-px shrink-0 bg-white/10" />
-          <label className="flex h-9 shrink-0 items-center gap-2 rounded-xl px-2 text-xs text-slate-300">
+          <span className="mx-1 h-5 w-px shrink-0 bg-map-panel-border" />
+          <label className="flex h-9 shrink-0 items-center gap-2 rounded-xl px-2 text-xs text-map-panel-text-muted">
             <Calendar className="h-3.5 w-3.5" aria-hidden="true" />
             <span className="sr-only">Tanggal sesi</span>
             <input
@@ -249,14 +249,14 @@ export default function MapPage() {
               value={selectedDate}
               onChange={(event) => setSelectedDate(event.target.value)}
               max={getSessionDate()}
-              className="bg-transparent font-mono text-[11px] text-white outline-none [color-scheme:dark]"
+              className="bg-transparent font-mono text-[11px] text-map-panel-text outline-none"
             />
           </label>
           {selectedDate !== getSessionDate() && (
             <button
               type="button"
               onClick={() => setSelectedDate(getSessionDate())}
-              className="min-h-9 shrink-0 rounded-xl px-3 text-xs text-tunet-signal transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tunet-signal"
+              className="min-h-9 shrink-0 rounded-xl px-3 text-xs text-tunet-signal transition-colors hover:bg-map-panel-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tunet-signal"
             >
               Hari ini
             </button>
@@ -264,17 +264,17 @@ export default function MapPage() {
         </div>
       </div>
 
-      <div className="absolute bottom-4 left-3 z-[500] hidden items-center gap-3 rounded-2xl border border-white/10 bg-[#0A0F1C]/88 px-3 py-2 text-[10px] text-slate-300 shadow-2xl backdrop-blur-xl md:flex">
+      <div className="absolute bottom-4 left-3 z-[500] hidden items-center gap-3 rounded-2xl border-map-panel-border bg-map-panel/88 px-3 py-2 text-[10px] text-map-panel-text-muted shadow-2xl backdrop-blur-xl md:flex">
         <LegendDot className="bg-tunet-green" label={COPY.pages.map.legendActive} />
         <LegendDot className="bg-status-progress" label={COPY.pages.map.legendIdle} />
         <LegendDot className="bg-status-overdue" label={COPY.pages.map.legendOverdue} />
         <span className="flex items-center gap-1.5">
-          <span className="h-0.5 w-4 bg-slate-400" />
+          <span className="h-0.5 w-4 bg-map-panel-text-muted" />
           {COPY.pages.map.legendRoute}
         </span>
       </div>
 
-      <aside className="absolute bottom-3 right-3 top-3 z-[500] hidden w-[360px] overflow-hidden rounded-3xl border border-white/10 bg-tunet-surface/94 shadow-2xl backdrop-blur-2xl md:flex md:flex-col">
+      <aside className="absolute bottom-3 right-3 top-3 z-[500] hidden w-[360px] overflow-hidden rounded-3xl border-map-panel-border bg-tunet-surface/94 shadow-2xl backdrop-blur-2xl md:flex md:flex-col">
         <RosterPanel
           users={filteredUsers}
           locations={locations}
@@ -295,7 +295,7 @@ export default function MapPage() {
       <section
         aria-label="Daftar personel"
         className={cn(
-          "absolute inset-x-2 bottom-2 z-[600] flex flex-col overflow-hidden rounded-3xl border border-white/10 bg-tunet-surface/96 shadow-2xl backdrop-blur-2xl transition-[height] duration-300 md:hidden",
+          "absolute inset-x-2 bottom-2 z-[600] flex flex-col overflow-hidden rounded-3xl border-map-panel-border bg-tunet-surface/96 shadow-2xl backdrop-blur-2xl transition-[height] duration-300 md:hidden",
           mobilePanelOpen ? "h-[60vh]" : "h-16"
         )}
       >
@@ -573,8 +573,8 @@ function LegendDot({ className, label }: { className: string; label: string }) {
 
 function MapPageSkeleton() {
   return (
-    <div className="relative h-[100dvh] overflow-hidden bg-[#0A0F1C]">
-      <Skeleton className="h-full w-full rounded-none bg-slate-900" />
+    <div className="relative h-[100dvh] overflow-hidden bg-map-panel">
+      <Skeleton className="h-full w-full rounded-none bg-map-panel" />
       <div className="absolute left-3 top-3 flex gap-2">
         <Skeleton className="h-11 w-11 rounded-2xl" />
         <Skeleton className="h-11 w-36 rounded-2xl" />

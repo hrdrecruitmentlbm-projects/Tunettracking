@@ -229,7 +229,7 @@ export default function NOCDashboard() {
               "md:grid-cols-[minmax(320px,4fr)_minmax(0,8fr)]"
           )}
         >
-          <section className="relative min-h-0 overflow-hidden bg-[#0A0F1C]">
+          <section className="relative min-h-0 overflow-hidden bg-map-panel">
             <RadarMap
               height="100%"
               variant="flush"
@@ -239,20 +239,20 @@ export default function NOCDashboard() {
               coordsClassName="bottom-4"
             />
 
-            <div className="pointer-events-none absolute inset-x-0 top-0 z-[450] h-36 bg-gradient-to-b from-black/70 via-black/25 to-transparent" />
+            <div className="pointer-events-none absolute inset-x-0 top-0 z-[450] h-36 bg-gradient-to-b from-map-scrim/70 via-map-scrim/25 to-transparent" />
 
             <div className="absolute inset-x-3 top-3 z-[500] flex items-start justify-between gap-3">
-              <div className="min-w-0 rounded-2xl border border-white/10 bg-[#0A0F1C]/88 py-3 pl-12 pr-4 shadow-2xl backdrop-blur-xl md:pl-4">
+              <div className="min-w-0 rounded-2xl border-map-panel-border bg-map-panel/88 py-3 pl-12 pr-4 shadow-2xl backdrop-blur-xl md:pl-4">
                 <div className="flex items-center gap-2">
                   <span className="relative flex h-2 w-2">
                     <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-tunet-signal opacity-60" />
                     <span className="relative inline-flex h-2 w-2 rounded-full bg-tunet-signal" />
                   </span>
-                  <p className="truncate font-display text-sm font-semibold text-white">
+                  <p className="truncate font-display text-sm font-semibold text-map-panel-text">
                     {COPY.pages.noc.title}
                   </p>
                 </div>
-                <p className="mt-0.5 hidden text-[10px] text-slate-300 sm:block">
+                <p className="mt-0.5 hidden text-[10px] text-map-panel-text-muted sm:block">
                   {new Date().toLocaleDateString("id-ID", {
                     weekday: "long",
                     day: "numeric",
@@ -262,7 +262,7 @@ export default function NOCDashboard() {
               </div>
 
               <div
-                className="flex max-w-[70%] items-center gap-1 overflow-x-auto rounded-2xl border border-white/10 bg-[#0A0F1C]/88 p-1.5 shadow-2xl backdrop-blur-xl"
+                className="flex max-w-[70%] items-center gap-1 overflow-x-auto rounded-2xl border-map-panel-border bg-map-panel/88 p-1.5 shadow-2xl backdrop-blur-xl"
                 role="group"
                 aria-label="Mode tata letak pusat kendali"
               >
@@ -279,8 +279,8 @@ export default function NOCDashboard() {
                       className={cn(
                         "flex min-h-9 shrink-0 items-center gap-1.5 rounded-xl px-2.5 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tunet-signal",
                         selected
-                          ? "bg-white text-slate-950"
-                          : "text-slate-300 hover:bg-white/10 hover:text-white"
+                          ? "bg-map-panel-text text-tunet-bg"
+                          : "text-map-panel-text-muted hover:bg-map-panel-hover hover:text-map-panel-text"
                       )}
                     >
                       <Icon className="h-3.5 w-3.5" />
@@ -292,7 +292,7 @@ export default function NOCDashboard() {
             </div>
 
             <div
-              className="absolute left-3 top-24 z-[500] flex items-center gap-1 rounded-2xl border border-white/10 bg-[#0A0F1C]/88 p-1.5 shadow-2xl backdrop-blur-xl"
+              className="absolute left-3 top-24 z-[500] flex items-center gap-1 rounded-2xl border-map-panel-border bg-map-panel/88 p-1.5 shadow-2xl backdrop-blur-xl"
               role="group"
               aria-label="Filter insiden peta"
             >
@@ -308,8 +308,8 @@ export default function NOCDashboard() {
                     className={cn(
                       "min-h-8 rounded-xl px-2.5 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tunet-signal",
                       selected
-                        ? "bg-tunet-signal text-slate-950"
-                        : "text-slate-300 hover:bg-white/10 hover:text-white"
+                        ? "bg-tunet-signal text-map-panel-contrast"
+                        : "text-map-panel-text-muted hover:bg-map-panel-hover hover:text-map-panel-text"
                     )}
                   >
                     {option.label}
@@ -318,7 +318,7 @@ export default function NOCDashboard() {
               })}
             </div>
 
-            <div className="absolute bottom-4 right-3 z-[500] hidden items-center gap-2 rounded-xl border border-white/10 bg-[#0A0F1C]/88 px-3 py-2 text-[10px] text-slate-300 shadow-xl backdrop-blur-xl sm:flex">
+            <div className="absolute bottom-4 right-3 z-[500] hidden items-center gap-2 rounded-xl border-map-panel-border bg-map-panel/88 px-3 py-2 text-[10px] text-map-panel-text-muted shadow-xl backdrop-blur-xl sm:flex">
               <Radio className="h-3.5 w-3.5 text-tunet-signal" />
               Posisi lapangan diperbarui langsung
             </div>
@@ -512,7 +512,7 @@ function Metric({
 
 function SlidersGlyph() {
   return (
-    <span className="flex h-8 w-8 items-center justify-center text-slate-400" aria-hidden="true">
+    <span className="flex h-8 w-8 items-center justify-center text-map-panel-text-muted" aria-hidden="true">
       <span className="relative h-3.5 w-3.5">
         <span className="absolute left-0 top-0.5 h-px w-full bg-current" />
         <span className="absolute left-1 top-0 h-1 w-1 rounded-full bg-current" />

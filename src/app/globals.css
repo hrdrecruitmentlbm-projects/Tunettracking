@@ -62,6 +62,16 @@
   --color-tunet-text: var(--tunet-text);
   --color-tunet-text-muted: var(--tunet-text-muted);
 
+  /* Map screen panel colors — theme-aware overlays over the basemap */
+  --color-map-panel: var(--map-panel);
+  --color-map-panel-border: var(--map-panel-border);
+  --color-map-panel-text: var(--map-panel-text);
+  --color-map-panel-text-muted: var(--map-panel-text-muted);
+  --color-map-scrim: var(--map-scrim);
+  --color-map-panel-hover: var(--map-panel-hover);
+  --color-map-panel-contrast: var(--map-panel-contrast);
+  --color-map-panel-hover: var(--map-panel-hover);
+
   /* Status colors */
   --color-status-todo: #6B7280;
   --color-status-assigned: #3B82F6;
@@ -118,6 +128,15 @@
   --tunet-border: #D8E1E3;
   --tunet-text: #101719;
   --tunet-text-muted: #617075;
+
+  /* Map panel semantic colors — light: panels sit over the light basemap */
+  --map-panel: #F2F6F7;
+  --map-panel-border: #D8E1E3;
+  --map-panel-text: #101719;
+  --map-panel-text-muted: #617075;
+  --map-scrim: #FFFFFF;
+  --map-panel-hover: rgb(16 23 25 / 0.08);
+  --map-panel-contrast: #061013;
 }
 
 .dark {
@@ -160,6 +179,15 @@
   --tunet-border: #223034;
   --tunet-text: #F3F8F8;
   --tunet-text-muted: #8EA0A5;
+
+  /* Map panel semantic colors — dark: matches the previous hardcoded values */
+  --map-panel: #0A0F1C;
+  --map-panel-border: rgb(255 255 255 / 0.1);
+  --map-panel-text: #FFFFFF;
+  --map-panel-text-muted: #CBD5E1;
+  --map-scrim: #000000;
+  --map-panel-hover: rgb(255 255 255 / 0.1);
+  --map-panel-contrast: #061013;
 }
 
 @layer base {

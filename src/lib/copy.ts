@@ -137,6 +137,8 @@ export const COPY = {
     title: "Palet perintah",
     placeholder: "Cari tugas atau navigasi…",
     empty: (query: string) => `Tidak ada hasil untuk "${query}"`,
+    newTask: "Buat Tugas Baru",
+    toggleTheme: "Ganti Tema",
   },
   pages: {
     admin: {

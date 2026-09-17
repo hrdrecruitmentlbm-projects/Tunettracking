@@ -206,6 +206,17 @@ function TasksPageContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tasks, searchParams]);
 
+  // Auto-open the create form from ?new=1 (command palette deep link)
+  useEffect(() => {
+    if (searchParams.get("new") === "1") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setFormOpen(true);
+      const remaining = new URLSearchParams(Array.from(searchParams.entries()).filter(([k]) => k !== "new"));
+      router.replace(pathname + (remaining.toString() ? `?${remaining.toString()}` : ""), { scroll: false });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
   const handleStatusChange = async (
     taskId: string,
     newStatus: TaskStatus,

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTheme } from "next-themes";
 import {
   CheckSquare,
   Clock,
@@ -9,8 +10,11 @@ import {
   CornerDownLeft,
   LayoutDashboard,
   Map,
+  Moon,
+  Plus,
   Search,
   Settings,
+  Sun,
   Target,
   Users,
 } from "lucide-react";
@@ -47,6 +51,20 @@ const ROLE_NAV: Partial<Record<UserRole, NavEntry[]>> = {
     { href: "/dashboard/attendance", labelKey: "attendance", icon: Clock },
     { href: "/dashboard/settings", labelKey: "settings", icon: Settings },
   ],
+  foc: [
+    { href: "/dashboard/foc", labelKey: "myTasks", icon: CheckSquare },
+    { href: "/dashboard/attendance", labelKey: "attendance", icon: Clock },
+    { href: "/dashboard/map", labelKey: "map", icon: Map },
+    { href: "/dashboard/settings", labelKey: "settings", icon: Settings },
+  ],
+  marketing: [
+    { href: "/dashboard/marketing", labelKey: "dashboard", icon: LayoutDashboard },
+    { href: "/dashboard/map", labelKey: "map", icon: Map },
+    { href: "/dashboard/marketing/prospects", labelKey: "prospects", icon: Users },
+    { href: "/dashboard/marketing/kunjungan", labelKey: "visits", icon: ClipboardCheck },
+    { href: "/dashboard/attendance", labelKey: "attendance", icon: Clock },
+    { href: "/dashboard/settings", labelKey: "settings", icon: Settings },
+  ],
 };
 
 interface CommandEntry {
@@ -64,6 +82,7 @@ interface CommandEntry {
  */
 export function CommandPalette({ role }: { role: UserRole }) {
   const router = useRouter();
+  const { resolvedTheme, setTheme } = useTheme();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -112,6 +131,24 @@ export function CommandPalette({ role }: { role: UserRole }) {
         run: () => router.push(entry.href),
       }));
 
+    // Quick actions — only when they apply to the role.
+    const actions: CommandEntry[] = [];
+    if (role === "admin" || role === "noc") {
+      actions.push({
+        key: "action-new-task",
+        label: COPY.command.newTask,
+        icon: Plus,
+        run: () => router.push("/dashboard/tasks?new=1"),
+      });
+    }
+    actions.push({
+      key: "action-toggle-theme",
+      label: COPY.command.toggleTheme,
+      hint: resolvedTheme === "light" ? "Dark" : "Light",
+      icon: resolvedTheme === "light" ? Moon : Sun,
+      run: () => setTheme(resolvedTheme === "light" ? "dark" : "light"),
+    });
+
     const taskEntries: CommandEntry[] = tasks
       .filter(
         (task) =>
@@ -129,8 +166,12 @@ export function CommandPalette({ role }: { role: UserRole }) {
         run: () => router.push(taskHref(task.id)),
       }));
 
-    return [...taskEntries, ...nav];
-  }, [query, tasks, navEntries, router, taskHref]);
+    const filteredActions = actions.filter(
+      (action) => !q || action.label.toLowerCase().includes(q)
+    );
+
+    return [...filteredActions, ...taskEntries, ...nav];
+  }, [query, tasks, navEntries, router, taskHref, resolvedTheme, setTheme, role]);
 
   // Reset the cursor whenever the query changes (cursor also clamped at
   // usage sites so an async task-load can't leave it out of bounds).

@@ -12,6 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { User as UserIcon, Bell, Moon, Sun, Tag as TagIcon, Target, Plus, Pencil, Trash2 } from "lucide-react";
 import { COPY } from "@/lib/copy";
+import { useLocalStorageState } from "@/hooks/use-local-storage-state";
 import { fetchTags, createTag, updateTag, deleteTag, fetchProspectStatuses, createProspectStatus, updateProspectStatus, deleteProspectStatus } from "@/lib/db";
 
 function getStoredUser() {
@@ -32,9 +33,10 @@ export default function SettingsPage() {
   const [user, setUser] = useState<User | null>(initial?.user ?? null);
   const [name, setName] = useState(initial?.name ?? "");
   const [phone, setPhone] = useState(initial?.phone ?? "");
-  const [taskAssignments, setTaskAssignments] = useState(true);
-  const [statusUpdates, setStatusUpdates] = useState(true);
-  const [overdueAlerts, setOverdueAlerts] = useState(true);
+  // Persisted immediately on toggle — survive reloads without pressing Save.
+  const [taskAssignments, setTaskAssignments] = useLocalStorageState<boolean>("tutrack-taskAssignments", { initial: true });
+  const [statusUpdates, setStatusUpdates] = useLocalStorageState<boolean>("tutrack-statusUpdates", { initial: true });
+  const [overdueAlerts, setOverdueAlerts] = useLocalStorageState<boolean>("tutrack-overdueAlerts", { initial: true });
   const [criticalAlerts, setCriticalAlerts] = useState(() => {
     if (typeof window === "undefined") return true;
     return localStorage.getItem("tutrack-critical-alerts") !== "false";
@@ -179,9 +181,6 @@ export default function SettingsPage() {
       localStorage.setItem("tutrack-user", JSON.stringify(updatedUser));
       setUser(updatedUser);
     }
-    localStorage.setItem("tutrack-taskAssignments", String(taskAssignments));
-    localStorage.setItem("tutrack-statusUpdates", String(statusUpdates));
-    localStorage.setItem("tutrack-overdueAlerts", String(overdueAlerts));
     localStorage.setItem("tutrack-critical-alerts", String(criticalAlerts));
     toast.success(COPY.pages.settings.saved);
   };
