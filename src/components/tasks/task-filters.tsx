@@ -7,6 +7,7 @@ import { User } from "@/types";
 import { Filter, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { COPY } from "@/lib/copy";
+import { PRESET_LABELS, type ListPreset } from "@/lib/task-list-grouping";
 import { cn } from "@/lib/utils";
 
 interface TaskFiltersProps {
@@ -19,22 +20,30 @@ export interface FilterState {
   priority: TaskPriority | "all";
   assignee: string | "all";
   tag: string | "all";
+  /** Saved view (risk / overdue / unassigned). Composes with the filters above. */
+  preset: ListPreset;
 }
 
 interface Chip {
   key: keyof FilterState;
   label: string;
+  /** Overrides the raw key shown before the value. */
+  prefix?: string;
   onRemove: () => void;
 }
 
 export function TaskFilters({ filters, onFiltersChange }: TaskFiltersProps) {
-  const [focUsers, setFocUsers] = useState<User[]>([]);
+  const [assignableUsers, setAssignableUsers] = useState<User[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
   const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
+    // Mirrors the task form's assignable set (FOC + marketing) — filtering by
+    // only FOC silently hid marketing-assigned tasks from the list.
     fetchUsers().then((users) =>
-      setFocUsers(users.filter((u) => u.role === "foc"))
+      setAssignableUsers(
+        users.filter((u) => (u.role === "foc" || u.role === "marketing") && u.is_active !== false)
+      )
     );
     fetchTags().then(setTags);
   }, []);
@@ -48,10 +57,18 @@ export function TaskFilters({ filters, onFiltersChange }: TaskFiltersProps) {
   };
 
   const resetFilters = () => {
-    onFiltersChange({ status: "all", priority: "all", assignee: "all", tag: "all" });
+    onFiltersChange({ status: "all", priority: "all", assignee: "all", tag: "all", preset: "all" });
   };
 
   const chips: Chip[] = [];
+  if (filters.preset !== "all") {
+    chips.push({
+      key: "preset",
+      label: PRESET_LABELS[filters.preset],
+      prefix: COPY.taskList.presetLabel,
+      onRemove: () => removeFilter("preset"),
+    });
+  }
   if (filters.status !== "all") {
     chips.push({
       key: "status",
@@ -70,7 +87,7 @@ export function TaskFilters({ filters, onFiltersChange }: TaskFiltersProps) {
     const label =
       filters.assignee === "unassigned"
         ? COPY.filters.unassigned
-        : focUsers.find((u) => u.id === filters.assignee)?.name || "Unknown";
+        : assignableUsers.find((u) => u.id === filters.assignee)?.name || "Unknown";
     chips.push({
       key: "assignee",
       label,
@@ -115,7 +132,7 @@ export function TaskFilters({ filters, onFiltersChange }: TaskFiltersProps) {
           className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-tunet-border bg-tunet-surface px-3 text-xs text-tunet-text transition-colors hover:border-tunet-green/50 hover:text-tunet-green"
           aria-label={`Hapus filter ${chip.key}: ${chip.label}`}
         >
-          <span className="text-tunet-text-muted">{chip.key}:</span>
+          <span className="text-tunet-text-muted">{chip.prefix ?? chip.key}:</span>
           <span>{chip.label}</span>
           <X className="ml-0.5 size-3" aria-hidden="true" />
         </button>
@@ -170,9 +187,9 @@ export function TaskFilters({ filters, onFiltersChange }: TaskFiltersProps) {
           >
             <option value="all">{COPY.filters.allAssignees}</option>
             <option value="unassigned">{COPY.filters.unassigned}</option>
-            {focUsers.map((user) => (
+            {assignableUsers.map((user) => (
               <option key={user.id} value={user.id}>
-                {user.name}
+                {user.name} ({user.role})
               </option>
             ))}
           </select>

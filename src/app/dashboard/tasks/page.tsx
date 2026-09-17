@@ -10,8 +10,18 @@ import { TaskFilters, FilterState } from "@/components/tasks/task-filters";
 import { TaskListView } from "@/components/tasks/task-list-view";
 import { SummaryStrip } from "@/components/tasks/summary-strip";
 import { TimelineView } from "@/components/tasks/timeline-view";
-import { fetchTasks, updateTaskStatus, fetchUsers } from "@/lib/db";
+import { fetchTasks, reassignTask, updateTaskStatus, fetchUsers } from "@/lib/db";
 import { Task, TaskStatus, User } from "@/types";
+import { AdminListToolbar } from "@/components/tasks/admin-list-toolbar";
+import {
+  isGroupMode,
+  isListPreset,
+  isSortMode,
+  matchesPreset,
+  sortTasks,
+  type GroupMode,
+  type SortMode,
+} from "@/lib/task-list-grouping";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -38,6 +48,7 @@ const DEFAULT_FILTERS: FilterState = {
   priority: "all",
   assignee: "all",
   tag: "all",
+  preset: "all",
 };
 
 function isTaskStatus(v: string | null): v is TaskStatus {
@@ -61,7 +72,8 @@ function isValidFilters(v: unknown): v is FilterState {
     (f.status === "all" || isTaskStatus(f.status)) &&
     (f.priority === "all" || isTaskPriority(f.priority)) &&
     typeof f.assignee === "string" &&
-    typeof f.tag === "string"
+    typeof f.tag === "string" &&
+    isListPreset(f.preset)
   );
 }
 
@@ -70,11 +82,13 @@ function readFiltersFromParams(params: URLSearchParams): FilterState {
   const priority = params.get("priority");
   const assignee = params.get("assignee");
   const tag = params.get("tag");
+  const preset = params.get("preset");
   return {
     status: isTaskStatus(status) ? status : "all",
     priority: isTaskPriority(priority) ? priority : "all",
     assignee: assignee || "all",
     tag: tag || "all",
+    preset: isListPreset(preset) ? preset : "all",
   };
 }
 
@@ -100,13 +114,20 @@ function TasksPageContent() {
     validate: isViewMode,
   });
   const [showDeleted, setShowDeleted] = useState(false);
-  const [groupByStatus, setGroupByStatus] = useState(false);
+  const [groupMode, setGroupMode] = useLocalStorageState<GroupMode>("tutrack-task-group-mode", {
+    initial: "none",
+    validate: isGroupMode,
+  });
+  const [sortMode, setSortMode] = useLocalStorageState<SortMode>("tutrack-task-sort", {
+    initial: "risk",
+    validate: isSortMode,
+  });
   const [filters, setFilters] = useState<FilterState>(() => {
     // URL params win (deep links / shared views), then last-used filters,
     // then defaults.
     if (typeof window === "undefined") return DEFAULT_FILTERS;
     const params = new URLSearchParams(window.location.search);
-    const hasUrlFilters = ["status", "priority", "assignee", "tag"].some((k) =>
+    const hasUrlFilters = ["status", "priority", "assignee", "tag", "preset"].some((k) =>
       params.has(k)
     );
     if (hasUrlFilters) return readFiltersFromParams(params);
@@ -134,9 +155,17 @@ function TasksPageContent() {
 
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const isMobile = useMediaQuery("(max-width: 767px)");
+  const isAdmin = currentUser?.role === "admin";
   const canChangeStatus = currentUser?.role !== "foc" && currentUser?.role !== "marketing";
   const canPermanentDelete = currentUser?.role === "admin";
   const effectiveViewMode = isMobile ? "list" : viewMode;
+  // A grouping choice stored by an admin on a shared device must not leak into
+  // another person's session — non-admins only ever get flat or by-status.
+  const effectiveGroupMode: GroupMode = isAdmin
+    ? groupMode
+    : groupMode === "status"
+      ? "status"
+      : "none";
 
   useHeartbeat({ userId: currentUser?.id });
 
@@ -172,6 +201,7 @@ function TasksPageContent() {
     if (filters.priority !== "all") params.set("priority", filters.priority);
     if (filters.assignee !== "all") params.set("assignee", filters.assignee);
     if (filters.tag !== "all") params.set("tag", filters.tag);
+    if (filters.preset !== "all") params.set("preset", filters.preset);
     if (searchQuery) params.set("q", searchQuery);
     const next = params.toString();
     const current = searchParams.toString();
@@ -261,7 +291,8 @@ function TasksPageContent() {
     setDetailOpen(true);
   };
 
-  const handleReassigned = (taskId: string, newAssigneeId: string) => {
+  const handleReassigned = async (taskId: string, newAssigneeId: string) => {
+    const previous = tasks.find((t) => t.id === taskId);
     setTasks((prev) =>
       prev.map((t) =>
         t.id === taskId
@@ -269,6 +300,15 @@ function TasksPageContent() {
           : t
       )
     );
+
+    if (!currentUser) return;
+    const success = await reassignTask(taskId, newAssigneeId, currentUser.id);
+    if (!success) {
+      toast.error(COPY.taskForm.failedUpdate);
+      if (previous) {
+        setTasks((prev) => prev.map((t) => (t.id === taskId ? previous : t)));
+      }
+    }
   };
 
   const handleTaskUpdated = (updated: Task) => {
@@ -290,7 +330,7 @@ function TasksPageContent() {
   };
 
   const filteredTasks = useMemo(() => {
-    return tasks.filter((t) => {
+    const matched = tasks.filter((t) => {
       const q = searchQuery.toLowerCase().trim();
       const matchesSearch =
         !q ||
@@ -310,10 +350,21 @@ function TasksPageContent() {
       }
 
       const matchesTag = filters.tag === "all" || t.tags?.some((tag) => tag.id === filters.tag);
+      const matchesViewPreset = matchesPreset(t, filters.preset);
 
-      return matchesSearch && matchesStatus && matchesPriority && matchesAssignee && matchesTag;
+      return (
+        matchesSearch &&
+        matchesStatus &&
+        matchesPriority &&
+        matchesAssignee &&
+        matchesTag &&
+        matchesViewPreset
+      );
     });
-  }, [tasks, searchQuery, filters]);
+
+    // Admins get a risk-first order; everyone else keeps the fetch order.
+    return isAdmin ? sortTasks(matched, sortMode) : matched;
+  }, [tasks, searchQuery, filters, isAdmin, sortMode]);
 
   const summary = useMemo(() => ({
     total: filteredTasks.length,
@@ -328,6 +379,7 @@ function TasksPageContent() {
     filters.priority !== "all" ||
     filters.assignee !== "all" ||
     filters.tag !== "all" ||
+    filters.preset !== "all" ||
     searchQuery.length > 0;
 
   return (
@@ -368,6 +420,19 @@ function TasksPageContent() {
             </div>
           </div>
 
+          {isAdmin && (
+            <div className="flex border-t border-tunet-border/60 pt-3">
+              <AdminListToolbar
+                preset={filters.preset}
+                onPresetChange={(preset) => setFilters((prev) => ({ ...prev, preset }))}
+                groupMode={groupMode}
+                onGroupModeChange={setGroupMode}
+                sortMode={sortMode}
+                onSortModeChange={setSortMode}
+              />
+            </div>
+          )}
+
           <div className="flex flex-col gap-3 border-t border-tunet-border/60 pt-3 lg:flex-row lg:items-center lg:justify-between">
             <TaskFilters filters={filters} onFiltersChange={setFilters} />
 
@@ -402,14 +467,14 @@ function TasksPageContent() {
                 </Button>
               </div>
 
-              {viewMode === "list" && (
+              {viewMode === "list" && !isAdmin && (
                 <Button
-                  variant={groupByStatus ? "secondary" : "ghost"}
+                  variant={effectiveGroupMode === "status" ? "secondary" : "ghost"}
                   size="icon"
-                  onClick={() => setGroupByStatus(g => !g)}
+                  onClick={() => setGroupMode((prev) => (prev === "status" ? "none" : "status"))}
                   className="size-11"
-                  aria-label={groupByStatus ? COPY.taskList.ungroup : COPY.taskList.groupByStatus}
-                  title={groupByStatus ? COPY.taskList.ungroup : COPY.taskList.groupByStatus}
+                  aria-label={effectiveGroupMode === "status" ? COPY.taskList.ungroup : COPY.taskList.groupByStatus}
+                  title={effectiveGroupMode === "status" ? COPY.taskList.ungroup : COPY.taskList.groupByStatus}
                 >
                   <Layers aria-hidden="true" />
                 </Button>
@@ -507,7 +572,11 @@ function TasksPageContent() {
                     onTaskClick={handleTaskClick}
                     canPermanentDelete={showDeleted ? canPermanentDelete : false}
                     onPermanentDelete={handleTaskPermanentlyDeleted}
-                    groupByStatus={groupByStatus}
+                    groupMode={effectiveGroupMode}
+                    isAdmin={isAdmin}
+                    isTrashView={showDeleted}
+                    sortMode={sortMode}
+                    onSortModeChange={isAdmin && !showDeleted ? setSortMode : undefined}
                     onStatusChange={handleStatusChange}
                     onDeleted={handleTaskDeleted}
                     onReassign={handleReassigned}

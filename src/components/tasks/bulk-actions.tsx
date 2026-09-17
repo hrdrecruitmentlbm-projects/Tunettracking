@@ -22,7 +22,10 @@ interface BulkActionsProps {
 
 export function BulkActions({ selectedCount, users, onStatusChange, onReassign, onDelete, onClear }: BulkActionsProps) {
   if (selectedCount === 0) return null;
-  const focUsers = users.filter(u => u.role === "foc");
+  // Same assignable set as the task form — FOC and marketing both take work.
+  const assignableUsers = users.filter(
+    u => (u.role === "foc" || u.role === "marketing") && u.is_active !== false
+  );
   return (
     <div className="flex items-center gap-3 rounded-xl border border-tunet-border bg-tunet-surface px-4 py-2.5 text-sm">
       <span className="text-tunet-text font-medium whitespace-nowrap">
@@ -41,15 +44,18 @@ export function BulkActions({ selectedCount, users, onStatusChange, onReassign, 
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
-        {focUsers.length > 0 && (
+        {assignableUsers.length > 0 && (
           <DropdownMenu>
             <DropdownMenuTrigger>
               <Button variant="outline" size="sm">{COPY.bulkActions.reassign}</Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              {focUsers.map(user => (
+            <DropdownMenuContent align="start" className="min-w-48">
+              {assignableUsers.map(user => (
                 <DropdownMenuItem key={user.id} onClick={() => onReassign(user.id)}>
                   {user.name}
+                  <span className="ml-auto font-mono text-[10px] uppercase text-tunet-text-muted">
+                    {user.role}
+                  </span>
                 </DropdownMenuItem>
               ))}
             </DropdownMenuContent>
