@@ -15,6 +15,7 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -732,7 +733,10 @@ function StatusRingMenu({
             {done && <Check className="size-3 text-white" strokeWidth={3} />}
           </span>
         </DropdownMenuTrigger>
+        {/* Labels require a group ancestor in this Base UI version — without
+            it the menu crashes on open (MenuGroupContext missing). */}
         <DropdownMenuContent align="start" className="min-w-48">
+          <DropdownMenuGroup>
         {task.status === "review" && onStatusChange && (
           <>
             <DropdownMenuItem
@@ -760,6 +764,7 @@ function StatusRingMenu({
             {STATUS_CONFIG[status].label}
           </DropdownMenuItem>
         ))}
+          </DropdownMenuGroup>
         </DropdownMenuContent>
       </DropdownMenu>
     </span>
@@ -879,6 +884,7 @@ function AdminRowActions({
         {variant === "card" && <span className="text-xs">{COPY.taskList.rowActions}</span>}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-56">
+        <DropdownMenuGroup>
         <DropdownMenuLabel>{COPY.taskList.changeStatus}</DropdownMenuLabel>
         {(Object.keys(STATUS_CONFIG) as TaskStatus[]).map(status => (
           <DropdownMenuItem
@@ -925,6 +931,7 @@ function AdminRowActions({
             {COPY.pages.trash.permanentlyDelete}
           </DropdownMenuItem>
         )}
+        </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   );
