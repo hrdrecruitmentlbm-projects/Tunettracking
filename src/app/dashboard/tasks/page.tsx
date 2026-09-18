@@ -14,6 +14,7 @@ import { fetchTasks, reassignTask, updateTaskStatus, fetchUsers } from "@/lib/db
 import { Task, TaskStatus, User } from "@/types";
 import { AdminListToolbar } from "@/components/tasks/admin-list-toolbar";
 import {
+  groupTasks,
   isGroupMode,
   isListPreset,
   isSortMode,
@@ -57,6 +58,11 @@ function isTaskStatus(v: string | null): v is TaskStatus {
 
 function isTaskPriority(v: string | null): v is Task["priority"] {
   return v === "critical" || v === "high" || v === "medium" || v === "low";
+}
+
+function isCollapsedGroupMap(v: unknown): v is Record<string, boolean> {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return false;
+  return Object.values(v as Record<string, unknown>).every((x) => typeof x === "boolean");
 }
 
 type ViewMode = "kanban" | "list" | "timeline";
@@ -122,6 +128,11 @@ function TasksPageContent() {
     initial: "risk",
     validate: isSortMode,
   });
+  const [collapsedGroups, setCollapsedGroups] = useLocalStorageState<Record<string, boolean>>(
+    "tutrack-task-collapsed-groups",
+    { initial: {}, validate: isCollapsedGroupMap }
+  );
+  const [formAssigneeId, setFormAssigneeId] = useState<string | null>(null);
   const [filters, setFilters] = useState<FilterState>(() => {
     // URL params win (deep links / shared views), then last-used filters,
     // then defaults.
@@ -291,6 +302,14 @@ function TasksPageContent() {
     setDetailOpen(true);
   };
 
+  // Per-section "+" in the grouped list: new task pre-assigned to that person.
+  const handleAddTaskForAssignee = (userId: string) => {
+    setFormAssigneeId(userId);
+    setFormOpen(true);
+  };
+
+  const groupingActive = isAdmin && effectiveGroupMode !== "none";
+
   const handleReassigned = async (taskId: string, newAssigneeId: string) => {
     const previous = tasks.find((t) => t.id === taskId);
     setTasks((prev) =>
@@ -366,6 +385,28 @@ function TasksPageContent() {
     return isAdmin ? sortTasks(matched, sortMode) : matched;
   }, [tasks, searchQuery, filters, isAdmin, sortMode]);
 
+  const currentGroupKeys = useMemo(
+    () =>
+      groupingActive
+        ? groupTasks(filteredTasks, effectiveGroupMode, users).map((g) => g.key)
+        : [],
+    [groupingActive, filteredTasks, effectiveGroupMode, users]
+  );
+  const allGroupsCollapsed =
+    currentGroupKeys.length > 0 && currentGroupKeys.every((key) => collapsedGroups[key] === true);
+  const handleToggleCollapseAll = () => {
+    if (allGroupsCollapsed) {
+      setCollapsedGroups({});
+    } else {
+      setCollapsedGroups(
+        currentGroupKeys.reduce<Record<string, boolean>>((acc, key) => {
+          acc[key] = true;
+          return acc;
+        }, {})
+      );
+    }
+  };
+
   const summary = useMemo(() => ({
     total: filteredTasks.length,
     critical: filteredTasks.filter(t => t.priority === 'critical').length,
@@ -429,6 +470,9 @@ function TasksPageContent() {
                 onGroupModeChange={setGroupMode}
                 sortMode={sortMode}
                 onSortModeChange={setSortMode}
+                collapseAllVisible={effectiveGroupMode !== "none"}
+                allCollapsed={allGroupsCollapsed}
+                onToggleCollapseAll={handleToggleCollapseAll}
               />
             </div>
           )}
@@ -581,6 +625,18 @@ function TasksPageContent() {
                     onDeleted={handleTaskDeleted}
                     onReassign={handleReassigned}
                     users={users}
+                    collapsedGroups={groupingActive ? collapsedGroups : undefined}
+                    onToggleGroupCollapsed={
+                      groupingActive
+                        ? (key, collapsed) =>
+                            setCollapsedGroups((prev) => ({ ...prev, [key]: collapsed }))
+                        : undefined
+                    }
+                    onAddTaskForAssignee={
+                      groupingActive && effectiveGroupMode === "assignee"
+                        ? handleAddTaskForAssignee
+                        : undefined
+                    }
                   />
                 )}
               </div>
@@ -592,6 +648,7 @@ function TasksPageContent() {
           open={formOpen}
           onOpenChange={setFormOpen}
           onTaskCreated={handleTaskCreated}
+          defaultAssigneeId={formAssigneeId}
         />
 
         <TaskDetail

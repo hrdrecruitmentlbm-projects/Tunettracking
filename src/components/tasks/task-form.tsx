@@ -32,6 +32,8 @@ interface TaskFormProps {
   onTaskCreated: (task: Task) => void;
   onTaskUpdated?: (task: Task) => void;
   editingTask?: Task | null;
+  /** Pre-fills the assignee for new tasks — the per-section "+" in the grouped list. */
+  defaultAssigneeId?: string | null;
 }
 
 export function TaskForm({
@@ -40,6 +42,7 @@ export function TaskForm({
   onTaskCreated,
   onTaskUpdated,
   editingTask,
+  defaultAssigneeId,
 }: TaskFormProps) {
   const router = useRouter();
   const [title, setTitle] = useState("");
@@ -105,8 +108,12 @@ export function TaskForm({
       setSelectedTags((editingTask.tags || []).map((t) => t.id));
     } else if (open && !editingTask) {
       resetForm();
+      if (defaultAssigneeId) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setAssignedTo(defaultAssigneeId);
+      }
     }
-  }, [open, editingTask]);
+  }, [open, editingTask, defaultAssigneeId]);
 
   const handleSessionExpired = () => {
     localStorage.removeItem("tutrack-user");

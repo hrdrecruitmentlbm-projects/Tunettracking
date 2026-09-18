@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 import { COPY } from "@/lib/copy";
 import {
   GROUP_MODES,
@@ -29,6 +30,10 @@ interface AdminListToolbarProps {
   onGroupModeChange: (mode: GroupMode) => void;
   sortMode: SortMode;
   onSortModeChange: (mode: SortMode) => void;
+  /** Shown only while grouping is active — collapses/expands every section. */
+  collapseAllVisible?: boolean;
+  allCollapsed?: boolean;
+  onToggleCollapseAll?: () => void;
 }
 
 export function AdminListToolbar({
@@ -38,6 +43,9 @@ export function AdminListToolbar({
   onGroupModeChange,
   sortMode,
   onSortModeChange,
+  collapseAllVisible = false,
+  allCollapsed = false,
+  onToggleCollapseAll,
 }: AdminListToolbarProps) {
   return (
     <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
@@ -100,6 +108,23 @@ export function AdminListToolbar({
             </option>
           ))}
         </select>
+
+        {collapseAllVisible && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onToggleCollapseAll}
+            className="size-11"
+            aria-label={allCollapsed ? COPY.taskList.expandAll : COPY.taskList.collapseAll}
+            title={allCollapsed ? COPY.taskList.expandAll : COPY.taskList.collapseAll}
+          >
+            {allCollapsed ? (
+              <ChevronsUpDown aria-hidden="true" />
+            ) : (
+              <ChevronsDownUp aria-hidden="true" />
+            )}
+          </Button>
+        )}
       </div>
     </div>
   );

@@ -22,10 +22,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   ArrowUpDown,
+  Check,
   ChevronDown,
   Clock,
+  Flag,
   MapPin,
   MoreHorizontal,
+  Paperclip,
+  Plus,
   Trash2,
   User as UserIcon,
 } from "lucide-react";
@@ -38,6 +42,7 @@ import { BulkActions } from "@/components/tasks/bulk-actions";
 import {
   describeStaleness,
   groupTasks,
+  UNASSIGNED_GROUP_KEY,
   type GroupMode,
   type SortMode,
   type TaskGroup,
@@ -64,6 +69,11 @@ interface TaskListViewProps {
   onSortModeChange?: (mode: SortMode) => void;
   /** The trash view keeps the legacy flat table — triage is for the live backlog. */
   isTrashView?: boolean;
+  /** Collapsed group keys (persisted by the page) → whether that group is collapsed. */
+  collapsedGroups?: Record<string, boolean>;
+  onToggleGroupCollapsed?: (groupKey: string, collapsed: boolean) => void;
+  /** Admin-only: open the task form pre-filled with this assignee (section "+"). */
+  onAddTaskForAssignee?: (userId: string) => void;
 }
 
 const PRIORITY_DOT: Record<string, string> = {
@@ -72,6 +82,9 @@ const PRIORITY_DOT: Record<string, string> = {
   medium: "#EAB308",
   low: "#6B7280",
 };
+
+/** Max tag chips rendered before collapsing into +N. */
+const MAX_TAG_CHIPS = 2;
 
 function readCurrentUserId(): string | null {
   if (typeof window === "undefined") return null;
@@ -88,6 +101,84 @@ function readCurrentUserId(): string | null {
   }
 }
 
+/** Mockup-style row title: priority flag + title + evidence chip, location beneath. */
+function TaskCell({ task, overdue }: { task: Task; overdue: boolean }) {
+  const attachmentCount = task.attachments?.length ?? 0;
+  const showEvidence =
+    attachmentCount > 0 && (task.status === "review" || task.status === "done");
+
+  return (
+    <div className="min-w-0">
+      <div className="flex items-center gap-1.5">
+        <Flag
+          aria-hidden="true"
+          className="size-3.5 shrink-0"
+          style={{
+            color: PRIORITY_DOT[task.priority],
+            fill: PRIORITY_DOT[task.priority],
+          }}
+        />
+        <span aria-hidden="true" className="sr-only">
+          {PRIORITY_CONFIG[task.priority].label}
+        </span>
+        <span className="truncate text-tunet-text">{task.title}</span>
+        {showEvidence && (
+          <span
+            className="inline-flex shrink-0 items-center gap-1 rounded-full bg-tunet-border/60 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-tunet-text-muted"
+            title={COPY.taskList.attachments(attachmentCount)}
+          >
+            <Paperclip aria-hidden="true" className="size-3" />
+            {attachmentCount}
+          </span>
+        )}
+        {overdue && <span className="sr-only">{COPY.taskList.overdue}</span>}
+      </div>
+      <div className="mt-0.5 flex items-center gap-1 text-[11px] text-tunet-text-muted">
+        <MapPin aria-hidden="true" className="size-3 shrink-0" />
+        <span className="truncate">{task.location_name}</span>
+      </div>
+    </div>
+  );
+}
+
+function TagChips({ task }: { task: Task }) {
+  const tags = task.tags ?? [];
+  if (tags.length === 0) return null;
+  const visible = tags.slice(0, MAX_TAG_CHIPS);
+  const extra = tags.length - visible.length;
+  return (
+    <div className="flex min-w-0 flex-wrap items-center gap-1">
+      {visible.map((tag) => (
+        <span
+          key={tag.id}
+          className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium"
+          style={{ backgroundColor: `${tag.color}20`, color: tag.color }}
+        >
+          {tag.name}
+        </span>
+      ))}
+      {extra > 0 && (
+        <span className="font-mono text-[10px] text-tunet-text-muted">+{extra}</span>
+      )}
+    </div>
+  );
+}
+
+function DeadlineCell({ task }: { task: Task }) {
+  const overdue = isTaskOverdue(task);
+  return (
+    <span
+      className={cn(
+        "flex items-center gap-1.5 whitespace-nowrap text-xs tabular-nums",
+        overdue ? "font-medium text-status-overdue" : "text-tunet-text-muted"
+      )}
+    >
+      <Clock aria-hidden="true" className="size-3.5 shrink-0" />
+      {task.deadline ? formatShortDate(task.deadline) : "—"}
+    </span>
+  );
+}
+
 export function TaskListView({
   tasks,
   onTaskClick,
@@ -102,6 +193,9 @@ export function TaskListView({
   sortMode = "risk",
   onSortModeChange,
   isTrashView = false,
+  collapsedGroups,
+  onToggleGroupCollapsed,
+  onAddTaskForAssignee,
 }: TaskListViewProps) {
   const [permDeleteOpen, setPermDeleteOpen] = useState(false);
   const [permDeleting, setPermDeleting] = useState(false);
@@ -120,9 +214,16 @@ export function TaskListView({
     [tasks, effectiveGroupMode, users, now]
   );
 
+  // The tag column only appears when at least one visible task carries tags.
+  const hasVisibleTags = tasks.some((task) => (task.tags?.length ?? 0) > 0);
+
   const colCount =
     1 + // selection
-    6 + // task, status, priority, assignee, location, deadline
+    1 + // status ring
+    1 + // task
+    (hasVisibleTags && !isTrashView ? 1 : 0) + // tags
+    1 + // assignee
+    1 + // deadline
     (showAdminColumns ? 1 : 0) + // updated
     (showAdminColumns || canPermanentDelete ? 1 : 0); // actions
 
@@ -190,8 +291,6 @@ export function TaskListView({
     setPermDeleting(false);
   };
 
-  const isOverdue = (task: Task) => isTaskOverdue(task);
-
   const rowActions = (task: Task, variant: "row" | "card") => (
     <AdminRowActions
       task={task}
@@ -222,115 +321,111 @@ export function TaskListView({
       {/* Grouped list view */}
       {effectiveGroupMode !== "none" ? (
         <div className="flex flex-col gap-2 pb-24">
-          {groups.map((group) => (
-            <details
-              key={group.key}
-              className="group rounded-xl border border-tunet-border/70 bg-tunet-surface/20"
-              open
-            >
-              <summary className="flex cursor-pointer select-none items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium text-tunet-text transition-colors hover:bg-tunet-surface-hover/50 [&::-webkit-details-marker]:hidden">
-                <ChevronDown className="size-4 -rotate-90 text-tunet-text-muted transition-transform group-open:rotate-0" />
-                <span className="size-2 rounded-full" style={{ backgroundColor: group.accent }} />
-                <span className="truncate">{group.label}</span>
-                {showAdminColumns && group.meta && (
-                  <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.12em] text-tunet-text-muted">
-                    {group.meta}
-                  </span>
-                )}
-                {showAdminColumns && (
-                  <span className="flex shrink-0 items-center gap-2 text-[11px] font-normal text-tunet-text-muted">
-                    <span>{COPY.taskList.activeCount(group.stats.active)}</span>
-                    {group.stats.overdue > 0 && (
-                      <span className="text-status-overdue">
-                        {COPY.taskList.overdueCount(group.stats.overdue)}
-                      </span>
-                    )}
-                  </span>
-                )}
-                {showAdminColumns && group.stats.capacity ? (
-                  <GroupCapacity group={group} />
-                ) : null}
-                <span className="ml-auto font-mono text-xs tabular-nums text-tunet-text-muted">
-                  {group.tasks.length}
-                </span>
-              </summary>
-              <div className="px-2 pb-2">
-                {group.tasks.map(task => (
-                  <div
-                    key={task.id}
-                    className={cn(
-                      "grid cursor-pointer items-center gap-x-3 gap-y-1 rounded-lg px-2 py-1.5 text-xs transition-colors hover:bg-tunet-surface-hover/60",
-                      showAdminColumns
-                        ? "grid-cols-[36px_8px_minmax(0,1fr)_auto_auto_auto_auto_88px]"
-                        : "grid-cols-[36px_8px_1fr_auto_auto_minmax(0,120px)]"
-                    )}
-                    onClick={() => onTaskClick?.(task)}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.has(task.id)}
-                      onChange={() => toggleSelect(task.id)}
-                      onClick={e => e.stopPropagation()}
-                      aria-label={COPY.bulkActions.selectRow(task.title)}
-                      className="size-4 accent-tunet-green"
-                    />
-                    <span
-                      className="size-1.5 rounded-full"
-                      style={{ backgroundColor: PRIORITY_DOT[task.priority] }}
-                    />
-                    <span className={cn("truncate text-tunet-text", isOverdue(task) && "text-status-overdue")}>
-                      {task.title}
+          {groups.map((group) => {
+            const isCollapsed = collapsedGroups?.[group.key] ?? false;
+            const showSectionAdd =
+              showAdminColumns &&
+              groupMode === "assignee" &&
+              group.key !== UNASSIGNED_GROUP_KEY &&
+              Boolean(onAddTaskForAssignee);
+            return (
+              <details
+                key={group.key}
+                className="group rounded-xl border border-tunet-border/70 bg-tunet-surface/20"
+                open={!isCollapsed}
+                onToggle={(event) => {
+                  const open = (event.currentTarget as HTMLDetailsElement).open;
+                  if (isCollapsed === open) {
+                    onToggleGroupCollapsed?.(group.key, !open);
+                  }
+                }}
+              >
+                <summary className="flex cursor-pointer select-none items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium text-tunet-text transition-colors hover:bg-tunet-surface-hover/50 [&::-webkit-details-marker]:hidden">
+                  <ChevronDown className="size-4 -rotate-90 text-tunet-text-muted transition-transform group-open:rotate-0" />
+                  <span className="size-2 rounded-full" style={{ backgroundColor: group.accent }} />
+                  <span className="truncate">{group.label}</span>
+                  {showAdminColumns && group.meta && (
+                    <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.12em] text-tunet-text-muted">
+                      {group.meta}
                     </span>
-                    {showAdminColumns && (
-                      <>
-                        <Badge
-                          variant="secondary"
-                          className="text-[10px]"
-                          style={{
-                            backgroundColor: STATUS_CONFIG[task.status].color + "20",
-                            color: STATUS_CONFIG[task.status].color,
-                          }}
-                        >
-                          {STATUS_CONFIG[task.status].label}
-                        </Badge>
+                  )}
+                  {showAdminColumns && (
+                    <span className="flex shrink-0 items-center gap-2 text-[11px] font-normal text-tunet-text-muted">
+                      <span>{COPY.taskList.activeCount(group.stats.active)}</span>
+                      {group.stats.overdue > 0 && (
+                        <span className="text-status-overdue">
+                          {COPY.taskList.overdueCount(group.stats.overdue)}
+                        </span>
+                      )}
+                    </span>
+                  )}
+                  {showAdminColumns && group.stats.capacity ? (
+                    <GroupCapacity group={group} />
+                  ) : null}
+                  <span className="ml-auto font-mono text-xs tabular-nums text-tunet-text-muted">
+                    {group.tasks.length}
+                  </span>
+                  {showSectionAdd && (
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onAddTaskForAssignee?.(group.key);
+                      }}
+                      className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg text-tunet-text-muted transition-colors hover:bg-tunet-surface-hover hover:text-tunet-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tunet-signal"
+                      aria-label={COPY.taskList.addTaskFor(group.label)}
+                      title={COPY.taskList.addTaskFor(group.label)}
+                    >
+                      <Plus aria-hidden="true" className="size-4" />
+                    </button>
+                  )}
+                </summary>
+                <div className="px-2 pb-2">
+                  {group.tasks.map(task => {
+                    const overdue = isTaskOverdue(task);
+                    return (
+                      <div
+                        key={task.id}
+                        className={cn(
+                          "grid cursor-pointer items-center gap-x-3 gap-y-1 rounded-lg px-2 py-1.5 text-xs transition-colors hover:bg-tunet-surface-hover/60",
+                          showAdminColumns
+                            ? hasVisibleTags
+                              ? "grid-cols-[36px_auto_minmax(0,1fr)_auto_auto_auto_88px_auto]"
+                              : "grid-cols-[36px_auto_minmax(0,1fr)_auto_auto_88px_auto]"
+                            : hasVisibleTags
+                              ? "grid-cols-[36px_auto_minmax(0,1fr)_auto_auto_auto]"
+                              : "grid-cols-[36px_auto_minmax(0,1fr)_auto_auto]"
+                        )}
+                        onClick={() => onTaskClick?.(task)}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(task.id)}
+                          onChange={() => toggleSelect(task.id)}
+                          onClick={e => e.stopPropagation()}
+                          aria-label={COPY.bulkActions.selectRow(task.title)}
+                          className="size-4 accent-tunet-green"
+                        />
+                        <StatusRingMenu task={task} onStatusChange={onStatusChange} />
+                        <TaskCell task={task} overdue={overdue} />
+                        {hasVisibleTags && <TagChips task={task} />}
                         <span className="truncate text-tunet-text-muted">
                           {task.assignee?.name || COPY.taskList.unassigned}
                         </span>
-                        <span
-                          className={cn(
-                            "tabular-nums",
-                            isOverdue(task) ? "font-medium text-status-overdue" : "text-tunet-text-muted"
-                          )}
-                        >
-                          {task.deadline ? formatShortDate(task.deadline) : "—"}
-                        </span>
-                        <StalenessCell task={task} now={now} />
-                        <div className="flex justify-end" onClick={e => e.stopPropagation()}>
-                          {rowActions(task, "row")}
-                        </div>
-                      </>
-                    )}
-                    {!showAdminColumns && (
-                      <>
-                        <span className="truncate text-tunet-text-muted">
-                          {task.assignee?.name || COPY.taskList.unassigned}
-                        </span>
-                        <span
-                          className={cn(
-                            "tabular-nums",
-                            isOverdue(task) ? "font-medium text-status-overdue" : "text-tunet-text-muted"
-                          )}
-                        >
-                          {task.deadline ? formatShortDate(task.deadline) : "—"}
-                        </span>
-                        <span className="truncate text-tunet-text-muted">{task.location_name}</span>
-                      </>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </details>
-          ))}
+                        <DeadlineCell task={task} />
+                        {showAdminColumns && <StalenessCell task={task} now={now} />}
+                        {showAdminColumns && (
+                          <div className="flex justify-end" onClick={e => e.stopPropagation()}>
+                            {rowActions(task, "row")}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </details>
+            );
+          })}
           {tasks.length === 0 && (
             <p className="py-12 text-center text-sm text-tunet-text-muted">{COPY.taskList.emptyMessage}</p>
           )}
@@ -361,135 +456,83 @@ export function TaskListView({
             )}
           </div>
 
-          {/* Desktop: flat table */}
-          <table className="hidden w-full text-sm md:table">
-            <thead>
-              <tr className="border-b border-tunet-border">
-                <th scope="col" className="w-10 py-3 px-4">
-                  <input
-                    type="checkbox"
-                    checked={allSelected}
-                    onChange={toggleSelectAll}
-                    aria-label={COPY.bulkActions.selectAll(tasks.length)}
-                    className="size-4 accent-tunet-green"
-                  />
-                </th>
-                <th scope="col" className="py-3 px-4 text-left text-xs font-medium text-tunet-text-muted">
-                  {onSortModeChange ? (
-                    <SortButton
-                      label={COPY.taskList.colTask}
-                      mode="risk"
-                      sortMode={sortMode}
-                      onSortModeChange={onSortModeChange}
-                    />
-                  ) : (
-                    COPY.taskList.colTask
-                  )}
-                </th>
-                <th scope="col" className="py-3 px-4 text-left text-xs font-medium text-tunet-text-muted">{COPY.taskList.colStatus}</th>
-                <th scope="col" className="py-3 px-4 text-left text-xs font-medium text-tunet-text-muted">
-                  {onSortModeChange ? (
-                    <SortButton
-                      label={COPY.taskList.colPriority}
-                      mode="priority"
-                      sortMode={sortMode}
-                      onSortModeChange={onSortModeChange}
-                    />
-                  ) : (
-                    COPY.taskList.colPriority
-                  )}
-                </th>
-                <th scope="col" className="py-3 px-4 text-left text-xs font-medium text-tunet-text-muted">{COPY.taskList.colAssignee}</th>
-                <th scope="col" className="py-3 px-4 text-left text-xs font-medium text-tunet-text-muted">{COPY.taskList.colLocation}</th>
-                <th scope="col" className="py-3 px-4 text-left text-xs font-medium text-tunet-text-muted">
-                  {onSortModeChange ? (
-                    <SortButton
-                      label={COPY.taskList.colDeadline}
-                      mode="deadline"
-                      sortMode={sortMode}
-                      onSortModeChange={onSortModeChange}
-                    />
-                  ) : (
-                    COPY.taskList.colDeadline
-                  )}
-                </th>
-                {showAdminColumns && (
-                  <th scope="col" className="py-3 px-4 text-left text-xs font-medium text-tunet-text-muted">
-                    <SortButton
-                      label={COPY.taskList.colUpdated}
-                      mode="updated"
-                      sortMode={sortMode}
-                      onSortModeChange={onSortModeChange}
+          {isTrashView ? (
+            /* Trash keeps the legacy archival table verbatim. */
+            <table className="hidden w-full text-sm md:table">
+              <thead>
+                <tr className="border-b border-tunet-border">
+                  <th scope="col" className="w-10 py-3 px-4">
+                    <input
+                      type="checkbox"
+                      checked={allSelected}
+                      onChange={toggleSelectAll}
+                      aria-label={COPY.bulkActions.selectAll(tasks.length)}
+                      className="size-4 accent-tunet-green"
                     />
                   </th>
-                )}
-                {(showAdminColumns || canPermanentDelete) && (
-                  <th scope="col" className="py-3 px-4 text-right text-xs font-medium text-tunet-text-muted">
-                    {COPY.pages.trash.colActions}
-                  </th>
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {tasks.map((task) => {
-                const statusConfig = STATUS_CONFIG[task.status];
-                const overdue = isOverdue(task);
-                return (
-                  <tr
-                    key={task.id}
-                    onClick={() => onTaskClick?.(task)}
-                    className="border-b border-tunet-border last:border-0 hover:bg-tunet-surface-hover cursor-pointer transition-colors"
-                  >
-                    <td className="py-3 px-4" onClick={e => e.stopPropagation()}>
-                      <input type="checkbox" checked={selectedIds.has(task.id)} onChange={() => toggleSelect(task.id)} aria-label={COPY.bulkActions.selectRow(task.title)} className="size-4 accent-tunet-green" />
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: PRIORITY_DOT[task.priority] }} />
-                        <span className="text-tunet-text font-medium">{task.title}</span>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4">
-                      <Badge variant="secondary" className="text-xs" style={{ backgroundColor: statusConfig.color + "20", color: statusConfig.color }}>
-                        {statusConfig.label}
-                      </Badge>
-                    </td>
-                    <td className="py-3 px-4">
-                      <Badge variant="secondary" className="text-xs" style={{ backgroundColor: PRIORITY_DOT[task.priority] + "20", color: PRIORITY_DOT[task.priority] }}>
-                        {PRIORITY_CONFIG[task.priority].label}
-                      </Badge>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-1.5 text-tunet-text-muted">
-                        <UserIcon className="w-3.5 h-3.5" />
-                        <span className="text-xs">{task.assignee?.name || COPY.taskList.unassigned}</span>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-1.5 text-tunet-text-muted">
-                        <MapPin className="w-3.5 h-3.5" />
-                        <span className="text-xs truncate max-w-[150px]">{task.location_name}</span>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-1.5">
-                        <Clock className="w-3.5 h-3.5 text-tunet-text-muted" />
-                        <span className={`text-xs ${overdue ? "text-red-400 font-medium" : "text-tunet-text-muted"}`}>
-                          {task.deadline ? formatShortDate(task.deadline) : "—"}
-                        </span>
-                        {overdue && <Badge variant="destructive" className="text-[10px] px-1 py-0">{COPY.taskList.overdue}</Badge>}
-                      </div>
-                    </td>
-                    {showAdminColumns && (
-                      <td className="py-3 px-4">
-                        <StalenessCell task={task} now={now} />
+                  <th scope="col" className="py-3 px-4 text-left text-xs font-medium text-tunet-text-muted">{COPY.taskList.colTask}</th>
+                  <th scope="col" className="py-3 px-4 text-left text-xs font-medium text-tunet-text-muted">{COPY.taskList.colStatus}</th>
+                  <th scope="col" className="py-3 px-4 text-left text-xs font-medium text-tunet-text-muted">{COPY.taskList.colPriority}</th>
+                  <th scope="col" className="py-3 px-4 text-left text-xs font-medium text-tunet-text-muted">{COPY.taskList.colAssignee}</th>
+                  <th scope="col" className="py-3 px-4 text-left text-xs font-medium text-tunet-text-muted">{COPY.taskList.colLocation}</th>
+                  <th scope="col" className="py-3 px-4 text-left text-xs font-medium text-tunet-text-muted">{COPY.taskList.colDeadline}</th>
+                  {canPermanentDelete && (
+                    <th scope="col" className="py-3 px-4 text-right text-xs font-medium text-tunet-text-muted">
+                      {COPY.pages.trash.colActions}
+                    </th>
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {tasks.map((task) => {
+                  const statusConfig = STATUS_CONFIG[task.status];
+                  return (
+                    <tr
+                      key={task.id}
+                      onClick={() => onTaskClick?.(task)}
+                      className="border-b border-tunet-border last:border-0 hover:bg-tunet-surface-hover cursor-pointer transition-colors"
+                    >
+                      <td className="py-3 px-4" onClick={e => e.stopPropagation()}>
+                        <input type="checkbox" checked={selectedIds.has(task.id)} onChange={() => toggleSelect(task.id)} aria-label={COPY.bulkActions.selectRow(task.title)} className="size-4 accent-tunet-green" />
                       </td>
-                    )}
-                    {(showAdminColumns || canPermanentDelete) && (
-                      <td className="py-3 px-4 text-right" onClick={e => e.stopPropagation()}>
-                        {showAdminColumns ? (
-                          <div className="flex justify-end">{rowActions(task, "row")}</div>
-                        ) : (
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: PRIORITY_DOT[task.priority] }} />
+                          <span className="text-tunet-text font-medium">{task.title}</span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <Badge variant="secondary" className="text-xs" style={{ backgroundColor: statusConfig.color + "20", color: statusConfig.color }}>
+                          {statusConfig.label}
+                        </Badge>
+                      </td>
+                      <td className="py-3 px-4">
+                        <Badge variant="secondary" className="text-xs" style={{ backgroundColor: PRIORITY_DOT[task.priority] + "20", color: PRIORITY_DOT[task.priority] }}>
+                          {PRIORITY_CONFIG[task.priority].label}
+                        </Badge>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-1.5 text-tunet-text-muted">
+                          <UserIcon className="w-3.5 h-3.5" />
+                          <span className="text-xs">{task.assignee?.name || COPY.taskList.unassigned}</span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-1.5 text-tunet-text-muted">
+                          <MapPin className="w-3.5 h-3.5" />
+                          <span className="text-xs truncate max-w-[150px]">{task.location_name}</span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5 text-tunet-text-muted" />
+                          <span className="text-xs text-tunet-text-muted">
+                            {task.deadline ? formatShortDate(task.deadline) : "—"}
+                          </span>
+                        </div>
+                      </td>
+                      {canPermanentDelete && (
+                        <td className="py-3 px-4 text-right" onClick={e => e.stopPropagation()}>
                           <button
                             onClick={() => requestPermanentDelete(task)}
                             className="p-1.5 rounded hover:bg-status-overdue/10 text-tunet-text-muted hover:text-status-overdue transition-colors"
@@ -497,19 +540,135 @@ export function TaskListView({
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
-                        )}
-                      </td>
-                    )}
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
+                {tasks.length === 0 && (
+                  <tr>
+                    <td colSpan={colCount} className="py-12 text-center text-tunet-text-muted text-sm">{COPY.taskList.emptyMessage}</td>
                   </tr>
-                );
-              })}
-              {tasks.length === 0 && (
-                <tr>
-                  <td colSpan={colCount} className="py-12 text-center text-tunet-text-muted text-sm">{COPY.taskList.emptyMessage}</td>
+                )}
+              </tbody>
+            </table>
+          ) : (
+            /* Desktop: flat table, mockup-style rows. */
+            <table className="hidden w-full text-sm md:table">
+              <thead>
+                <tr className="border-b border-tunet-border">
+                  <th scope="col" className="w-10 py-3 px-4">
+                    <input
+                      type="checkbox"
+                      checked={allSelected}
+                      onChange={toggleSelectAll}
+                      aria-label={COPY.bulkActions.selectAll(tasks.length)}
+                      className="size-4 accent-tunet-green"
+                    />
+                  </th>
+                  <th scope="col" className="w-10 py-3 px-4">
+                    <span className="sr-only">{COPY.taskList.colStatus}</span>
+                  </th>
+                  <th scope="col" className="py-3 px-4 text-left text-xs font-medium text-tunet-text-muted">
+                    {onSortModeChange ? (
+                      <SortButton
+                        label={COPY.taskList.colTask}
+                        mode="risk"
+                        sortMode={sortMode}
+                        onSortModeChange={onSortModeChange}
+                      />
+                    ) : (
+                      COPY.taskList.colTask
+                    )}
+                  </th>
+                  {hasVisibleTags && (
+                    <th scope="col" className="py-3 px-4 text-left text-xs font-medium text-tunet-text-muted">
+                      {COPY.taskList.tagsColumn}
+                    </th>
+                  )}
+                  <th scope="col" className="py-3 px-4 text-left text-xs font-medium text-tunet-text-muted">{COPY.taskList.colAssignee}</th>
+                  <th scope="col" className="py-3 px-4 text-left text-xs font-medium text-tunet-text-muted">
+                    {onSortModeChange ? (
+                      <SortButton
+                        label={COPY.taskList.colDeadline}
+                        mode="deadline"
+                        sortMode={sortMode}
+                        onSortModeChange={onSortModeChange}
+                      />
+                    ) : (
+                      COPY.taskList.colDeadline
+                    )}
+                  </th>
+                  {showAdminColumns && (
+                    <th scope="col" className="py-3 px-4 text-left text-xs font-medium text-tunet-text-muted">
+                      <SortButton
+                        label={COPY.taskList.colUpdated}
+                        mode="updated"
+                        sortMode={sortMode}
+                        onSortModeChange={onSortModeChange}
+                      />
+                    </th>
+                  )}
+                  {showAdminColumns && (
+                    <th scope="col" className="py-3 px-4 text-right text-xs font-medium text-tunet-text-muted">
+                      {COPY.pages.trash.colActions}
+                    </th>
+                  )}
                 </tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {tasks.map((task) => {
+                  const overdue = isTaskOverdue(task);
+                  return (
+                    <tr
+                      key={task.id}
+                      onClick={() => onTaskClick?.(task)}
+                      className="border-b border-tunet-border last:border-0 hover:bg-tunet-surface-hover cursor-pointer transition-colors"
+                    >
+                      <td className="py-3 px-4" onClick={e => e.stopPropagation()}>
+                        <input type="checkbox" checked={selectedIds.has(task.id)} onChange={() => toggleSelect(task.id)} aria-label={COPY.bulkActions.selectRow(task.title)} className="size-4 accent-tunet-green" />
+                      </td>
+                      <td className="py-3 px-4" onClick={e => e.stopPropagation()}>
+                        <StatusRingMenu task={task} onStatusChange={onStatusChange} />
+                      </td>
+                      <td className="py-3 px-4">
+                        <TaskCell task={task} overdue={overdue} />
+                      </td>
+                      {hasVisibleTags && (
+                        <td className="py-3 px-4">
+                          <TagChips task={task} />
+                        </td>
+                      )}
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-1.5 text-tunet-text-muted">
+                          <UserIcon className="w-3.5 h-3.5" />
+                          <span className="text-xs">{task.assignee?.name || COPY.taskList.unassigned}</span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <DeadlineCell task={task} />
+                      </td>
+                      {showAdminColumns && (
+                        <td className="py-3 px-4">
+                          <StalenessCell task={task} now={now} />
+                        </td>
+                      )}
+                      {showAdminColumns && (
+                        <td className="py-3 px-4 text-right" onClick={e => e.stopPropagation()}>
+                          <div className="flex justify-end">{rowActions(task, "row")}</div>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
+                {tasks.length === 0 && (
+                  <tr>
+                    <td colSpan={colCount} className="py-12 text-center text-tunet-text-muted text-sm">{COPY.taskList.emptyMessage}</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          )}
         </>
       )}
 
@@ -533,6 +692,77 @@ export function TaskListView({
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+/**
+ * Mockup-style status ring that opens a compact status menu on tap. When the
+ * task is awaiting review, the menu leads with a one-click approve action.
+ */
+function StatusRingMenu({
+  task,
+  onStatusChange,
+}: {
+  task: Task;
+  onStatusChange?: (taskId: string, status: TaskStatus) => void;
+}) {
+  const color = STATUS_CONFIG[task.status].color;
+  const done = task.status === "done";
+
+  return (
+    /* Propagation stops outside the trigger: killing it on the trigger itself
+       would prevent the click from ever reaching the menu logic. The trigger
+       renders its own <button>, so props go directly on it — nesting a second
+       button inside it produces invalid HTML that crashes on interaction. */
+    <span onClick={(event) => event.stopPropagation()}>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          aria-label={COPY.taskList.ringMenuAria(task.title)}
+          title={STATUS_CONFIG[task.status].label}
+          className="inline-flex size-8 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-tunet-signal"
+        >
+          <span
+            aria-hidden="true"
+            className={cn(
+              "flex size-5 items-center justify-center rounded-full border-2 transition-colors motion-reduce:transition-none",
+              done && "shadow-[0_0_10px_rgba(16,185,129,0.35)]"
+            )}
+            style={{ borderColor: color, backgroundColor: done ? color : "transparent" }}
+          >
+            {done && <Check className="size-3 text-white" strokeWidth={3} />}
+          </span>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="min-w-48">
+        {task.status === "review" && onStatusChange && (
+          <>
+            <DropdownMenuItem
+              onClick={() => onStatusChange(task.id, "done")}
+              className="gap-2 bg-status-done/10 font-medium text-status-done focus:bg-status-done/20 focus:text-status-done"
+            >
+              <Check aria-hidden="true" />
+              {COPY.taskList.approve}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
+        <DropdownMenuLabel>{COPY.taskList.changeStatus}</DropdownMenuLabel>
+        {(Object.keys(STATUS_CONFIG) as TaskStatus[]).map(status => (
+          <DropdownMenuItem
+            key={status}
+            disabled={status === task.status}
+            onClick={() => onStatusChange?.(task.id, status)}
+          >
+            <span
+              className="size-2 rounded-full"
+              style={{ backgroundColor: STATUS_CONFIG[status].color }}
+              aria-hidden="true"
+            />
+            {STATUS_CONFIG[status].label}
+          </DropdownMenuItem>
+        ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </span>
   );
 }
 
@@ -638,19 +868,15 @@ function AdminRowActions({
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger>
-        <Button
-          variant="ghost"
-          size={variant === "card" ? "sm" : "icon"}
-          className={cn(
-            "text-tunet-text-muted hover:text-tunet-text",
-            variant === "row" && "size-9"
-          )}
-          aria-label={`${COPY.taskList.rowActions}: ${task.title}`}
-        >
-          <MoreHorizontal aria-hidden="true" />
-          {variant === "card" && <span className="ml-1.5 text-xs">{COPY.taskList.rowActions}</span>}
-        </Button>
+      <DropdownMenuTrigger
+        aria-label={`${COPY.taskList.rowActions}: ${task.title}`}
+        className={cn(
+          "inline-flex items-center justify-center rounded-lg text-tunet-text-muted outline-none transition-colors hover:bg-tunet-surface-hover hover:text-tunet-text focus-visible:ring-2 focus-visible:ring-tunet-signal",
+          variant === "row" ? "size-9" : "min-h-11 gap-1.5 px-3"
+        )}
+      >
+        <MoreHorizontal aria-hidden="true" />
+        {variant === "card" && <span className="text-xs">{COPY.taskList.rowActions}</span>}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-56">
         <DropdownMenuLabel>{COPY.taskList.changeStatus}</DropdownMenuLabel>

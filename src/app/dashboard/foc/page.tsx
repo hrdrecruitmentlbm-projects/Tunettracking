@@ -702,7 +702,7 @@ function FOCFocusTask({
         </Badge>
       </div>
 
-      <TaskCard task={task} onClick={onOpen} />
+      <TaskCard task={task} onClick={onOpen} advanceMode="ring" onAdvance={onAdvance} />
 
       <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
         <Button

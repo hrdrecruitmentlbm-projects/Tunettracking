@@ -574,6 +574,13 @@ export const COPY = {
     changeStatus: "Ubah status",
     reassign: "Tugaskan ulang",
     stalledBadge: "Mangkrak",
+    approve: "Setujui & Selesaikan",
+    ringMenuAria: (title: string) => `Ubah status: ${title}`,
+    attachments: (n: number) => `${n} lampiran`,
+    tagsColumn: "Tag",
+    collapseAll: "Ciutkan semua",
+    expandAll: "Bentang semua",
+    addTaskFor: (name: string) => `Tambah tugas untuk ${name}`,
   },
   summaryStrip: {
     total: (n: number) => `${n} tugas`,
