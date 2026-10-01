@@ -6,6 +6,7 @@ import { AdminAttendanceTable } from "@/components/attendance/admin-attendance-t
 import { AttendanceStatsCards } from "@/components/attendance/attendance-stats-cards";
 import { AttendanceMatrixGrid } from "@/components/attendance/attendance-matrix";
 import { AttendanceMissingList } from "@/components/attendance/attendance-missing-list";
+import { ExportAttendanceButton } from "@/components/attendance/export-attendance-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
@@ -165,6 +166,14 @@ export default function AdminAttendancePage() {
                       {p.label}
                     </button>
                   ))}
+                </div>
+                <div className="ml-auto">
+                  <ExportAttendanceButton
+                    matrix={matrix}
+                    startDate={applied.start}
+                    endDate={applied.end}
+                    disabled={loading}
+                  />
                 </div>
               </div>
             </CardContent>

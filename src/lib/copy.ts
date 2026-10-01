@@ -756,7 +756,7 @@ export const COPY = {
     adminStatAvgDuration: "Rata-rata Durasi",
     adminStatUnreliable: "Tidak Pulang",
     adminStatAvgDurationNote: (n: number) =>
-      `Rata-rata hanya dari ${n} hari dengan durasi valid. Durasi unknowable dan anomali tidak dihitung.`,
+      `Rata-rata dihitung dari ${n} hari dengan durasi yang valid. Hari tanpa absen dan anomali tidak dihitung.`,
     adminColSummary: "Ringkasan",
     adminColTotal: "Total",
     adminColLastPresent: "Terakhir Absen",
@@ -782,6 +782,16 @@ export const COPY = {
     adminRoleLegend: (role: string) => role.toUpperCase(),
     adminNoteNoLeaveTable:
       "Belum ada data cuti/izin, jadi hari yang berizin tetap dihitung sebagai alfa.",
+
+    // ===== Excel export =====
+    exportButton: "Export Excel",
+    exportInProgress: "Menyiapkan file...",
+    exportFailed: "Gagal membuat file Excel",
+    exportColName: "Nama",
+    exportColStatus: "Jam Kerja Scan Masuk",
+    exportColTime: "Waktu",
+    exportWarningUnverified:
+      "Sel kuning = ISIRAHAT hasil inferensi, belum ada data izin. Periksa manual sebelum dipakai.",
     todoFormTitle: "Daftar Tugas Hari Ini",
     todoFormDescription: "Foto selfie wajib diunggah. To-do list dapat diisi jika diperlukan.",
     todoPlaceholder: "Tugas",

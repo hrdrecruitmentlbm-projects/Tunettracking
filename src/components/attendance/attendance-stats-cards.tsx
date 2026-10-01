@@ -34,35 +34,86 @@ const DAY_SEGMENTS: Array<{ key: CellStatus; label: string }> = [
   { key: "alfa", label: "Alfa" },
 ];
 
+/**
+ * Severity tones for the KPI cards.
+ *
+ * Colors are drawn from the same three the matrix cells use, so the legend
+ * under the grid doubles as the legend for these cards. A new color here would
+ * break that link.
+ */
+type Tone = "neutral" | "good" | "warn" | "bad";
+
+const TONE_STYLES: Record<Tone, { value: string; card: string; icon: string }> = {
+  neutral: {
+    value: "text-tunet-text",
+    card: "border-tunet-border bg-tunet-bg",
+    icon: "text-tunet-text-muted",
+  },
+  good: {
+    value: "text-tunet-green",
+    card: "border-tunet-green/25 bg-tunet-green/10 border-l-tunet-green",
+    icon: "text-tunet-green",
+  },
+  warn: {
+    value: "text-status-progress",
+    card: "border-status-progress/25 bg-status-progress/10 border-l-status-progress",
+    icon: "text-status-progress",
+  },
+  bad: {
+    value: "text-status-overdue",
+    card: "border-status-overdue/25 bg-status-overdue/10 border-l-status-overdue",
+    icon: "text-status-overdue",
+  },
+};
+
+/** Attendance at or above this is healthy. */
+const HEALTHY_PERCENT = 85;
+/** At or above this but below HEALTHY is worth a look. */
+const WARNING_PERCENT = 70;
+
+function toneForPercentage(pct: number): Tone {
+  if (pct >= HEALTHY_PERCENT) return "good";
+  if (pct >= WARNING_PERCENT) return "warn";
+  return "bad";
+}
+
 function StatCard({
   label,
   value,
   sub,
   icon: Icon,
-  tone = "default",
+  tone = "neutral",
 }: {
   label: string;
   value: string;
   sub?: string;
   icon: React.ElementType;
-  tone?: "default" | "good" | "warn" | "bad";
+  tone?: Tone;
 }) {
-  const toneClass =
-    tone === "good"
-      ? "text-tunet-green"
-      : tone === "bad"
-      ? "text-status-overdue"
-      : tone === "warn"
-      ? "text-status-progress"
-      : "text-tunet-text";
+  const styles = TONE_STYLES[tone];
 
   return (
-    <div className="rounded-lg border border-tunet-border bg-tunet-bg p-3">
-      <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-tunet-text-muted">
+    <div
+      className={cn(
+        "rounded-lg border border-l-[3px] p-3",
+        styles.card
+      )}
+    >
+      <div
+        className={cn(
+          "flex items-center gap-1.5 text-[11px] uppercase tracking-wide",
+          tone === "neutral" ? "text-tunet-text-muted" : styles.icon
+        )}
+      >
         <Icon className="h-3.5 w-3.5" />
         <span className="truncate">{label}</span>
       </div>
-      <div className={cn("mt-1.5 font-mono-data text-2xl font-semibold tabular-nums", toneClass)}>
+      <div
+        className={cn(
+          "mt-1.5 font-mono-data text-2xl font-semibold tabular-nums",
+          styles.value
+        )}
+      >
         {value}
       </div>
       {sub && <div className="mt-0.5 text-[11px] text-tunet-text-muted">{sub}</div>}
@@ -118,25 +169,28 @@ export function AttendanceStatsCards({ matrix, loading }: AttendanceStatsCardsPr
           sub={`${people.length} karyawan`}
           icon={CalendarDays}
         />
+        {/* Hadir is toned from the attendance rate, not hardcoded green: 36 of
+            72 slots is 50% attendance, and a green "36" beside a red "50%" is
+            self-contradictory. */}
         <StatCard
           label={COPY.attendance.adminStatHadir}
           value={String(totals.hadir)}
           sub={totalCells ? `dari ${totalCells} slot` : undefined}
           icon={UserCheck}
-          tone="good"
+          tone={toneForPercentage(totals.percentage)}
         />
         <StatCard
           label={COPY.attendance.adminStatAlfa}
           value={String(totals.tidakHadir)}
           sub={`${totals.alfaPagi} lupa pagi · ${totals.alfaPulang} lupa pulang · ${totals.alfa} tanpa absen`}
           icon={UserX}
-          tone="bad"
+          tone={totals.tidakHadir > 0 ? "bad" : "good"}
         />
         <StatCard
           label={COPY.attendance.adminStatPercentage}
           value={`${totals.percentage}%`}
           icon={Percent}
-          tone={totals.percentage >= 90 ? "good" : totals.percentage >= 75 ? "warn" : "bad"}
+          tone={toneForPercentage(totals.percentage)}
         />
         <StatCard
           label={COPY.attendance.adminStatAvgDuration}
@@ -176,13 +230,16 @@ export function AttendanceStatsCards({ matrix, loading }: AttendanceStatsCardsPr
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="flex items-end gap-1 overflow-x-auto pb-1">
+          {/* The chart body needs a definite height: a percentage-height bar
+              inside an auto-height parent resolves to auto and collapses to
+              nothing, which is why the bars rendered as hairlines. */}
+          <div className="flex h-32 items-end gap-1 overflow-x-auto pb-1">
             {days.map((d) => {
               const height = (d.total / maxDayTotal) * 100;
               return (
                 <div
                   key={d.date}
-                  className="flex w-8 shrink-0 flex-col items-center gap-1"
+                  className="flex h-full w-8 shrink-0 flex-col items-center justify-end gap-1"
                   title={`${d.date} — ${d.hadir}/${d.total} hadir (${d.percentage}%)`}
                 >
                   <span className="font-mono-data text-[10px] tabular-nums text-tunet-text-muted">
