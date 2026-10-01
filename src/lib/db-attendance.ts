@@ -1,5 +1,5 @@
 import { supabaseAdmin } from "./supabase-admin";
-import { Attendance, AttendanceStats, AttendanceTodo, AttendanceType, AttendanceWithUser } from "@/types";
+import { Attendance, AttendanceStats, AttendanceTodo, AttendanceType, AttendanceWithUser, User } from "@/types";
 
 export interface RecordAttendanceInput {
   user_id: string;
@@ -258,6 +258,33 @@ export async function getAttendanceStats(userId: string): Promise<AttendanceStat
 }
 
 /**
+ * Admin: fetch the active employee roster.
+ *
+ * Required for absence reporting: `getAllAttendance` only returns people who
+ * actually clocked in, so anyone absent is missing from the result set
+ * entirely. Without the roster there is no way to compute "who was missing".
+ *
+ * Only active users are returned -- a resigned employee should not appear as
+ * absent for every working day in the period.
+ */
+export async function getActiveUsersRoster(): Promise<
+  Array<{ id: string; name: string; role: User["role"] }>
+> {
+  const { data, error } = await supabaseAdmin
+    .from("users")
+    .select("id, name, role")
+    .eq("is_active", true)
+    .order("name");
+
+  if (error) {
+    console.error("Error fetching active users roster:", error);
+    return [];
+  }
+
+  return (data || []) as Array<{ id: string; name: string; role: User["role"] }>;
+}
+
+/**
  * Admin: fetch attendance for all users within a date range.
  */
 export async function getAllAttendance(
@@ -276,7 +303,10 @@ export async function getAllAttendance(
   if (startDate) query = query.gte("attendance_date", startDate);
   if (endDate) query = query.lte("attendance_date", endDate);
 
-  const { data, error } = await query.limit(1000);
+  // Row budget: 2 punches x working days x headcount. At 1000 rows a
+  // 30-day report for ~12 staff would silently truncate. The page is
+  // admin-only and bounded by a date range, so a higher cap is safe.
+  const { data, error } = await query.limit(5000);
   if (error) {
     console.error("Error fetching all attendance:", error);
     return [];

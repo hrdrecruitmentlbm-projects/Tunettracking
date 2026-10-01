@@ -24,6 +24,7 @@ import { formatAttendanceDate, formatTimeWIB, formatDuration } from "@/lib/time"
 import { COPY } from "@/lib/copy";
 import { Search, CalendarOff, Check, AlertTriangle, X, ChevronDown, ChevronRight, ListTodo, ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { fetchAttendancePhotoUrl as fetchAttendancePhotoUrlShared } from "./attendance-photo";
 
 interface AdminAttendanceTableProps {
   rows: AttendanceWithUser[];
@@ -31,11 +32,7 @@ interface AdminAttendanceTableProps {
 }
 
 async function fetchAttendancePhotoUrl(filePath: string): Promise<string> {
-  const id = filePath.split("/").pop() || "photo";
-  const res = await fetch(`/api/attendance/photo/${id}?path=${encodeURIComponent(filePath)}`);
-  if (!res.ok) throw new Error("Failed to fetch photo");
-  const data = await res.json();
-  return data.url;
+  return fetchAttendancePhotoUrlShared(filePath);
 }
 
 interface GroupedRow {
