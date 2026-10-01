@@ -3,7 +3,7 @@ import crypto from "crypto";
 
 const SESSION_SECRET = process.env.SESSION_SECRET || "tutrack-dev-secret-change-in-production";
 const SESSION_COOKIE_NAME = "tutrack-session";
-const SESSION_TTL_MINUTES = 50;
+const SESSION_TTL_MINUTES = 24 * 60; // 24 hours
 
 export interface SessionData {
   userId: string;

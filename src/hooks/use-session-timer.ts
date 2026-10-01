@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-const SESSION_DURATION_MS = 45 * 60 * 1000; // 45 minutes
-const WARNING_BEFORE_MS = 2 * 60 * 1000; // warn 2 minutes before expiry
+const SESSION_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
+const WARNING_BEFORE_MS = 10 * 60 * 1000; // warn 10 minutes before expiry
 
 export type SessionPhase = "active" | "warning" | "expired";
 
@@ -22,7 +22,7 @@ function getInitialPhase(): SessionPhase {
 }
 
 /**
- * Session lifecycle state machine: "active" → "warning" (T-2 minutes) →
+ * Session lifecycle state machine: "active" → "warning" (T-10 minutes) →
  * "expired". The user can extend the session from the warning dialog
  * without losing page state; expiry keeps them in place with an explicit
  * re-login action instead of a blind redirect.
@@ -35,7 +35,7 @@ export function useSessionTimer() {
   });
   const [now, setNow] = useState<number>(() => Date.now());
 
-  /** Reset the 45-minute window from right now (no reload). */
+  /** Reset the 24-hour window from right now (no reload). */
   const extendSession = useCallback(() => {
     const loginAt = Date.now();
     try {

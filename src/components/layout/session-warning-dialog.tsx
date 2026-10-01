@@ -25,7 +25,7 @@ function formatCountdown(ms: number): string {
 }
 
 /**
- * Non-blocking "session about to expire" modal, shown 2 minutes before the
+ * Non-blocking "session about to expire" modal, shown 10 minutes before the
  * session ends. "Perpanjang" resets the timer without a page reload;
  * "Logout" ends the session immediately.
  */
