@@ -44,6 +44,7 @@ const ROLE_ACCENT: Record<UserRole, string> = {
   noc: "#37D9F2",
   foc: "#10B981",
   marketing: "#8B5CF6",
+  finance: "#14B8A6",
 };
 
 const NEUTRAL_ACCENT = "#6B7280";

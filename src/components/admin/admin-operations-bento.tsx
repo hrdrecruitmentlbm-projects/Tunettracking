@@ -31,6 +31,7 @@ interface AdminOperationsBentoProps {
     noc: number;
     foc: number;
     marketing: number;
+    finance: number;
   };
 }
 
@@ -156,7 +157,8 @@ export function AdminOperationsBento({
             ))}
           </div>
           <p className="text-xs leading-5 text-tunet-text-muted">
-            {roleCounts.noc} NOC · {roleCounts.foc} FOC · {roleCounts.marketing} Marketing
+            {roleCounts.noc} NOC · {roleCounts.foc} FOC · {roleCounts.marketing} Marketing ·{" "}
+            {roleCounts.finance} Admin Keuangan
           </p>
           <ActivityStats
             newToday={newToday}

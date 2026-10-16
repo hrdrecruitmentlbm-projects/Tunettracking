@@ -11,6 +11,7 @@ import {
   Clock,
   ClipboardCheck,
   Menu,
+  Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserRole } from "@/types";
@@ -43,6 +44,10 @@ const NAV_ITEMS = {
     { href: "/dashboard/map", label: COPY.nav.map, icon: Map },
     { href: "/dashboard/marketing/prospects", label: COPY.nav.prospects, icon: Users },
     { href: "/dashboard/marketing/kunjungan", label: COPY.nav.visits, icon: ClipboardCheck },
+  ],
+  finance: [
+    { href: "/dashboard/attendance", label: COPY.nav.attendance, icon: Clock },
+    { href: "/dashboard/settings", label: COPY.nav.settings, icon: Settings },
   ],
 };
 

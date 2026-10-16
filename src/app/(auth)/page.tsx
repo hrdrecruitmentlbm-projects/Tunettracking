@@ -75,6 +75,10 @@ export default function LoginPage() {
         case "marketing":
           destination = "/dashboard/marketing";
           break;
+        case "finance":
+          // Presence-only role: Absensi is the home page.
+          destination = "/dashboard/attendance";
+          break;
         default:
           destination = "/dashboard/noc";
       }

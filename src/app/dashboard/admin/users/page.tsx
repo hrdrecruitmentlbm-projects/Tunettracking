@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { fetchUsers, createUser, updateUser, deleteUser, deactivateUser } from "@/lib/db";
-import { User } from "@/types";
+import { ROLE_LABELS, User, USER_ROLES, UserRole } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -47,7 +47,7 @@ import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 
 interface StaffFormData {
   name: string;
-  role: "admin" | "noc" | "foc" | "marketing";
+  role: UserRole;
   phone: string;
   pin: string;
   telegram_id: string;
@@ -187,6 +187,10 @@ export default function AdminUsersPage() {
         return "bg-status-assigned/20 text-status-assigned";
       case "foc":
         return "bg-status-progress/20 text-status-progress";
+      case "marketing":
+        return "bg-purple-500/20 text-purple-400";
+      case "finance":
+        return "bg-teal-500/20 text-teal-400";
       default:
         return "bg-tunet-surface text-tunet-text-muted";
     }
@@ -309,7 +313,7 @@ export default function AdminUsersPage() {
                           </TableCell>
                           <TableCell>
                             <Badge variant="secondary" className={`text-xs ${getRoleColor(user.role)}`}>
-                              {user.role.toUpperCase()}
+                              {ROLE_LABELS[user.role].toUpperCase()}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-sm text-tunet-text-muted">{user.phone}</TableCell>
@@ -405,8 +409,8 @@ export default function AdminUsersPage() {
               <Select
                 value={formData.role}
                 onValueChange={(value) => {
-                  if (value === "admin" || value === "noc" || value === "foc" || value === "marketing") {
-                    setFormData({ ...formData, role: value });
+                  if (USER_ROLES.includes(value as UserRole)) {
+                    setFormData({ ...formData, role: value as UserRole });
                   }
                 }}
               >
@@ -414,10 +418,11 @@ export default function AdminUsersPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-tunet-surface border-tunet-border">
-                  <SelectItem value="admin" className="text-tunet-text">Admin</SelectItem>
-                  <SelectItem value="noc" className="text-tunet-text">NOC</SelectItem>
-                  <SelectItem value="foc" className="text-tunet-text">FOC</SelectItem>
-                  <SelectItem value="marketing" className="text-tunet-text">Marketing</SelectItem>
+                  {USER_ROLES.map((role) => (
+                    <SelectItem key={role} value={role} className="text-tunet-text">
+                      {ROLE_LABELS[role]}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

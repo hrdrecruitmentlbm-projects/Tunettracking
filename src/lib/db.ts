@@ -1,5 +1,5 @@
 import { supabase } from "./supabase";
-import { User, Task, Location, Tag, Notification, TaskStatus, Prospect, TowerSite, VisitLog, ProspectHistory, ProspectStatusConfig, DEFAULT_PROSPECT_STATUSES } from "@/types";
+import { User, UserRole, Task, Location, Tag, Notification, TaskStatus, Prospect, TowerSite, VisitLog, ProspectHistory, ProspectStatusConfig, DEFAULT_PROSPECT_STATUSES } from "@/types";
 
 export async function loginByPin(pin: string): Promise<User | null> {
   const { data, error } = await supabase
@@ -530,7 +530,7 @@ export async function updateTask(
 
 export interface CreateUserInput {
   name: string;
-  role: "admin" | "noc" | "foc" | "marketing";
+  role: UserRole;
   phone: string;
   pin: string;
   telegram_id?: string;

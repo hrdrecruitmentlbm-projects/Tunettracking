@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { AttendanceWithUser, AttendanceTodo, UserRole } from "@/types";
+import { AttendanceWithUser, AttendanceTodo, ROLE_LABELS, UserRole, USER_ROLES } from "@/types";
 import { formatAttendanceDate, formatTimeWIB, formatDuration } from "@/lib/time";
 import { COPY } from "@/lib/copy";
 import { Search, CalendarOff, Check, AlertTriangle, X, ChevronDown, ChevronRight, ListTodo, ImageIcon } from "lucide-react";
@@ -188,8 +188,8 @@ export function AdminAttendanceTable({ rows, loading }: AdminAttendanceTableProp
         <Select
           value={roleFilter}
           onValueChange={(v) => {
-            if (v === "all" || v === "admin" || v === "noc" || v === "foc" || v === "marketing") {
-              setRoleFilter(v);
+            if (v === "all" || USER_ROLES.includes(v as UserRole)) {
+              setRoleFilter(v as "all" | UserRole);
             }
           }}
         >
@@ -200,18 +200,11 @@ export function AdminAttendanceTable({ rows, loading }: AdminAttendanceTableProp
             <SelectItem value="all" className="text-tunet-text">
               Semua peran
             </SelectItem>
-            <SelectItem value="admin" className="text-tunet-text">
-              Admin
-            </SelectItem>
-            <SelectItem value="noc" className="text-tunet-text">
-              NOC
-            </SelectItem>
-            <SelectItem value="foc" className="text-tunet-text">
-              FOC
-            </SelectItem>
-            <SelectItem value="marketing" className="text-tunet-text">
-              Marketing
-            </SelectItem>
+            {USER_ROLES.map((role) => (
+              <SelectItem key={role} value={role} className="text-tunet-text">
+                {ROLE_LABELS[role]}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
@@ -279,6 +272,8 @@ export function AdminAttendanceTable({ rows, loading }: AdminAttendanceTableProp
                   ? "bg-status-assigned/20 text-status-assigned"
                   : r.role === "marketing"
                   ? "bg-purple-500/20 text-purple-400"
+                  : r.role === "finance"
+                  ? "bg-teal-500/20 text-teal-400"
                   : "bg-status-progress/20 text-status-progress";
 
               const rowKey = `${r.userId}::${r.date}`;
@@ -321,7 +316,7 @@ export function AdminAttendanceTable({ rows, loading }: AdminAttendanceTableProp
                           roleColor
                         )}
                       >
-                        {r.role}
+                        {ROLE_LABELS[r.role]}
                       </span>
                     </TableCell>
                     <TableCell className="text-sm text-tunet-text-muted">

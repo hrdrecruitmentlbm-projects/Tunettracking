@@ -15,6 +15,7 @@ const ROLE_COLORS: Record<string, string> = {
   noc: "bg-status-assigned",
   foc: "bg-status-progress",
   marketing: "bg-purple-500",
+  finance: "bg-teal-500",
 };
 
 export function PerUserActivity({ users, tasks }: PerUserActivityProps) {

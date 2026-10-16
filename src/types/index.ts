@@ -1,4 +1,16 @@
-export type UserRole = "admin" | "noc" | "foc" | "marketing";
+export type UserRole = "admin" | "noc" | "foc" | "marketing" | "finance";
+
+/** Canonical role list — validate against this instead of re-declaring unions. */
+export const USER_ROLES: readonly UserRole[] = ["admin", "noc", "foc", "marketing", "finance"];
+
+/** Human-readable role names for badges, dropdowns, and filters. */
+export const ROLE_LABELS: Record<UserRole, string> = {
+  admin: "Admin",
+  noc: "NOC",
+  foc: "FOC",
+  marketing: "Marketing",
+  finance: "Admin Keuangan",
+};
 
 export type TaskStatus = "assigned" | "in_progress" | "review" | "done";
 

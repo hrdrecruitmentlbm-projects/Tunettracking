@@ -65,6 +65,10 @@ const ROLE_NAV: Partial<Record<UserRole, NavEntry[]>> = {
     { href: "/dashboard/attendance", labelKey: "attendance", icon: Clock },
     { href: "/dashboard/settings", labelKey: "settings", icon: Settings },
   ],
+  finance: [
+    { href: "/dashboard/attendance", labelKey: "attendance", icon: Clock },
+    { href: "/dashboard/settings", labelKey: "settings", icon: Settings },
+  ],
 };
 
 interface CommandEntry {
@@ -105,12 +109,14 @@ export function CommandPalette({ role }: { role: UserRole }) {
     return () => window.removeEventListener("keydown", handler);
   }, [navEntries.length]);
 
-  // Load tasks lazily on first open.
+  // Load tasks lazily on first open. Finance is presence-only and never
+  // deep-links to tasks, so skip the fetch entirely for that role.
   useEffect(() => {
+    if (role === "finance") return;
     if (!open || loadedRef.current) return;
     loadedRef.current = true;
     fetchTasks({ limit: 200 }).then(setTasks);
-  }, [open]);
+  }, [open, role]);
 
   const taskHref = useCallback(
     (taskId: string) =>
@@ -149,7 +155,8 @@ export function CommandPalette({ role }: { role: UserRole }) {
       run: () => setTheme(resolvedTheme === "light" ? "dark" : "light"),
     });
 
-    const taskEntries: CommandEntry[] = tasks
+    // Presence-only roles (finance) get no task deep-links in the palette.
+    const taskEntries: CommandEntry[] = (role === "finance" ? [] : tasks)
       .filter(
         (task) =>
           !task.deleted_at &&

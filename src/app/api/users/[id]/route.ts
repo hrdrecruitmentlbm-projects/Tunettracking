@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { updateUser, deleteUser } from "@/lib/db";
 import { getApiSession, requireRole } from "@/lib/api-auth";
+import { USER_ROLES } from "@/types";
 
 export async function PUT(
   request: NextRequest,
@@ -26,9 +27,9 @@ export async function PUT(
       );
     }
 
-    if (role && !["admin", "noc", "foc", "marketing"].includes(role)) {
+    if (role && !USER_ROLES.includes(role)) {
       return NextResponse.json(
-        { error: "Role must be admin, noc, foc, or marketing" },
+        { error: `Role must be one of: ${USER_ROLES.join(", ")}` },
         { status: 400 }
       );
     }

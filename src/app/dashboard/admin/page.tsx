@@ -119,6 +119,7 @@ export default function AdminDashboard() {
             noc: users.filter((user) => user.role === "noc").length,
             foc: users.filter((user) => user.role === "foc").length,
             marketing: users.filter((user) => user.role === "marketing").length,
+            finance: users.filter((user) => user.role === "finance").length,
           }}
         />
       </div>

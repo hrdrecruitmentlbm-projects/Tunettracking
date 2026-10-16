@@ -167,7 +167,9 @@ function TasksPageContent() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const isMobile = useMediaQuery("(max-width: 767px)");
   const isAdmin = currentUser?.role === "admin";
-  const canChangeStatus = currentUser?.role !== "foc" && currentUser?.role !== "marketing";
+  // Allow-list on purpose: presence-only roles (foc, marketing, finance) are
+  // read-only here, so a new role can never inherit kanban edit rights.
+  const canChangeStatus = currentUser?.role === "admin" || currentUser?.role === "noc";
   const canPermanentDelete = currentUser?.role === "admin";
   const effectiveViewMode = isMobile ? "list" : viewMode;
   // A grouping choice stored by an admin on a shared device must not leak into

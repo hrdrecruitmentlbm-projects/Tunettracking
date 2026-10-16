@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { bulkCreateUsers, CreateUserInput } from "@/lib/db";
 import { getApiSession, requireRole } from "@/lib/api-auth";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
+import { USER_ROLES } from "@/types";
 
 export async function POST(request: NextRequest) {
   try {
@@ -59,9 +60,9 @@ export async function POST(request: NextRequest) {
         );
       }
       const role = u.role || "foc";
-      if (!["admin", "noc", "foc"].includes(role)) {
+      if (!USER_ROLES.includes(role)) {
         return NextResponse.json(
-          { error: "Role must be admin, noc, or foc" },
+          { error: `Role must be one of: ${USER_ROLES.join(", ")}` },
           { status: 400 }
         );
       }

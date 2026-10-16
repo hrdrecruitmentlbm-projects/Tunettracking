@@ -16,6 +16,7 @@ import { AttendanceMatrix, buildMissingList } from "@/lib/attendance-matrix";
 import { formatDuration, formatShortDate } from "@/lib/time";
 import { COPY } from "@/lib/copy";
 import { cn } from "@/lib/utils";
+import { ROLE_LABELS } from "@/types";
 import { UserX, CheckCircle2 } from "lucide-react";
 
 interface AttendanceMissingListProps {
@@ -134,6 +135,8 @@ export function AttendanceMissingList({
                         ? "bg-status-assigned/20 text-status-assigned"
                         : r.role === "marketing"
                         ? "bg-purple-500/20 text-purple-400"
+                        : r.role === "finance"
+                        ? "bg-teal-500/20 text-teal-400"
                         : "bg-status-progress/20 text-status-progress";
                     return (
                       <TableRow
@@ -155,7 +158,7 @@ export function AttendanceMissingList({
                               roleColor
                             )}
                           >
-                            {r.role}
+                            {ROLE_LABELS[r.role]}
                           </span>
                         </TableCell>
                         <TableCell className="text-center">

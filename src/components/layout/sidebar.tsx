@@ -58,6 +58,10 @@ const NAV_ITEMS = {
     { href: "/dashboard/attendance", labelKey: "attendance" as const, icon: Clock },
     { href: "/dashboard/settings", labelKey: "settings" as const, icon: Settings },
   ],
+  finance: [
+    { href: "/dashboard/attendance", labelKey: "attendance" as const, icon: Clock },
+    { href: "/dashboard/settings", labelKey: "settings" as const, icon: Settings },
+  ],
 };
 
 export function Sidebar({ user }: SidebarProps) {

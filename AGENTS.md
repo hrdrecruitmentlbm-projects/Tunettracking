@@ -24,7 +24,7 @@ No typecheck script is configured. No test framework is set up.
 - **Database**: Supabase (PostgreSQL + PostGIS)
 - **Map**: Leaflet + OpenStreetMap (CartoDB Dark Matter tiles)
 - **Auth**: PIN-based login, stored in `localStorage` as `tutrack-user`
-- **Roles**: `admin`, `noc`, `foc`, `marketing`
+- **Roles**: `admin`, `noc`, `foc`, `marketing`, `finance`
 - **Theme**: Dark-only, custom `tunet-*` color palette in `globals.css`
 
 ### Path Alias
@@ -63,12 +63,13 @@ tunet-ops/src/
 
 ## Conventions
 
-- **Demo PIN**: `1234` works for all roles (admin, noc, foc, marketing)
+- **Demo PIN**: `1234` works for all roles (admin, noc, foc, marketing, finance)
 - **Mock data**: Used for demo. Real Supabase backend not yet connected.
 - **Custom colors**: `tunet-green`, `tunet-surface`, `tunet-bg`, `tunet-border`, `tunet-text`, `tunet-text-muted` defined in `globals.css`
 - **Status colors**: `status-todo`, `status-assigned`, `status-progress`, `status-review`, `status-done`, `status-overdue`
 - **Priority colors**: `priority-critical`, `priority-high`, `priority-medium`, `priority-low`
 - **Marketing colors**: Marketing role uses purple badge (`bg-purple-500/20 text-purple-400`), prospect pins blue, tower site pins orange on map
+- **Finance role**: `finance` (displayed "Admin Keuangan") is presence-only — lands on Absensi, nav = Absensi + Pengaturan, no tasks/radar. Teal badge (`bg-teal-500/20 text-teal-400`). Excluded from the radar map and task assignee pickers; visible in Rekap Absensi + missing list
 - **Components**: Use `cn()` from `@/lib/utils` for class merging
 - **Leaflet**: Must render client-side only (no SSR)
 - **Empty states**: Use `<EmptyState>` from `@/components/ui/empty-state` with copy from `@/lib/copy`
@@ -159,6 +160,7 @@ Format: Reverse chronological log (newest entries first).
 - Leaflet components must be wrapped in `"use client"` and dynamic imports
 - Marketing pages (prospects, tower sites, visits) use Supabase tables: `prospects`, `tower_sites`, `visit_logs` — run SQL migrations before use
 - Marketing role has 6 nav items: Dasbor, Peta, Prospek, Kunjungan, Absensi, Pengaturan
+- Adding a role requires: `UserRole` + `USER_ROLES`/`ROLE_LABELS` in `types/index.ts`, per-role nav in `sidebar.tsx`/`bottom-nav.tsx`/`command-palette.tsx`, role colors in attendance/admin components, and the DB `users_role_check` constraint (`supabase/finance-role.sql` is the latest migration; `supabase/marketing-tables.sql` is the precedent). `Record<UserRole, ...>` maps fail compilation until updated — verify with `npx tsc --noEmit`
 - `next.config.ts` is empty — no custom webpack or env config
 - `.next/` build output exists but may be stale after dependency changes
 - Location pings grow fast (~9,600 rows/day for 10 FOC) — data retention is critical

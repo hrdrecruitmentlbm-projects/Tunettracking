@@ -42,6 +42,7 @@ const DASHBOARD_ROUTES: Record<UserRole, string> = {
   noc: "/dashboard/noc",
   foc: "/dashboard/foc",
   marketing: "/dashboard/marketing",
+  finance: "/dashboard/attendance",
 };
 
 type VisibleRole = "foc" | "noc" | "marketing";

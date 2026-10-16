@@ -1,11 +1,12 @@
 import { NextRequest } from "next/server";
 import { verifySessionToken } from "./auth";
+import type { UserRole } from "@/types";
 
 const SESSION_COOKIE_NAME = "tutrack-session";
 
 export interface ApiSession {
   userId: string;
-  role: "admin" | "noc" | "foc" | "marketing";
+  role: UserRole;
   name: string;
 }
 
@@ -17,7 +18,7 @@ export function getApiSession(request: NextRequest): ApiSession | null {
 
 export function requireRole(
   session: ApiSession | null,
-  allowedRoles: Array<"admin" | "noc" | "foc" | "marketing">
+  allowedRoles: readonly UserRole[]
 ): boolean {
   if (!session) return false;
   return allowedRoles.includes(session.role);

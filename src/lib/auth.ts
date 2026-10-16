@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import crypto from "crypto";
+import type { UserRole } from "@/types";
 
 const SESSION_SECRET = process.env.SESSION_SECRET || "tutrack-dev-secret-change-in-production";
 const SESSION_COOKIE_NAME = "tutrack-session";
@@ -7,7 +8,7 @@ const SESSION_TTL_MINUTES = 24 * 60; // 24 hours
 
 export interface SessionData {
   userId: string;
-  role: "admin" | "noc" | "foc" | "marketing";
+  role: UserRole;
   name: string;
   expiresAt: number;
 }
@@ -19,7 +20,7 @@ function sign(payload: string): string {
     .digest("hex");
 }
 
-export function createSessionToken(userId: string, role: "admin" | "noc" | "foc" | "marketing", name: string): string {
+export function createSessionToken(userId: string, role: UserRole, name: string): string {
   const expiresAt = Date.now() + SESSION_TTL_MINUTES * 60 * 1000;
   const payload: SessionData = { userId, role, name, expiresAt };
   const encoded = Buffer.from(JSON.stringify(payload)).toString("base64url");

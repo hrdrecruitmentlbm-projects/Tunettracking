@@ -13,6 +13,7 @@ import { AttendanceMatrix, CellStatus, MatrixCell, countByStatus } from "@/lib/a
 import { formatDuration, formatTimeWIB, formatAttendanceDate } from "@/lib/time";
 import { COPY } from "@/lib/copy";
 import { cn } from "@/lib/utils";
+import { ROLE_LABELS } from "@/types";
 import {
   STATUS_META,
   STATUS_FILTER_ORDER,
@@ -31,6 +32,7 @@ const ROLE_COLOR: Record<string, string> = {
   noc: "bg-status-assigned/20 text-status-assigned",
   marketing: "bg-purple-500/20 text-purple-400",
   foc: "bg-status-progress/20 text-status-progress",
+  finance: "bg-teal-500/20 text-teal-400",
 };
 
 function shortDate(date: string): { day: string; dow: string } {
@@ -198,7 +200,7 @@ export function AttendanceMatrixGrid({ matrix, loading }: AttendanceMatrixGridPr
                           ROLE_COLOR[person.role] ?? "bg-tunet-border/50 text-tunet-text-muted"
                         )}
                       >
-                        {person.role}
+                        {ROLE_LABELS[person.role]}
                       </span>
                     </div>
                   </td>
