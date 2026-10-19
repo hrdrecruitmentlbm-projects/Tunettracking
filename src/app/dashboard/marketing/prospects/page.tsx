@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/select";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { useProspectStatuses } from "@/hooks/use-prospect-statuses";
+import { ProspectStatusFilter } from "@/components/marketing/prospect-status-filter";
 import { Plus, Search, Edit, Trash2, History } from "lucide-react";
 import { COPY } from "@/lib/copy";
 import { toast } from "sonner";
@@ -41,6 +42,7 @@ export default function ProspectsPage() {
   const [editProspect, setEditProspect] = useState<Prospect | null>(null);
   const [deleteProspect, setDeleteProspect] = useState<Prospect | null>(null);
   const [currentUser, setCurrentUserId] = useState<User | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [historyProspect, setHistoryProspect] = useState<Prospect | null>(null);
   const [history, setHistory] = useState<ProspectHistory[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -67,7 +69,7 @@ export default function ProspectsPage() {
     load();
   }, []);
 
-  const filtered = useMemo(() => {
+  const searched = useMemo(() => {
     const q = search.toLowerCase().trim();
     if (!q) return prospects;
     return prospects.filter(
@@ -77,6 +79,19 @@ export default function ProspectsPage() {
         p.area.toLowerCase().includes(q)
     );
   }, [prospects, search]);
+
+  const filtered = useMemo(
+    () => searched.filter((p) => statusFilter === "all" || p.status === statusFilter),
+    [searched, statusFilter]
+  );
+
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const p of searched) {
+      counts[p.status] = (counts[p.status] ?? 0) + 1;
+    }
+    return counts;
+  }, [searched]);
 
   const handleCreate = () => {
     setEditProspect(null);
@@ -163,7 +178,15 @@ export default function ProspectsPage() {
           </div>
         </div>
 
-        <div className="p-6">
+        <div className="p-6 space-y-4">
+          <ProspectStatusFilter
+            statuses={prospectStatuses}
+            value={statusFilter}
+            onChange={setStatusFilter}
+            counts={statusCounts}
+            total={searched.length}
+          />
+
           {filtered.length === 0 ? (
             <div className="flex items-center justify-center h-64">
               <EmptyState

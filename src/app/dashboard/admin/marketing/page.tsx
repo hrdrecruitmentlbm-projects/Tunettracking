@@ -42,11 +42,12 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Target, Search, Edit, Trash2, ClipboardCheck, MapPin, Download, ExternalLink, Phone, Filter } from "lucide-react";
+import { Target, Search, Edit, Trash2, ClipboardCheck, MapPin, Download, ExternalLink, Phone } from "lucide-react";
 import { COPY } from "@/lib/copy";
 import { toast } from "sonner";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { useProspectStatuses } from "@/hooks/use-prospect-statuses";
+import { ProspectStatusFilter } from "@/components/marketing/prospect-status-filter";
 
 type DetailTarget =
   | { kind: "prospek"; prospectId: string }
@@ -101,37 +102,67 @@ export default function AdminMarketingPage() {
     load();
   }, []);
 
-  const filteredProspects = useMemo(() => {
+  const searchedProspects = useMemo(() => {
     const q = search.toLowerCase().trim();
-    return prospects.filter((p) => {
-      const matchesSearch =
-        !q ||
+    if (!q) return prospects;
+    return prospects.filter(
+      (p) =>
         p.name.toLowerCase().includes(q) ||
         p.phone.includes(q) ||
         p.area.toLowerCase().includes(q) ||
         (p.address || "").toLowerCase().includes(q) ||
-        (p.notes || "").toLowerCase().includes(q);
-      const matchesStatus = statusFilter === "all" || p.status === statusFilter;
-      return matchesSearch && matchesStatus;
-    });
-  }, [prospects, search, statusFilter]);
+        (p.notes || "").toLowerCase().includes(q)
+    );
+  }, [prospects, search]);
 
-  const filteredVisits = useMemo(() => {
+  const filteredProspects = useMemo(
+    () =>
+      searchedProspects.filter(
+        (p) => statusFilter === "all" || p.status === statusFilter
+      ),
+    [searchedProspects, statusFilter]
+  );
+
+  /** Chip counts follow the search box, not the active status chip */
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const p of searchedProspects) {
+      counts[p.status] = (counts[p.status] ?? 0) + 1;
+    }
+    return counts;
+  }, [searchedProspects]);
+
+  const searchedVisits = useMemo(() => {
     const q = search.toLowerCase().trim();
+    if (!q) return visits;
     return visits.filter((v) => {
       const name =
         v.type === "prospek"
           ? v.prospect?.name || ""
           : v.tower?.name || "";
-      const matchesSearch =
-        !q ||
+      return (
         name.toLowerCase().includes(q) ||
         v.notes?.toLowerCase().includes(q) ||
-        v.visitor?.name?.toLowerCase().includes(q);
-      const matchesStatus = statusFilter === "all" || v.status_snapshot === statusFilter;
-      return matchesSearch && matchesStatus;
+        v.visitor?.name?.toLowerCase().includes(q)
+      );
     });
-  }, [visits, search, statusFilter]);
+  }, [visits, search]);
+
+  const filteredVisits = useMemo(
+    () =>
+      searchedVisits.filter(
+        (v) => statusFilter === "all" || v.status_snapshot === statusFilter
+      ),
+    [searchedVisits, statusFilter]
+  );
+
+  const visitStatusCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const v of searchedVisits) {
+      counts[v.status_snapshot] = (counts[v.status_snapshot] ?? 0) + 1;
+    }
+    return counts;
+  }, [searchedVisits]);
 
   const today = new Date().toISOString().slice(0, 10);
   const activeProspects = prospects.filter(
@@ -270,24 +301,6 @@ export default function AdminMarketingPage() {
             <p className="text-xs text-tunet-text-muted">Kelola data prospek dan kunjungan</p>
           </div>
           <div className="flex items-center gap-3 flex-wrap">
-            <div className="flex items-center gap-2">
-              <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v ?? "all")}>
-                <SelectTrigger id="filter-status" className="w-36 h-9 bg-tunet-surface border-tunet-border text-tunet-text text-xs">
-                  <div className="flex items-center gap-1.5 truncate">
-                    <Filter className="w-3.5 h-3.5 text-tunet-text-muted" />
-                    <SelectValue placeholder="Status" />
-                  </div>
-                </SelectTrigger>
-                <SelectContent className="bg-tunet-surface border-tunet-border">
-                  <SelectItem value="all">Semua Status</SelectItem>
-                  {prospectStatuses.map((s) => (
-                    <SelectItem key={s.key} value={s.key}>
-                      {s.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-tunet-text-muted" />
               <Input
@@ -345,28 +358,40 @@ export default function AdminMarketingPage() {
             />
           </div>
 
-          {/* Tabs */}
-          <div className="flex gap-2">
-            <button
-              onClick={() => { setActiveTab("prospek"); setSearch(""); }}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                activeTab === "prospek"
-                  ? "bg-tunet-green/20 text-tunet-green"
-                  : "text-tunet-text-muted hover:bg-tunet-surface-hover"
-              }`}
-            >
-              Prospek ({prospects.length})
-            </button>
-            <button
-              onClick={() => { setActiveTab("kunjungan"); setSearch(""); }}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                activeTab === "kunjungan"
-                  ? "bg-tunet-green/20 text-tunet-green"
-                  : "text-tunet-text-muted hover:bg-tunet-surface-hover"
-              }`}
-            >
-              Kunjungan ({visits.length})
-            </button>
+          {/* Tabs + status filter */}
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => { setActiveTab("prospek"); setSearch(""); }}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  activeTab === "prospek"
+                    ? "bg-tunet-green/20 text-tunet-green"
+                    : "text-tunet-text-muted hover:bg-tunet-surface-hover"
+                }`}
+              >
+                Prospek ({prospects.length})
+              </button>
+              <button
+                onClick={() => { setActiveTab("kunjungan"); setSearch(""); }}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  activeTab === "kunjungan"
+                    ? "bg-tunet-green/20 text-tunet-green"
+                    : "text-tunet-text-muted hover:bg-tunet-surface-hover"
+                }`}
+              >
+                Kunjungan ({visits.length})
+              </button>
+            </div>
+
+            <ProspectStatusFilter
+              statuses={prospectStatuses}
+              value={statusFilter}
+              onChange={setStatusFilter}
+              counts={activeTab === "prospek" ? statusCounts : visitStatusCounts}
+              total={
+                activeTab === "prospek" ? searchedProspects.length : searchedVisits.length
+              }
+            />
           </div>
 
           {/* Prospek Tab */}
