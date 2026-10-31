@@ -14,6 +14,12 @@ import { Input } from "@/components/ui/input";
 import { X, Plus, ListTodo, Loader2, Trash2 } from "lucide-react";
 import { COPY } from "@/lib/copy";
 import { PhotoPickerButton } from "./photo-picker-button";
+import { toast } from "sonner";
+
+// Compression runs BEFORE any size check, so big camera photos are never rejected up front.
+const MAX_ORIGINAL_BYTES = 40 * 1024 * 1024; // sanity cap only
+const SAFE_FALLBACK_BYTES = 3.5 * 1024 * 1024; // stays under Vercel's 4.5MB body limit
+const FALLBACK_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
 interface TodoFormDialogProps {
   open: boolean;
@@ -32,9 +38,10 @@ async function downscaleImage(
   file: File,
   maxDim = 1024
 ): Promise<{ preview: string; file: File }> {
+  // Only resizeWidth: the browser keeps the aspect ratio. (Setting both
+  // width and height squashed every photo into a 1024x1024 square.)
   const bitmap = await createImageBitmap(file, {
     resizeWidth: maxDim,
-    resizeHeight: maxDim,
     resizeQuality: "medium",
     imageOrientation: "from-image",
   });
@@ -51,7 +58,7 @@ async function downscaleImage(
   const blob = await new Promise<Blob>((resolve) =>
     canvas.toBlob((b) => resolve(b!), "image/jpeg", 0.8)
   );
-  const downscaledFile = new File([blob], file.name, {
+  const downscaledFile = new File([blob], `absen-${Date.now()}.jpg`, {
     type: "image/jpeg",
     lastModified: Date.now(),
   });
@@ -67,26 +74,35 @@ export function TodoFormDialog({ open, onOpenChange, onSubmit }: TodoFormDialogP
   const [processing, setProcessing] = useState(false);
 
   const handlePhotoSelect = useCallback(async (file: File) => {
-    // Validate size (10MB before compression)
-    if (file.size > 10 * 1024 * 1024) {
+    // Some Android pickers report an empty type, so only reject files that
+    // are clearly not images.
+    if (file.type && !file.type.startsWith("image/")) {
+      toast.error("File harus berupa foto");
       return;
     }
 
-    // Validate type
-    const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/heic"];
-    if (!allowedTypes.includes(file.type)) {
+    if (file.size > MAX_ORIGINAL_BYTES) {
+      toast.error("Foto terlalu besar. Ambil ulang dengan resolusi kamera lebih kecil.");
       return;
     }
 
     setProcessing(true);
     try {
+      // Compress first; the result is ~100-300KB regardless of camera size.
       const { preview, file: downscaled } = await downscaleImage(file);
       setPhoto(downscaled);
       setPhotoPreview(preview);
     } catch {
-      // Fallback: use original file if downscaling fails
-      setPhoto(file);
-      setPhotoPreview(URL.createObjectURL(file));
+      // Browser could not decode/compress (e.g. HEIC on Chrome Android).
+      // Only fall back to the original if it is a small, server-safe format.
+      if (FALLBACK_TYPES.includes(file.type) && file.size <= SAFE_FALLBACK_BYTES) {
+        setPhoto(file);
+        setPhotoPreview(URL.createObjectURL(file));
+      } else {
+        toast.error(
+          "Foto tidak bisa diproses di browser ini. Coba ambil foto langsung dengan kamera atau pilih foto JPEG."
+        );
+      }
     } finally {
       setProcessing(false);
     }

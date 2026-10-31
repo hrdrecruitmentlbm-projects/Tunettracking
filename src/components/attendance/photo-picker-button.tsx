@@ -92,7 +92,7 @@ export function PhotoPickerButton({ onFile, disabled }: PhotoPickerButtonProps) 
       <input
         ref={cameraRef}
         type="file"
-        accept="image/jpeg,image/png,image/webp,image/heic"
+        accept="image/*"
         capture="environment"
         className="hidden"
         onChange={(e) => {
@@ -104,7 +104,7 @@ export function PhotoPickerButton({ onFile, disabled }: PhotoPickerButtonProps) 
       <input
         ref={uploadRef}
         type="file"
-        accept="image/jpeg,image/png,image/webp,image/heic"
+        accept="image/*"
         className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0];
