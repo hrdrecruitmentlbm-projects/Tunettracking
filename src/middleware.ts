@@ -8,6 +8,7 @@ const PUBLIC_API_ROUTES = [
   "/api/telegram/webhook",
   "/api/telegram/setup",
   "/api/cleanup",
+  "/api/export",
   "/api/webhooks",
   "/api/debug",
   "/api/heartbeat",
