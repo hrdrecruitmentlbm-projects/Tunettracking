@@ -69,6 +69,12 @@ function addDaysToWibDate(baseYmd: string, deltaDays: number): string {
   return getWibDateString(d);
 }
 
+function getVisitorKey(id?: string | null, name?: string | null): string {
+  const cleanName = (name || "").trim().toLowerCase();
+  if (cleanName) return `name:${cleanName}`;
+  return `id:${id || "unknown"}`;
+}
+
 function formatShortDayLabel(dateStr: string): string {
   const iso = `${dateStr}T12:00:00+07:00`;
   return new Date(iso).toLocaleDateString("id-ID", {
@@ -147,7 +153,12 @@ export default function AdminKunjunganPage() {
   const scopedVisits = useMemo(() => {
     const q = search.toLowerCase().trim();
     return visits.filter((v) => {
-      if (visitorFilter !== "all" && v.visited_by !== visitorFilter) return false;
+      if (
+        visitorFilter !== "all" &&
+        getVisitorKey(v.visited_by, v.visitor?.name) !== visitorFilter
+      ) {
+        return false;
+      }
       if (typeFilter !== "all" && v.type !== typeFilter) return false;
       if (!q) return true;
       const targetName =
@@ -275,13 +286,13 @@ export default function AdminKunjunganPage() {
       if (v.type === "prospek") entry.prospek += 1;
       else entry.tower += 1;
 
-      const vId = v.visited_by || "unknown";
-      const vName = v.visitor?.name || "Tidak diketahui";
-      const existing = entry.visitors.get(vId);
+      const vName = (v.visitor?.name || "Tidak diketahui").trim();
+      const vKey = getVisitorKey(v.visited_by, v.visitor?.name);
+      const existing = entry.visitors.get(vKey);
       if (existing) {
         existing.count += 1;
       } else {
-        entry.visitors.set(vId, { name: vName, count: 1 });
+        entry.visitors.set(vKey, { name: vName, count: 1 });
       }
     }
 
@@ -303,33 +314,36 @@ export default function AdminKunjunganPage() {
     [dailyBreakdown]
   );
 
-  // Per-visitor breakdown (all visits across Hari Ini / Kemarin / 7 Hari / Total)
+  // Per-visitor breakdown (merged by person name so duplicate/legacy user IDs don't appear twice)
   const visitorBreakdown = useMemo<VisitorSummary[]>(() => {
     const map = new Map<string, VisitorSummary>();
 
     // Seed active marketing users so zero-visit staff still appear
     for (const u of users) {
       if (u.is_active !== false && u.role === "marketing") {
-        map.set(u.id, {
-          id: u.id,
-          name: u.name,
-          role: u.role,
-          today: 0,
-          yesterday: 0,
-          last7d: 0,
-          total: 0,
-        });
+        const key = getVisitorKey(u.id, u.name);
+        if (!map.has(key)) {
+          map.set(key, {
+            id: key,
+            name: u.name.trim(),
+            role: u.role,
+            today: 0,
+            yesterday: 0,
+            last7d: 0,
+            total: 0,
+          });
+        }
       }
     }
 
     for (const v of visits) {
       if (typeFilter !== "all" && v.type !== typeFilter) continue;
-      const id = v.visited_by || "unknown";
-      const name = v.visitor?.name || "Tidak diketahui";
-      let entry = map.get(id);
+      const name = (v.visitor?.name || "Tidak diketahui").trim();
+      const key = getVisitorKey(v.visited_by, v.visitor?.name);
+      let entry = map.get(key);
       if (!entry) {
         entry = {
-          id,
+          id: key,
           name,
           role: v.visitor?.role,
           today: 0,
@@ -337,7 +351,7 @@ export default function AdminKunjunganPage() {
           last7d: 0,
           total: 0,
         };
-        map.set(id, entry);
+        map.set(key, entry);
       }
 
       const d = getWibDateString(v.created_at);
@@ -352,17 +366,19 @@ export default function AdminKunjunganPage() {
     );
   }, [visits, users, typeFilter, todayWib, yesterdayWib, sevenDaysAgoWib]);
 
-  // Unique visitors for dropdown filter
+  // Unique visitors for dropdown filter (deduplicated by normalized name)
   const visitorOptions = useMemo(() => {
     const seen = new Map<string, string>();
-    for (const v of visits) {
-      if (v.visited_by && v.visitor?.name) {
-        seen.set(v.visited_by, v.visitor.name);
+    for (const u of users) {
+      if (u.is_active !== false && u.role === "marketing") {
+        const key = getVisitorKey(u.id, u.name);
+        if (!seen.has(key)) seen.set(key, u.name.trim());
       }
     }
-    for (const u of users) {
-      if (u.is_active !== false && u.role === "marketing" && !seen.has(u.id)) {
-        seen.set(u.id, u.name);
+    for (const v of visits) {
+      if (v.visitor?.name) {
+        const key = getVisitorKey(v.visited_by, v.visitor.name);
+        if (!seen.has(key)) seen.set(key, v.visitor.name.trim());
       }
     }
     return Array.from(seen.entries())
@@ -820,6 +836,9 @@ export default function AdminKunjunganPage() {
                       </CardTitle>
                       <p className="text-[11px] text-tunet-text-muted mt-0.5">
                         Klik nama petugas untuk memfilter riwayat
+                        {typeFilter !== "all"
+                          ? ` (khusus tipe ${typeFilter === "prospek" ? "Prospek" : "Tower"})`
+                          : ""}
                       </p>
                     </div>
                     {visitorFilter !== "all" && (
