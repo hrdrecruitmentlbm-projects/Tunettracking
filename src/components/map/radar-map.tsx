@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-leaflet";
-import { useTheme } from "next-themes";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { MapContainer, TileLayer, Marker, Popup, Polyline, ZoomControl, useMap } from "react-leaflet";
 import L from "leaflet";
 import { Location, Task } from "@/types";
 import { fetchLocations, fetchTasks, fetchVisits, fetchPings, getFocColor, getSessionDate, LocationVisit, LocationPing } from "@/lib/db";
@@ -10,7 +9,7 @@ import { supabase } from "@/lib/supabase";
 import { getRelativeTime } from "@/lib/time";
 import { googleMapsUrl, useReverseGeocode } from "@/lib/geocode";
 import { useIncrementalLocations } from "@/hooks/use-incremental-locations";
-import { ExternalLink, MapPin, MapPinOff } from "lucide-react";
+import { Compass, ExternalLink, LocateFixed, Map as MapIcon, MapPin, MapPinOff, Moon, Satellite } from "lucide-react";
 import { COPY } from "@/lib/copy";
 import { CoordsHUD } from "./coords-hud";
 import { cn } from "@/lib/utils";
@@ -23,7 +22,7 @@ L.Icon.Default.mergeOptions({
   shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
 });
 
-const ROUTE_LINE_COLOR = "#94A3B8"; // slate-400 — non-monochrome, light enough to read on dark map
+const MAP_STYLE_STORAGE_KEY = "tutrack-map-style";
 const OSRM_BASE = "https://router.project-osrm.org/route/v1/driving";
 
 // Module-level route cache: key = sorted lat,lng pairs joined → OSRM route coords
@@ -103,13 +102,14 @@ function createCustomIcon(
           height: ${size}px;
           border-radius: 50%;
           background: ${color};
+          border: 2.5px solid rgba(255, 255, 255, 0.95);
           display: flex;
           align-items: center;
           justify-content: center;
           color: white;
           font-weight: bold;
           font-size: 14px;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.35)${highlighted ? `, 0 0 0 4px rgba(16, 185, 129, 0.45)` : ""};
+          box-shadow: 0 4px 12px rgba(0,0,0,0.45)${highlighted ? `, 0 0 0 4px rgba(16, 185, 129, 0.45)` : ""};
           transition: all 0.2s ease;
         ">${safeInitials}</div>
         <div style="
@@ -274,6 +274,28 @@ function MapResizeController({ layoutKey }: { layoutKey?: string | number }) {
       observer.disconnect();
     };
   }, [layoutKey, map]);
+
+  return null;
+}
+
+function MapFitTrigger({
+  fitSignal,
+  points,
+}: {
+  fitSignal: number;
+  points: [number, number][];
+}) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (fitSignal === 0 || points.length === 0) return;
+    if (points.length === 1) {
+      map.setView(points[0], 16, { animate: true });
+      return;
+    }
+    const bounds = L.latLngBounds(points);
+    map.fitBounds(bounds, { padding: [64, 64], maxZoom: 16, animate: true });
+  }, [fitSignal, points, map]);
 
   return null;
 }
@@ -450,54 +472,98 @@ function HistoricalEndpointMarker({
   );
 }
 
-/**
- * Basemap configuration.
- *
- * CARTO now requires an API key for basemaps.cartocdn.com — without one the
- * tiles load but render as "API KEY REQUIRED" placeholder images (HTTP 200,
- * so Leaflet shows no error). Keys are ONLY accepted on the new
- * `/rastertiles/...` endpoint with a `?key=` query param (the legacy
- * `/dark_all/...?apikey=` format rejects even valid keys and returns the
- * watermark). If NEXT_PUBLIC_CARTO_API_KEY is set we use the CartoDB Dark
- * Matter tiles with the key; otherwise we fall back to Esri's keyless
- * World Dark Gray Canvas so the map never shows the watermark.
- */
+type MapStyle = "streets" | "hybrid" | "osm" | "dark";
+
+interface BasemapLayerSpec {
+  url: string;
+  overlayUrl?: string;
+  attribution: string;
+  maxZoom: number;
+  subdomains: string;
+  darkFilter?: boolean;
+}
+
 const CARTO_API_KEY = process.env.NEXT_PUBLIC_CARTO_API_KEY;
 
-function cartoBasemap(style: "dark_all" | "light_all") {
-  return {
-    url: `https://{s}.basemaps.cartocdn.com/rastertiles/${style}/{z}/{x}/{y}{r}.png?key=${CARTO_API_KEY}`,
-    attribution:
-      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-    maxZoom: 20,
-    subdomains: "abcd",
-  };
+function getBasemapSpec(style: MapStyle, useBackup: boolean): BasemapLayerSpec {
+  switch (style) {
+    case "hybrid":
+      if (useBackup) {
+        return {
+          url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+          overlayUrl:
+            "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
+          attribution: "Tiles &copy; Esri, Maxar, Earthstar Geographics",
+          maxZoom: 19,
+          subdomains: "abc",
+        };
+      }
+      return {
+        url: "https://mt{s}.google.com/vt/lyrs=y&hl=id&x={x}&y={y}&z={z}",
+        attribution: "&copy; Google Maps Satellite",
+        maxZoom: 20,
+        subdomains: "0123",
+      };
+    case "osm":
+      return {
+        url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+        attribution:
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        maxZoom: 19,
+        subdomains: "abc",
+      };
+    case "dark":
+      if (CARTO_API_KEY) {
+        return {
+          url: `https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png?key=${CARTO_API_KEY}`,
+          attribution:
+            '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+          maxZoom: 20,
+          subdomains: "abcd",
+        };
+      }
+      return {
+        url: useBackup
+          ? "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+          : "https://mt{s}.google.com/vt/lyrs=m&hl=id&x={x}&y={y}&z={z}",
+        attribution: useBackup
+          ? '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          : "&copy; Google Maps",
+        maxZoom: useBackup ? 19 : 20,
+        subdomains: useBackup ? "abc" : "0123",
+        darkFilter: true,
+      };
+    case "streets":
+    default:
+      if (useBackup) {
+        return {
+          url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+          attribution:
+            '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+          maxZoom: 19,
+          subdomains: "abc",
+        };
+      }
+      return {
+        url: "https://mt{s}.google.com/vt/lyrs=m&hl=id&x={x}&y={y}&z={z}",
+        attribution: "&copy; Google Maps",
+        maxZoom: 20,
+        subdomains: "0123",
+      };
+  }
 }
 
-const ESRI_BASEMAPS = {
-  dark: {
-    url: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",
-    attribution:
-      "Tiles &copy; Esri &mdash; Sources: GEBCO, NOAA, CHS, OSU, UNH, CSUMB, National Geographic, DeLorme, NAVTEQ, Maxar",
-    maxZoom: 16,
-    subdomains: "abc",
-  },
-  light: {
-    url: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",
-    attribution:
-      "Tiles &copy; Esri &mdash; Sources: GEBCO, NOAA, CHS, OSU, UNH, CSUMB, National Geographic, DeLorme, NAVTEQ, Maxar",
-    maxZoom: 16,
-    subdomains: "abc",
-  },
-};
-
-/** Pick the basemap matching the active theme, keeping the key-vs-Esri
- * fallback per theme. Falls back to dark when the theme isn't resolved yet
- * (matches the app's defaultTheme="dark"). */
-function selectBasemap(resolvedTheme: string | undefined) {
-  const theme = resolvedTheme === "light" ? "light" : "dark";
-  return CARTO_API_KEY ? cartoBasemap(theme === "dark" ? "dark_all" : "light_all") : ESRI_BASEMAPS[theme];
-}
+const MAP_STYLE_OPTIONS: Array<{
+  id: MapStyle;
+  label: string;
+  title: string;
+  icon: typeof MapIcon;
+}> = [
+  { id: "streets", label: "Jalan", title: "Peta jalan & kota realistis", icon: MapIcon },
+  { id: "hybrid", label: "Satelit", title: "Citra satelit + nama jalan & kota", icon: Satellite },
+  { id: "osm", label: "OSM", title: "OpenStreetMap standar", icon: Compass },
+  { id: "dark", label: "Gelap", title: "Mode radar gelap berlabel jelas", icon: Moon },
+];
 
 interface RadarMapProps {
   height?: string;
@@ -510,6 +576,8 @@ interface RadarMapProps {
   refreshKey?: number;
   variant?: "card" | "flush";
   coordsClassName?: string;
+  layerSwitcherClassName?: string;
+  zoomPosition?: "topleft" | "bottomleft" | "topright" | "bottomright";
 }
 
 export function RadarMap({
@@ -523,8 +591,21 @@ export function RadarMap({
   refreshKey = 0,
   variant = "card",
   coordsClassName,
+  layerSwitcherClassName,
+  zoomPosition = "topleft",
 }: RadarMapProps) {
-  const { resolvedTheme } = useTheme();
+  const [mapStyle, setMapStyle] = useState<MapStyle>(() => {
+    if (typeof window === "undefined") return "streets";
+    const saved = window.localStorage.getItem(MAP_STYLE_STORAGE_KEY);
+    if (saved === "streets" || saved === "hybrid" || saved === "osm" || saved === "dark") {
+      return saved;
+    }
+    return "streets";
+  });
+  const [useTileBackup, setUseTileBackup] = useState(false);
+  const tileErrorCountRef = useRef(0);
+  const [fitSignal, setFitSignal] = useState(0);
+
   const [locations, setLocations] = useState<Location[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [visits, setVisits] = useState<LocationVisit[]>([]);
@@ -681,7 +762,25 @@ export function RadarMap({
     )
   ).length;
 
-  const basemap = selectBasemap(resolvedTheme);
+  const handleSelectMapStyle = (nextStyle: MapStyle) => {
+    setMapStyle(nextStyle);
+    setUseTileBackup(false);
+    tileErrorCountRef.current = 0;
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(MAP_STYLE_STORAGE_KEY, nextStyle);
+    }
+  };
+
+  const basemap = getBasemapSpec(mapStyle, useTileBackup);
+  const routeLineColor =
+    mapStyle === "hybrid" || mapStyle === "dark" ? "#38BDF8" : "#0284C7";
+  const pingRouteLineColor =
+    mapStyle === "hybrid" || mapStyle === "dark" ? "#7DD3FC" : "#0EA5E9";
+
+  const fitPoints: [number, number][] = visibleLocations.map((loc) => [
+    Number(loc.lat),
+    Number(loc.lng),
+  ]);
 
   const getMarkerColor = (location: Location) => {
     if (showRoles.includes("foc") && location.user?.role === "foc") {
@@ -815,6 +914,7 @@ export function RadarMap({
       aria-label="Peta operasional langsung"
       className={cn(
         "overflow-hidden relative bg-map-panel",
+        basemap.darkFilter && "map-tiles-dark",
         variant === "card" && "rounded-xl border border-tunet-border"
       )}
     >
@@ -835,7 +935,61 @@ export function RadarMap({
           </div>
         </div>
       )}
-      <MapContainer center={center} zoom={13} style={{ height: "100%", width: "100%" }}>
+
+      {/* Map Style Switcher & Fit Bounds */}
+      <div
+        className={cn(
+          "absolute z-[500] flex items-center gap-1 rounded-2xl border border-white/15 bg-[#0A0F1C]/88 p-1 shadow-2xl backdrop-blur-xl",
+          layerSwitcherClassName || "bottom-4 right-3"
+        )}
+        role="group"
+        aria-label="Pilih gaya peta"
+      >
+        {MAP_STYLE_OPTIONS.map((opt) => {
+          const Icon = opt.icon;
+          const active = mapStyle === opt.id;
+          return (
+            <button
+              key={opt.id}
+              type="button"
+              title={opt.title}
+              aria-pressed={active}
+              onClick={() => handleSelectMapStyle(opt.id)}
+              className={cn(
+                "flex h-8 items-center gap-1.5 rounded-xl px-2.5 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tunet-signal",
+                active
+                  ? "bg-tunet-signal text-[#061013] shadow-sm"
+                  : "text-slate-300 hover:bg-white/10 hover:text-white"
+              )}
+            >
+              <Icon className="h-3.5 w-3.5 shrink-0" />
+              <span className="hidden sm:inline">{opt.label}</span>
+            </button>
+          );
+        })}
+        {fitPoints.length > 0 && (
+          <>
+            <span className="mx-0.5 h-5 w-px bg-white/15" />
+            <button
+              type="button"
+              title="Pusatkan ke semua personel"
+              aria-label="Pusatkan peta ke semua personel"
+              onClick={() => setFitSignal((n) => n + 1)}
+              className="flex h-8 w-8 items-center justify-center rounded-xl text-slate-300 transition-colors hover:bg-white/10 hover:text-tunet-signal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tunet-signal"
+            >
+              <LocateFixed className="h-3.5 w-3.5" />
+            </button>
+          </>
+        )}
+      </div>
+
+      <MapContainer
+        center={center}
+        zoom={14}
+        zoomControl={false}
+        style={{ height: "100%", width: "100%" }}
+      >
+        <ZoomControl position={zoomPosition} />
         <MapFocusController
           locations={visibleLocations}
           visits={visits}
@@ -844,15 +998,35 @@ export function RadarMap({
           focusPoint={focusPoint}
           isHistorical={isHistorical}
         />
+        <MapFitTrigger fitSignal={fitSignal} points={fitPoints} />
         <MapResizeController layoutKey={layoutKey} />
         <CoordsHUD className={coordsClassName} />
         <TileLayer
-          key={basemap.url}
+          key={`${basemap.url}-${useTileBackup ? "backup" : "primary"}`}
           attribution={basemap.attribution}
           url={basemap.url}
           maxZoom={basemap.maxZoom}
           subdomains={basemap.subdomains}
+          eventHandlers={{
+            tileload: () => {
+              tileErrorCountRef.current = 0;
+            },
+            tileerror: () => {
+              tileErrorCountRef.current += 1;
+              if (!useTileBackup && tileErrorCountRef.current >= 4) {
+                setUseTileBackup(true);
+              }
+            },
+          }}
         />
+        {basemap.overlayUrl && (
+          <TileLayer
+            key={`overlay-${basemap.overlayUrl}`}
+            url={basemap.overlayUrl}
+            maxZoom={basemap.maxZoom}
+            subdomains={basemap.subdomains}
+          />
+        )}
 
         {/* Render ping polylines + numbered ping markers per user */}
         {Array.from(pingsByUser.entries()).map(([userId, userPings]) => {
@@ -877,7 +1051,7 @@ export function RadarMap({
               {routeCoords.length >= 2 && (
                 <Polyline
                   positions={routeCoords}
-                  pathOptions={{ color: ROUTE_LINE_COLOR, weight: 2, opacity: 0.7, dashArray: "4 6" }}
+                  pathOptions={{ color: pingRouteLineColor, weight: 2.5, opacity: 0.78, dashArray: "5 6" }}
                 />
               )}
               {sortedPings.map((p) => (
@@ -944,7 +1118,7 @@ export function RadarMap({
               {routeCoords.length >= 2 && (
                 <Polyline
                   positions={routeCoords}
-                  pathOptions={{ color: ROUTE_LINE_COLOR, weight: 3, opacity: 0.8 }}
+                  pathOptions={{ color: routeLineColor, weight: 3.5, opacity: 0.9 }}
                 />
               )}
               {userVisits.map((v) => (

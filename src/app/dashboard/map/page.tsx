@@ -294,9 +294,10 @@ export default function MapPage() {
         layoutKey={`${showRoles.join("-")}-${selectedDate}-${mobilePanelOpen}`}
         refreshKey={refreshKey}
         coordsClassName="bottom-20 md:bottom-16"
+        layerSwitcherClassName="bottom-20 right-3 md:bottom-4 md:right-[380px]"
       />
 
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-[450] h-40 bg-gradient-to-b from-map-scrim/75 via-map-scrim/30 to-transparent" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-[450] h-28 bg-gradient-to-b from-map-scrim/45 via-map-scrim/15 to-transparent" />
 
       <div className="absolute left-14 top-3 z-[500] flex items-center gap-2">
         <button

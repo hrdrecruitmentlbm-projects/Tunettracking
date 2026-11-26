@@ -236,10 +236,12 @@ export default function NOCDashboard() {
               showRoles={["foc"]}
               incidentFilter={incidentFilter}
               layoutKey={`${layoutMode}-${incidentFilter}`}
-              coordsClassName="bottom-4"
+              coordsClassName="bottom-4 left-14"
+              layerSwitcherClassName="bottom-4 right-3"
+              zoomPosition="bottomleft"
             />
 
-            <div className="pointer-events-none absolute inset-x-0 top-0 z-[450] h-36 bg-gradient-to-b from-map-scrim/70 via-map-scrim/25 to-transparent" />
+            <div className="pointer-events-none absolute inset-x-0 top-0 z-[450] h-28 bg-gradient-to-b from-map-scrim/45 via-map-scrim/15 to-transparent" />
 
             <div className="absolute inset-x-3 top-3 z-[500] flex items-start justify-between gap-3">
               <div className="min-w-0 rounded-2xl border-map-panel-border bg-map-panel/88 py-3 pl-12 pr-4 shadow-2xl backdrop-blur-xl md:pl-4">

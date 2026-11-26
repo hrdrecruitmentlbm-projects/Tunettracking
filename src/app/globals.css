@@ -270,7 +270,62 @@
   background: #080D0F !important;
 }
 .leaflet-container {
-  background: #F2F6F7 !important;
+  background: #E8EFF1 !important;
+  font-family: var(--font-sans);
+}
+
+/* Crisp dark-radar CSS filter: turns detailed street tiles into high-contrast dark mode while keeping street & city labels bright and legible */
+.map-tiles-dark .leaflet-tile-pane {
+  filter: invert(92%) hue-rotate(180deg) brightness(0.96) contrast(1.08) saturate(1.2);
+}
+
+/* Sleek glassmorphic Leaflet zoom & attribution controls */
+.leaflet-control-zoom.leaflet-bar {
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  border-radius: 14px !important;
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35) !important;
+  background: rgba(10, 15, 28, 0.88) !important;
+  backdrop-filter: blur(12px);
+}
+
+.leaflet-control-zoom.leaflet-bar a {
+  background-color: transparent !important;
+  color: #f8fafc !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12) !important;
+  width: 34px !important;
+  height: 34px !important;
+  line-height: 34px !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.leaflet-control-zoom.leaflet-bar a:last-child {
+  border-bottom: none !important;
+}
+
+.leaflet-control-zoom.leaflet-bar a:hover {
+  background-color: rgba(55, 217, 242, 0.18) !important;
+  color: #37d9f2 !important;
+}
+
+.leaflet-control-attribution {
+  background: rgba(10, 15, 28, 0.72) !important;
+  color: rgba(203, 213, 225, 0.78) !important;
+  backdrop-filter: blur(8px);
+  border-top-left-radius: 8px;
+  font-size: 10px !important;
+  padding: 2px 6px !important;
+}
+
+.leaflet-control-attribution a {
+  color: #38bdf8 !important;
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: 14px !important;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.32) !important;
 }
 
 /* Custom scrollbar */
