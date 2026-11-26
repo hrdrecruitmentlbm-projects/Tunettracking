@@ -27,7 +27,15 @@ import { fetchProspects, fetchTowerSites, fetchUsers, fetchVisitLogs } from "@/l
 import { formatTimeWIB, getWibDateString } from "@/lib/time";
 import { useProspectStatuses } from "@/hooks/use-prospect-statuses";
 import { isClosingStatus } from "@/lib/marketing-closing";
-import { Prospect, TowerSite, User, VisitLog } from "@/types";
+import {
+  Prospect,
+  SITE_TYPE_CONFIG,
+  TOWER_SITE_STATUS_CONFIG,
+  TowerSite,
+  UNKNOWN_STATUS_COLOR,
+  User,
+  VisitLog,
+} from "@/types";
 import {
   Calendar,
   CalendarDays,
@@ -36,6 +44,8 @@ import {
   Download,
   ExternalLink,
   MapPin,
+  MessageCircle,
+  Phone,
   RefreshCw,
   Search,
   TrendingUp,
@@ -67,6 +77,23 @@ interface VisitorSummary {
   total: number;
 }
 
+interface ClosingItem {
+  kind: "prospek" | "tower";
+  id: string;
+  name: string;
+  locationText: string;
+  phone: string;
+  notes: string;
+  status: string;
+  statusLabel: string;
+  statusColor: string;
+  lat: number;
+  lng: number;
+  assigneeKey: string;
+  assigneeName: string;
+  timestamp: string;
+}
+
 function addDaysToWibDate(baseYmd: string, deltaDays: number): string {
   const [year, month, day] = baseYmd.split("-").map(Number);
   const d = new Date(Date.UTC(year, month - 1, day + deltaDays, 12, 0, 0));
@@ -90,6 +117,17 @@ function formatShortDayLabel(dateStr: string): string {
   });
 }
 
+function formatWhatsAppUrl(phone: string): string | null {
+  const digits = phone.replace(/\D/g, "");
+  if (!digits) return null;
+  const normalized = digits.startsWith("0")
+    ? `62${digits.slice(1)}`
+    : digits.startsWith("62")
+      ? digits
+      : `62${digits}`;
+  return `https://wa.me/${normalized}`;
+}
+
 export default function AdminKunjunganPage() {
   const [visits, setVisits] = useState<VisitLog[]>([]);
   const [prospects, setProspects] = useState<Prospect[]>([]);
@@ -105,6 +143,7 @@ export default function AdminKunjunganPage() {
   const [closingOnly, setClosingOnly] = useState(false);
   const [search, setSearch] = useState("");
   const [selectedVisit, setSelectedVisit] = useState<VisitLog | null>(null);
+  const [selectedClosing, setSelectedClosing] = useState<ClosingItem | null>(null);
 
   const { statuses: prospectStatuses, getConfig: getProspectStatusConfig } = useProspectStatuses();
 
@@ -249,7 +288,111 @@ export default function AdminKunjunganPage() {
     );
   }, [scopedVisits, matchesDateRange]);
 
-  // KPI metrics (Hari Ini / Kemarin / 7 Hari from scopedVisits; Closing & Total Tercatat follow active date range)
+  // Filtered list of closing Prospects & Tower Sites matching active filters
+  const filteredClosingItems = useMemo<ClosingItem[]>(() => {
+    const q = search.toLowerCase().trim();
+    const items: ClosingItem[] = [];
+
+    if (typeFilter !== "tower") {
+      for (const p of prospects) {
+        if (!isClosingStatus(p.status, prospectStatuses)) continue;
+        const assigneeKey = getVisitorKey(p.assigned_to, p.assignee?.name);
+        if (visitorFilter !== "all" && assigneeKey !== visitorFilter) continue;
+        const ts = p.updated_at || p.created_at;
+        if (rangePreset !== "all" && !matchesDateRange(getWibDateString(ts))) {
+          continue;
+        }
+        const assigneeName = (p.assignee?.name || "Belum Ditugaskan").trim();
+        const locationText = [p.area, p.address].filter(Boolean).join(" · ");
+        if (q) {
+          const hit =
+            p.name.toLowerCase().includes(q) ||
+            locationText.toLowerCase().includes(q) ||
+            (p.phone || "").toLowerCase().includes(q) ||
+            (p.notes || "").toLowerCase().includes(q) ||
+            assigneeName.toLowerCase().includes(q);
+          if (!hit) continue;
+        }
+        const cfg = getProspectStatusConfig(p.status);
+        items.push({
+          kind: "prospek",
+          id: p.id,
+          name: p.name,
+          locationText,
+          phone: p.phone || "",
+          notes: p.notes || "",
+          status: p.status,
+          statusLabel: cfg.label,
+          statusColor: cfg.color,
+          lat: p.location_lat,
+          lng: p.location_lng,
+          assigneeKey,
+          assigneeName,
+          timestamp: ts,
+        });
+      }
+    }
+
+    if (typeFilter !== "prospek") {
+      for (const t of towerSites) {
+        if (!isClosingStatus(t.status)) continue;
+        const assigneeKey = getVisitorKey(t.assigned_to, t.assignee?.name);
+        if (visitorFilter !== "all" && assigneeKey !== visitorFilter) continue;
+        const ts = t.updated_at || t.created_at;
+        if (rangePreset !== "all" && !matchesDateRange(getWibDateString(ts))) {
+          continue;
+        }
+        const assigneeName = (t.assignee?.name || "Belum Ditugaskan").trim();
+        const siteLabel = SITE_TYPE_CONFIG[t.site_type]?.label || t.site_type;
+        const locationText = [siteLabel, t.contact_person].filter(Boolean).join(" · ");
+        if (q) {
+          const hit =
+            t.name.toLowerCase().includes(q) ||
+            locationText.toLowerCase().includes(q) ||
+            (t.contact_phone || "").toLowerCase().includes(q) ||
+            (t.notes || "").toLowerCase().includes(q) ||
+            assigneeName.toLowerCase().includes(q);
+          if (!hit) continue;
+        }
+        const cfg = TOWER_SITE_STATUS_CONFIG[t.status] || {
+          label: t.status,
+          color: UNKNOWN_STATUS_COLOR,
+        };
+        items.push({
+          kind: "tower",
+          id: t.id,
+          name: t.name,
+          locationText,
+          phone: t.contact_phone || "",
+          notes: t.notes || "",
+          status: t.status,
+          statusLabel: cfg.label,
+          statusColor: cfg.color,
+          lat: t.location_lat,
+          lng: t.location_lng,
+          assigneeKey,
+          assigneeName,
+          timestamp: ts,
+        });
+      }
+    }
+
+    return items.sort(
+      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    );
+  }, [
+    prospects,
+    towerSites,
+    prospectStatuses,
+    getProspectStatusConfig,
+    typeFilter,
+    visitorFilter,
+    rangePreset,
+    matchesDateRange,
+    search,
+  ]);
+
+  // KPI metrics (Hari Ini / Kemarin / 7 Hari from scopedVisits; Closing & Total Tercatat follow active filters)
   const kpi = useMemo(() => {
     let todayTotal = 0;
     let todayProspek = 0;
@@ -283,37 +426,12 @@ export default function AdminKunjunganPage() {
       }
     }
 
-    const closingProspectsCount =
-      typeFilter === "tower"
-        ? 0
-        : prospects.filter((p) => {
-            if (!isClosingStatus(p.status, prospectStatuses)) return false;
-            if (
-              visitorFilter !== "all" &&
-              getVisitorKey(p.assigned_to, p.assignee?.name) !== visitorFilter
-            ) {
-              return false;
-            }
-            if (rangePreset === "all") return true;
-            const d = getWibDateString(p.updated_at || p.created_at);
-            return matchesDateRange(d);
-          }).length;
-
-    const closingTowersCount =
-      typeFilter === "prospek"
-        ? 0
-        : towerSites.filter((t) => {
-            if (!isClosingStatus(t.status)) return false;
-            if (
-              visitorFilter !== "all" &&
-              getVisitorKey(t.assigned_to, t.assignee?.name) !== visitorFilter
-            ) {
-              return false;
-            }
-            if (rangePreset === "all") return true;
-            const d = getWibDateString(t.updated_at || t.created_at);
-            return matchesDateRange(d);
-          }).length;
+    const closingProspectsCount = filteredClosingItems.filter(
+      (item) => item.kind === "prospek"
+    ).length;
+    const closingTowersCount = filteredClosingItems.filter(
+      (item) => item.kind === "tower"
+    ).length;
 
     return {
       todayTotal,
@@ -325,7 +443,7 @@ export default function AdminKunjunganPage() {
       avgPerDay7d: (last7dTotal / 7).toFixed(1),
       totalAll: dateFilteredVisits.length,
       activeDaysCount: activeDates.size,
-      closingTargets: closingProspectsCount + closingTowersCount,
+      closingTargets: filteredClosingItems.length,
       closingProspects: closingProspectsCount,
       closingTowers: closingTowersCount,
       closingVisits,
@@ -333,13 +451,8 @@ export default function AdminKunjunganPage() {
   }, [
     scopedVisits,
     dateFilteredVisits,
-    prospects,
-    towerSites,
+    filteredClosingItems,
     prospectStatuses,
-    typeFilter,
-    visitorFilter,
-    rangePreset,
-    matchesDateRange,
     todayWib,
     yesterdayWib,
     sevenDaysAgoWib,
@@ -495,7 +608,7 @@ export default function AdminKunjunganPage() {
       if (d >= sevenDaysAgoWib && d <= todayWib) entry.last7d += 1;
     }
 
-    // Add closing target count (Prospects + Tower Sites in Closing/ACC status) matching active date range
+    // Add closing target count (Prospects + Tower Sites in Closing/ACC status) matching active date range & search
     if (typeFilter !== "tower") {
       for (const p of prospects) {
         if (!isClosingStatus(p.status, prospectStatuses)) continue;
@@ -506,6 +619,16 @@ export default function AdminKunjunganPage() {
           continue;
         }
         const name = (p.assignee?.name || "Belum Ditugaskan").trim();
+        if (q) {
+          const locationText = [p.area, p.address].filter(Boolean).join(" · ");
+          const hit =
+            p.name.toLowerCase().includes(q) ||
+            locationText.toLowerCase().includes(q) ||
+            (p.phone || "").toLowerCase().includes(q) ||
+            (p.notes || "").toLowerCase().includes(q) ||
+            name.toLowerCase().includes(q);
+          if (!hit) continue;
+        }
         const key = getVisitorKey(p.assigned_to, p.assignee?.name);
         const entry = map.get(key) || {
           id: key,
@@ -531,6 +654,17 @@ export default function AdminKunjunganPage() {
           continue;
         }
         const name = (t.assignee?.name || "Belum Ditugaskan").trim();
+        if (q) {
+          const siteLabel = SITE_TYPE_CONFIG[t.site_type]?.label || t.site_type;
+          const locationText = [siteLabel, t.contact_person].filter(Boolean).join(" · ");
+          const hit =
+            t.name.toLowerCase().includes(q) ||
+            locationText.toLowerCase().includes(q) ||
+            (t.contact_phone || "").toLowerCase().includes(q) ||
+            (t.notes || "").toLowerCase().includes(q) ||
+            name.toLowerCase().includes(q);
+          if (!hit) continue;
+        }
         const key = getVisitorKey(t.assigned_to, t.assignee?.name);
         const entry = map.get(key) || {
           id: key,
@@ -605,7 +739,55 @@ export default function AdminKunjunganPage() {
     }
   };
 
+  const handleExportClosingCSV = () => {
+    const headers = [
+      "Tanggal Closing (WIB)",
+      "Jam (WIB)",
+      "Tipe",
+      "Nama Prospek/Tower",
+      "Area / Kontak",
+      "Telepon",
+      "Status",
+      "Catatan",
+      "Latitude",
+      "Longitude",
+      "Petugas",
+    ];
+    const rows = filteredClosingItems.map((item) =>
+      [
+        `"${getWibDateString(item.timestamp)}"`,
+        `"${formatTimeWIB(item.timestamp)}"`,
+        `"${item.kind === "prospek" ? "Prospek" : "Tower"}"`,
+        `"${item.name.replace(/"/g, '""')}"`,
+        `"${item.locationText.replace(/"/g, '""')}"`,
+        `"${item.phone.replace(/"/g, '""')}"`,
+        `"${item.statusLabel.replace(/"/g, '""')}"`,
+        `"${item.notes.replace(/"/g, '""')}"`,
+        `"${item.lat}"`,
+        `"${item.lng}"`,
+        `"${item.assigneeName.replace(/"/g, '""')}"`,
+      ].join(",")
+    );
+
+    const csv = "\uFEFF" + [headers.join(","), ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `data_closing_${todayWib}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast.success(`Berhasil mengunduh ${filteredClosingItems.length} data closing`);
+  };
+
   const handleExportCSV = () => {
+    if (closingOnly && dateFilteredVisits.length === 0 && filteredClosingItems.length > 0) {
+      handleExportClosingCSV();
+      return;
+    }
+
     const headers = [
       "Tanggal (WIB)",
       "Jam (WIB)",
@@ -696,7 +878,11 @@ export default function AdminKunjunganPage() {
             </Button>
             <Button
               onClick={handleExportCSV}
-              disabled={loading || dateFilteredVisits.length === 0}
+              disabled={
+                loading ||
+                (dateFilteredVisits.length === 0 &&
+                  !(closingOnly && filteredClosingItems.length > 0))
+              }
               variant="outline"
               size="sm"
               className="border-tunet-border bg-tunet-surface text-tunet-text hover:bg-tunet-surface-hover h-9 text-xs"
@@ -1176,6 +1362,152 @@ export default function AdminKunjunganPage() {
             </div>
           )}
 
+          {/* Closing Targets List */}
+          {!loading && (closingOnly || filteredClosingItems.length > 0) && (
+            <Card className="bg-tunet-surface border-emerald-500/30">
+              <CardHeader className="pb-3 border-b border-tunet-border">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div>
+                    <CardTitle className="text-sm font-semibold text-tunet-text flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                      Daftar Data Closing
+                      {rangePreset !== "all" ? ` · ${activeRangeLabel}` : ""}
+                    </CardTitle>
+                    <p className="text-[11px] text-tunet-text-muted mt-0.5">
+                      Menampilkan {filteredClosingItems.length} prospek/tower berstatus Closing pada filter ini
+                    </p>
+                  </div>
+                  {filteredClosingItems.length > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleExportClosingCSV}
+                      className="h-7 text-xs border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
+                    >
+                      <Download className="w-3 h-3 mr-1" />
+                      Export Closing CSV
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>
+
+              <CardContent className="p-0">
+                {filteredClosingItems.length === 0 ? (
+                  <div className="py-10">
+                    <EmptyState
+                      icon={CheckCircle2}
+                      title="Belum ada data closing pada filter ini"
+                      description="Coba pilih rentang tanggal lain atau ubah filter petugas/tipe."
+                    />
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-tunet-border text-tunet-text-muted">
+                          <th className="text-left py-3 px-4 text-xs font-medium">Tipe</th>
+                          <th className="text-left py-3 px-4 text-xs font-medium">Nama</th>
+                          <th className="text-left py-3 px-4 text-xs font-medium">Telepon</th>
+                          <th className="text-left py-3 px-4 text-xs font-medium">Status</th>
+                          <th className="text-left py-3 px-4 text-xs font-medium min-w-[180px]">
+                            Catatan
+                          </th>
+                          <th className="text-left py-3 px-4 text-xs font-medium">Koordinat</th>
+                          <th className="text-left py-3 px-4 text-xs font-medium">Petugas</th>
+                          <th className="text-left py-3 px-4 text-xs font-medium">
+                            Waktu Closing (WIB)
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-tunet-border">
+                        {filteredClosingItems.map((item) => {
+                          const isProspek = item.kind === "prospek";
+                          const wibDate = getWibDateString(item.timestamp);
+                          return (
+                            <tr
+                              key={`${item.kind}-${item.id}`}
+                              tabIndex={0}
+                              onClick={() => setSelectedClosing(item)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  setSelectedClosing(item);
+                                }
+                              }}
+                              className="hover:bg-tunet-surface-hover cursor-pointer focus-visible:outline focus-visible:outline-1 focus-visible:outline-emerald-400"
+                            >
+                              <td className="py-3 px-4">
+                                <Badge
+                                  variant="secondary"
+                                  className={`text-xs ${
+                                    isProspek
+                                      ? "bg-blue-500/20 text-blue-400"
+                                      : "bg-amber-500/20 text-amber-400"
+                                  }`}
+                                >
+                                  {isProspek ? "Prospek" : "Tower"}
+                                </Badge>
+                              </td>
+                              <td className="py-3 px-4">
+                                <p className="text-sm text-tunet-text font-medium">
+                                  {item.name}
+                                </p>
+                                {item.locationText && (
+                                  <p className="text-[11px] text-tunet-text-muted truncate max-w-[220px]">
+                                    {item.locationText}
+                                  </p>
+                                )}
+                              </td>
+                              <td className="py-3 px-4 text-xs font-mono-data text-tunet-text-muted whitespace-nowrap">
+                                {item.phone || "-"}
+                              </td>
+                              <td className="py-3 px-4">
+                                <Badge
+                                  variant="secondary"
+                                  className="text-xs"
+                                  style={{
+                                    backgroundColor: item.statusColor + "20",
+                                    color: item.statusColor,
+                                  }}
+                                >
+                                  {item.statusLabel}
+                                </Badge>
+                              </td>
+                              <td className="py-3 px-4 text-xs text-tunet-text-muted max-w-xs truncate">
+                                {item.notes || "-"}
+                              </td>
+                              <td className="py-3 px-4 text-xs font-mono-data">
+                                <a
+                                  href={`https://maps.google.com/?q=${item.lat},${item.lng}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="inline-flex items-center gap-1 text-blue-400 hover:underline"
+                                >
+                                  <MapPin className="w-3 h-3 shrink-0" />
+                                  {item.lat.toFixed(4)}, {item.lng.toFixed(4)}
+                                </a>
+                              </td>
+                              <td className="py-3 px-4 text-xs text-tunet-text whitespace-nowrap">
+                                {item.assigneeName}
+                              </td>
+                              <td className="py-3 px-4 text-xs text-tunet-text-muted whitespace-nowrap">
+                                <span className="text-emerald-400 font-mono-data font-medium">
+                                  {formatTimeWIB(item.timestamp)}
+                                </span>{" "}
+                                · {wibDate}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           {/* Detail Visit List */}
           <Card className="bg-tunet-surface border-tunet-border">
             <CardHeader className="pb-3 border-b border-tunet-border">
@@ -1441,6 +1773,136 @@ export default function AdminKunjunganPage() {
                 </div>
               </>
             )}
+          </SheetContent>
+        </Sheet>
+        {/* Closing Detail Drawer */}
+        <Sheet
+          open={!!selectedClosing}
+          onOpenChange={() => setSelectedClosing(null)}
+        >
+          <SheetContent className="bg-tunet-surface border-tunet-border text-tunet-text sm:max-w-md flex flex-col">
+            {selectedClosing && (() => {
+              const waUrl = formatWhatsAppUrl(selectedClosing.phone);
+              return (
+                <>
+                  <SheetHeader className="border-b border-tunet-border">
+                    <SheetTitle className="text-tunet-text flex items-center gap-2">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                      <span className="truncate">{selectedClosing.name}</span>
+                    </SheetTitle>
+                    <SheetDescription className="text-tunet-text-muted">
+                      Detail Data Closing
+                    </SheetDescription>
+                    <div className="flex items-center gap-2 mt-2">
+                      <Badge
+                        variant="secondary"
+                        className={`text-xs ${
+                          selectedClosing.kind === "prospek"
+                            ? "bg-blue-500/20 text-blue-400"
+                            : "bg-amber-500/20 text-amber-400"
+                        }`}
+                      >
+                        {selectedClosing.kind === "prospek" ? "Prospek" : "Tower"}
+                      </Badge>
+                      <span
+                        className="text-xs font-medium px-2 py-0.5 rounded-full"
+                        style={{
+                          backgroundColor: selectedClosing.statusColor + "20",
+                          color: selectedClosing.statusColor,
+                        }}
+                      >
+                        {selectedClosing.statusLabel}
+                      </span>
+                    </div>
+                  </SheetHeader>
+
+                  <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+                    {selectedClosing.locationText && (
+                      <div>
+                        <p className="text-xs text-tunet-text-muted mb-1">
+                          {selectedClosing.kind === "prospek"
+                            ? "Area & Alamat"
+                            : "Tipe & Kontak"}
+                        </p>
+                        <div className="p-3 rounded-lg bg-tunet-bg border border-tunet-border text-xs text-tunet-text">
+                          {selectedClosing.locationText}
+                        </div>
+                      </div>
+                    )}
+
+                    <div>
+                      <p className="text-xs text-tunet-text-muted mb-1">
+                        Nomor Telepon / WhatsApp
+                      </p>
+                      {selectedClosing.phone ? (
+                        <div className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-tunet-bg border border-tunet-border">
+                          <span className="inline-flex items-center gap-2 text-xs font-mono-data text-tunet-text">
+                            <Phone className="w-3.5 h-3.5 text-tunet-text-muted shrink-0" />
+                            {selectedClosing.phone}
+                          </span>
+                          {waUrl && (
+                            <a
+                              href={waUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 transition-colors"
+                            >
+                              <MessageCircle className="w-3 h-3" />
+                              Chat WA
+                            </a>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-tunet-text-muted">-</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <p className="text-xs text-tunet-text-muted mb-1">Catatan</p>
+                      <div className="p-3 rounded-lg bg-tunet-bg border border-tunet-border text-sm text-tunet-text whitespace-pre-wrap leading-relaxed">
+                        {selectedClosing.notes || "Tidak ada catatan."}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <p className="text-tunet-text-muted">Petugas</p>
+                        <p className="text-tunet-text font-medium mt-0.5">
+                          {selectedClosing.assigneeName}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-tunet-text-muted">Waktu Closing (WIB)</p>
+                        <p className="text-tunet-text font-medium mt-0.5">
+                          {formatShortDayLabel(
+                            getWibDateString(selectedClosing.timestamp)
+                          )}{" "}
+                          · {formatTimeWIB(selectedClosing.timestamp)}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div>
+                      <p className="text-xs text-tunet-text-muted mb-1">
+                        Lokasi GPS
+                      </p>
+                      <a
+                        href={`https://maps.google.com/?q=${selectedClosing.lat},${selectedClosing.lng}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 p-2.5 rounded-lg bg-tunet-bg border border-tunet-border text-xs text-blue-400 hover:bg-tunet-surface-hover transition-colors"
+                      >
+                        <MapPin className="w-4 h-4 text-blue-400 shrink-0" />
+                        <span className="font-mono flex-1">
+                          {selectedClosing.lat}, {selectedClosing.lng}
+                        </span>
+                        <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+                      </a>
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
           </SheetContent>
         </Sheet>
       </div>
