@@ -14,18 +14,33 @@ import {
   MapPin,
   Radio,
   RefreshCw,
+  Route,
   Search,
   UserRound,
   Wifi,
   X,
 } from "lucide-react";
-import { fetchLocations, fetchTasks, fetchUsers, getSessionDate } from "@/lib/db";
+import {
+  fetchLocations,
+  fetchPings,
+  fetchTasks,
+  fetchUsers,
+  fetchVisits,
+  getSessionDate,
+  LocationPing,
+  LocationVisit,
+} from "@/lib/db";
 import { supabase } from "@/lib/supabase";
 import { User, Location, Task, UserRole } from "@/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
-import { formatTimeWIB, getRelativeTime } from "@/lib/time";
+import {
+  formatAttendanceDate,
+  formatDuration,
+  formatTimeWIB,
+  getRelativeTime,
+} from "@/lib/time";
 import { googleMapsUrl, useReverseGeocode } from "@/lib/geocode";
 import { COPY } from "@/lib/copy";
 import { cn } from "@/lib/utils";
@@ -71,6 +86,17 @@ export default function MapPage() {
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  const [focusPoint, setFocusPoint] = useState<{
+    lat: number;
+    lng: number;
+    zoom?: number;
+    key: number;
+  } | null>(null);
+  const [routeState, setRouteState] = useState<{
+    key: string;
+    visits: LocationVisit[];
+    pings: LocationPing[];
+  } | null>(null);
 
   useHeartbeat({ userId: currentUserId });
 
@@ -137,6 +163,35 @@ export default function MapPage() {
     };
   }, []);
 
+  const routeKey = focusUserId ? `${focusUserId}:${selectedDate}:${refreshKey}` : "";
+
+  useEffect(() => {
+    if (!focusUserId || !routeKey) return;
+    let cancelled = false;
+
+    Promise.all([
+      fetchVisits(selectedDate, [focusUserId]),
+      fetchPings(selectedDate, [focusUserId]),
+    ]).then(([nextVisits, nextPings]) => {
+      if (cancelled) return;
+      setRouteState({
+        key: routeKey,
+        visits: nextVisits,
+        pings: nextPings,
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [focusUserId, selectedDate, routeKey]);
+
+  const routeLoading = Boolean(focusUserId && routeState?.key !== routeKey);
+  const routeVisits =
+    focusUserId && routeState?.key === routeKey ? routeState.visits : [];
+  const routePings =
+    focusUserId && routeState?.key === routeKey ? routeState.pings : [];
+
   const filteredUsers = useMemo(() => {
     const query = search.toLowerCase().trim();
     const locationByUserId = new Map(
@@ -187,6 +242,17 @@ export default function MapPage() {
 
   const handleUserFocus = (userId: string) => {
     setFocusUserId(userId);
+    setFocusPoint(null);
+    setMobilePanelOpen(false);
+  };
+
+  const handleClearFocus = () => {
+    setFocusUserId(null);
+    setFocusPoint(null);
+  };
+
+  const handleFocusPoint = (lat: number, lng: number) => {
+    setFocusPoint({ lat, lng, zoom: 17, key: Date.now() });
     setMobilePanelOpen(false);
   };
 
@@ -223,6 +289,7 @@ export default function MapPage() {
         variant="flush"
         showRoles={showRoles}
         focusUserId={focusUserId}
+        focusPoint={focusPoint}
         sessionDate={selectedDate}
         layoutKey={`${showRoles.join("-")}-${selectedDate}-${mobilePanelOpen}`}
         refreshKey={refreshKey}
@@ -339,8 +406,12 @@ export default function MapPage() {
           focusedTaskCount={focusedTasks.length}
           focusedOverdue={focusedOverdue}
           selectedDate={selectedDate}
+          routeVisits={routeVisits}
+          routePings={routePings}
+          routeLoading={routeLoading}
           onFocus={handleUserFocus}
-          onClearFocus={() => setFocusUserId(null)}
+          onFocusPoint={handleFocusPoint}
+          onClearFocus={handleClearFocus}
         />
       </aside>
 
@@ -391,8 +462,12 @@ export default function MapPage() {
               focusedTaskCount={focusedTasks.length}
               focusedOverdue={focusedOverdue}
               selectedDate={selectedDate}
+              routeVisits={routeVisits}
+              routePings={routePings}
+              routeLoading={routeLoading}
               onFocus={handleUserFocus}
-              onClearFocus={() => setFocusUserId(null)}
+              onFocusPoint={handleFocusPoint}
+              onClearFocus={handleClearFocus}
               compact
             />
           </div>
@@ -414,7 +489,11 @@ function RosterPanel({
   focusedTaskCount,
   focusedOverdue,
   selectedDate,
+  routeVisits,
+  routePings,
+  routeLoading,
   onFocus,
+  onFocusPoint,
   onClearFocus,
   compact = false,
 }: {
@@ -429,7 +508,11 @@ function RosterPanel({
   focusedTaskCount: number;
   focusedOverdue: number;
   selectedDate: string;
+  routeVisits: LocationVisit[];
+  routePings: LocationPing[];
+  routeLoading: boolean;
   onFocus: (userId: string) => void;
+  onFocusPoint: (lat: number, lng: number) => void;
   onClearFocus: () => void;
   compact?: boolean;
 }) {
@@ -438,6 +521,43 @@ function RosterPanel({
     focusedLocation?.lng,
     Boolean(focusedLocation)
   );
+
+  const sortedStops = [...routeVisits].sort(
+    (a, b) => a.visit_number - b.visit_number
+  );
+  const sortedPings = [...routePings].sort(
+    (a, b) => a.ping_number - b.ping_number
+  );
+  const routeEvents = [
+    ...sortedStops.map((v) => ({
+      id: `stop-${v.id}`,
+      kind: "stop" as const,
+      time: v.arrived_at,
+      title: `Stop #${v.visit_number}`,
+      subtitle: `${formatTimeWIB(v.arrived_at)}${
+        v.departed_at ? `–${formatTimeWIB(v.departed_at)}` : ""
+      } WIB · Singgah ${formatDuration(v.duration_minutes)}`,
+      lat: v.lat,
+      lng: v.lng,
+    })),
+    ...sortedPings.map((p) => ({
+      id: `ping-${p.id}`,
+      kind: "ping" as const,
+      time: p.created_at,
+      title: `Ping #${p.ping_number}`,
+      subtitle: `${formatTimeWIB(p.created_at)} WIB${
+        p.source === "telegram_live"
+          ? " · Telegram Live"
+          : p.source === "telegram_request"
+          ? " · Bot Telegram"
+          : p.source === "web_app"
+          ? " · Aplikasi Web"
+          : ""
+      }`,
+      lat: p.lat,
+      lng: p.lng,
+    })),
+  ].sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -448,7 +568,7 @@ function RosterPanel({
               Konteks lapangan
             </p>
             <p className="mt-0.5 text-xs text-tunet-text-muted">
-              Pilih personel untuk memusatkan peta &amp; lihat alamat
+              Pilih personel untuk lihat lokasi &amp; rute harian
             </p>
           </div>
           {focusUserId && (
@@ -463,8 +583,26 @@ function RosterPanel({
           )}
         </div>
 
+        <div className="relative mt-3">
+          <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-tunet-text-muted" />
+          <Input
+            placeholder={COPY.pages.map.searchPlaceholder}
+            value={search}
+            onChange={(event) => onSearchChange(event.target.value)}
+            className="h-9 bg-tunet-bg pl-9 text-xs text-tunet-text"
+          />
+        </div>
+
+        {selectedDate !== getSessionDate() && (
+          <p className="mt-2 text-[10px] text-tunet-text-muted">
+            {COPY.pages.map.currentPositionNote}
+          </p>
+        )}
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto p-2">
         {focusedUser && (
-          <div className="mt-4 rounded-2xl border border-tunet-signal/25 bg-tunet-signal/8 p-3">
+          <div className="mb-3 rounded-2xl border border-tunet-signal/25 bg-tunet-signal/8 p-3">
             <div className="flex items-start gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-tunet-signal/15 font-display text-sm font-semibold text-tunet-signal">
                 {focusedUser.name.charAt(0)}
@@ -481,7 +619,7 @@ function RosterPanel({
                   </div>
                   <LocateFixed className="h-4 w-4 shrink-0 text-tunet-signal" />
                 </div>
-                <div className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
+                <div className="mt-2.5 grid grid-cols-2 gap-2 text-[11px]">
                   <span className="rounded-lg bg-tunet-bg/70 px-2 py-1.5 text-tunet-text-muted">
                     Tugas aktif{" "}
                     <strong className="font-mono text-tunet-text">
@@ -544,29 +682,67 @@ function RosterPanel({
                     {COPY.pages.map.neverReported}
                   </p>
                 )}
+
+                <div className="mt-2.5 rounded-xl bg-tunet-bg/75 p-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-1.5 text-[11px] font-medium text-tunet-text">
+                      <Route className="h-3.5 w-3.5 text-tunet-signal" />
+                      Rute harian
+                    </span>
+                    <span className="text-[10px] text-tunet-text-muted">
+                      {sortedStops.length} stop · {sortedPings.length} ping
+                    </span>
+                  </div>
+                  <p className="mt-0.5 text-[10px] text-tunet-text-muted">
+                    {formatAttendanceDate(selectedDate)}
+                  </p>
+
+                  {routeLoading ? (
+                    <div className="mt-2 space-y-1.5">
+                      <Skeleton className="h-7 w-full rounded-lg" />
+                      <Skeleton className="h-7 w-full rounded-lg" />
+                    </div>
+                  ) : routeEvents.length === 0 ? (
+                    <p className="mt-2 text-[10px] leading-relaxed text-tunet-text-muted">
+                      Belum ada riwayat perjalanan pada tanggal ini. Rute tercatat otomatis saat karyawan menyalakan Share Lokasi di web atau Live Location di Telegram.
+                    </p>
+                  ) : (
+                    <div className="mt-2 max-h-44 space-y-1.5 overflow-y-auto pr-1">
+                      {routeEvents.map((item) => (
+                        <div
+                          key={item.id}
+                          className="flex items-center justify-between gap-2 rounded-lg border border-tunet-border/60 bg-tunet-surface/70 px-2 py-1.5"
+                        >
+                          <button
+                            type="button"
+                            onClick={() => onFocusPoint(item.lat, item.lng)}
+                            className="min-w-0 flex-1 text-left transition-colors hover:text-tunet-signal"
+                          >
+                            <p className="truncate text-[11px] font-medium text-tunet-text">
+                              {item.title}
+                            </p>
+                            <p className="truncate text-[10px] text-tunet-text-muted">
+                              {item.subtitle}
+                            </p>
+                          </button>
+                          <a
+                            href={googleMapsUrl(item.lat, item.lng)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            aria-label={`Buka ${item.title} di Google Maps`}
+                            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-tunet-text-muted transition-colors hover:bg-tunet-surface-hover hover:text-tunet-signal"
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
         )}
-
-        <div className="relative mt-4">
-          <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-tunet-text-muted" />
-          <Input
-            placeholder={COPY.pages.map.searchPlaceholder}
-            value={search}
-            onChange={(event) => onSearchChange(event.target.value)}
-            className="h-9 bg-tunet-bg pl-9 text-xs text-tunet-text"
-          />
-        </div>
-
-        {selectedDate !== getSessionDate() && (
-          <p className="mt-2 text-[10px] text-tunet-text-muted">
-            {COPY.pages.map.currentPositionNote}
-          </p>
-        )}
-      </div>
-
-      <div className="min-h-0 flex-1 overflow-y-auto p-2">
         {users.length === 0 ? (
           <div className="py-8">
             <EmptyState

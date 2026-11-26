@@ -200,19 +200,54 @@ function createPingIcon(color: string, number: number) {
 
 function MapFocusController({
   locations,
+  visits,
+  pings,
   focusUserId,
+  focusPoint,
+  isHistorical,
 }: {
   locations: Location[];
+  visits: LocationVisit[];
+  pings: LocationPing[];
   focusUserId: string | null;
+  focusPoint: { lat: number; lng: number; zoom?: number; key?: number } | null;
+  isHistorical: boolean;
 }) {
   const map = useMap();
+
   useEffect(() => {
-    if (!focusUserId) return;
+    if (!focusPoint) return;
+    map.setView([focusPoint.lat, focusPoint.lng], focusPoint.zoom ?? 17, {
+      animate: true,
+    });
+  }, [focusPoint, map]);
+
+  useEffect(() => {
+    if (!focusUserId || focusPoint) return;
+    if (isHistorical) {
+      const lastVisit = [...visits]
+        .filter((v) => v.user_id === focusUserId)
+        .sort((a, b) => a.visit_number - b.visit_number)
+        .at(-1);
+      if (lastVisit) {
+        map.setView([lastVisit.lat, lastVisit.lng], 15, { animate: true });
+        return;
+      }
+      const lastPing = [...pings]
+        .filter((p) => p.user_id === focusUserId)
+        .sort((a, b) => a.ping_number - b.ping_number)
+        .at(-1);
+      if (lastPing) {
+        map.setView([lastPing.lat, lastPing.lng], 15, { animate: true });
+        return;
+      }
+    }
     const loc = locations.find((l) => l.user_id === focusUserId);
     if (loc) {
       map.setView([loc.lat, loc.lng], 16, { animate: true });
     }
-  }, [focusUserId, locations, map]);
+  }, [focusUserId, focusPoint, isHistorical, locations, visits, pings, map]);
+
   return null;
 }
 
@@ -468,6 +503,7 @@ interface RadarMapProps {
   height?: string;
   showRoles?: ("foc" | "noc" | "marketing")[];
   focusUserId?: string | null;
+  focusPoint?: { lat: number; lng: number; zoom?: number; key?: number } | null;
   sessionDate?: string; // YYYY-MM-DD; defaults to today's session date
   incidentFilter?: "all" | "active" | "overdue";
   layoutKey?: string | number;
@@ -480,6 +516,7 @@ export function RadarMap({
   height = "100%",
   showRoles = ["foc"],
   focusUserId = null,
+  focusPoint = null,
   sessionDate,
   incidentFilter = "all",
   layoutKey,
@@ -503,14 +540,14 @@ export function RadarMap({
   useIncrementalLocations(setLocations, !isHistorical);
 
   const reloadVisits = useCallback(async () => {
-    const v = await fetchVisits(sessionDate || new Date().toISOString().split("T")[0]);
+    const v = await fetchVisits(effectiveSessionDate);
     setVisits(v);
-  }, [sessionDate]);
+  }, [effectiveSessionDate]);
 
   const reloadPings = useCallback(async () => {
-    const p = await fetchPings(sessionDate || new Date().toISOString().split("T")[0]);
+    const p = await fetchPings(effectiveSessionDate);
     setPings(p);
-  }, [sessionDate]);
+  }, [effectiveSessionDate]);
 
   useEffect(() => {
     let cancelled = false;
@@ -669,17 +706,25 @@ export function RadarMap({
     return "#F59E0B";
   };
 
-  // Group visits by user
+  const visibleUserIds = new Set(visibleLocations.map((loc) => loc.user_id));
+
+  // Group visits by user (filtered to focused user if selected, else visible role users)
   const visitsByUser = new Map<string, LocationVisit[]>();
   for (const v of visits) {
+    if (focusUserId ? v.user_id !== focusUserId : visibleUserIds.size > 0 && !visibleUserIds.has(v.user_id)) {
+      continue;
+    }
     const list = visitsByUser.get(v.user_id) ?? [];
     list.push(v);
     visitsByUser.set(v.user_id, list);
   }
 
-  // Group pings by user
+  // Group pings by user (filtered to focused user if selected, else visible role users)
   const pingsByUser = new Map<string, LocationPing[]>();
   for (const p of pings) {
+    if (focusUserId ? p.user_id !== focusUserId : visibleUserIds.size > 0 && !visibleUserIds.has(p.user_id)) {
+      continue;
+    }
     const list = pingsByUser.get(p.user_id) ?? [];
     list.push(p);
     pingsByUser.set(p.user_id, list);
@@ -791,7 +836,14 @@ export function RadarMap({
         </div>
       )}
       <MapContainer center={center} zoom={13} style={{ height: "100%", width: "100%" }}>
-        <MapFocusController locations={visibleLocations} focusUserId={focusUserId} />
+        <MapFocusController
+          locations={visibleLocations}
+          visits={visits}
+          pings={pings}
+          focusUserId={focusUserId}
+          focusPoint={focusPoint}
+          isHistorical={isHistorical}
+        />
         <MapResizeController layoutKey={layoutKey} />
         <CoordsHUD className={coordsClassName} />
         <TileLayer
