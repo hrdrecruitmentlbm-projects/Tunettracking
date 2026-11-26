@@ -17,6 +17,8 @@ INSERT INTO attendance_reminder_settings (id)
 VALUES ('default')
 ON CONFLICT (id) DO NOTHING;
 
+GRANT ALL ON attendance_reminder_settings TO anon, authenticated, service_role;
+
 CREATE TABLE IF NOT EXISTS attendance_reminder_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   reminder_date DATE NOT NULL,
@@ -29,3 +31,5 @@ CREATE TABLE IF NOT EXISTS attendance_reminder_logs (
 
 CREATE INDEX IF NOT EXISTS idx_attendance_reminder_logs_date
   ON attendance_reminder_logs(reminder_date, type);
+
+GRANT ALL ON attendance_reminder_logs TO anon, authenticated, service_role;

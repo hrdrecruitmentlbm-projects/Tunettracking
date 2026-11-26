@@ -1,7 +1,18 @@
 let sharedAudioCtx: AudioContext | null = null;
+let userInteracted = false;
 
-function getAudioContext(): AudioContext | null {
+export function markAlarmUserGesture() {
+  userInteracted = true;
+}
+
+function getAudioContext(fromUserGesture = false): AudioContext | null {
   if (typeof window === "undefined") return null;
+  if (fromUserGesture) {
+    userInteracted = true;
+  }
+  if (!userInteracted && !sharedAudioCtx) {
+    return null;
+  }
   const AudioCtx =
     window.AudioContext ||
     (window as unknown as { webkitAudioContext?: typeof AudioContext })
@@ -18,7 +29,7 @@ function getAudioContext(): AudioContext | null {
  * Returns true if the context is running and ready to emit sound.
  */
 export async function unlockAlarmAudio(): Promise<boolean> {
-  const ctx = getAudioContext();
+  const ctx = getAudioContext(true);
   if (!ctx) return false;
   if (ctx.state === "suspended") {
     try {
@@ -32,13 +43,14 @@ export async function unlockAlarmAudio(): Promise<boolean> {
 
 /**
  * Play a crisp, urgent two-pulse alarm chime using Web Audio API.
- * Returns true if sound played, false if blocked by browser autoplay policy.
+ * Returns true if sound played, false if blocked or awaiting user gesture.
  */
 export async function playAlarmChime(): Promise<boolean> {
-  const ctx = getAudioContext();
+  const ctx = getAudioContext(false);
   if (!ctx) return false;
 
   if (ctx.state === "suspended") {
+    if (!userInteracted) return false;
     try {
       await ctx.resume();
     } catch {

@@ -113,7 +113,7 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const updated = await updateAttendanceReminderSettings({
+    const result = await updateAttendanceReminderSettings({
       enabled,
       berangkat_time,
       pulang_time,
@@ -123,14 +123,14 @@ export async function PUT(request: NextRequest) {
       telegram_enabled,
     });
 
-    if (!updated) {
+    if (!result.settings) {
       return NextResponse.json(
-        { error: "Gagal menyimpan pengaturan alarm absen" },
+        { error: result.error || "Gagal menyimpan pengaturan alarm absen" },
         { status: 500 }
       );
     }
 
-    return NextResponse.json({ settings: updated });
+    return NextResponse.json({ settings: result.settings });
   } catch (error) {
     console.error("PUT /api/attendance/reminder-settings error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

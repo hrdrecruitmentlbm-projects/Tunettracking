@@ -412,9 +412,14 @@ export async function getAttendanceReminderSettings(): Promise<AttendanceReminde
   }
 }
 
+export interface UpdateReminderSettingsResult {
+  settings: AttendanceReminderSettings | null;
+  error?: string;
+}
+
 export async function updateAttendanceReminderSettings(
   input: Omit<AttendanceReminderSettings, "id" | "updated_at">
-): Promise<AttendanceReminderSettings | null> {
+): Promise<UpdateReminderSettingsResult> {
   const payload = {
     id: "default",
     enabled: input.enabled,
@@ -429,16 +434,32 @@ export async function updateAttendanceReminderSettings(
 
   const { data, error } = await supabaseAdmin
     .from("attendance_reminder_settings")
-    .upsert(payload)
+    .upsert(payload, { onConflict: "id" })
     .select()
     .single();
 
   if (error) {
     console.error("Error updating attendance reminder settings:", error);
-    return null;
+    const msg = error.message || "";
+    const code = (error as { code?: string }).code || "";
+    if (
+      code === "42P01" ||
+      code === "PGRST205" ||
+      msg.includes("attendance_reminder_settings")
+    ) {
+      return {
+        settings: null,
+        error:
+          "Tabel attendance_reminder_settings belum dibuat di Supabase. Jalankan supabase/attendance-reminders.sql di SQL Editor Supabase.",
+      };
+    }
+    return {
+      settings: null,
+      error: msg || "Gagal menyimpan pengaturan alarm absen",
+    };
   }
 
-  return data as AttendanceReminderSettings;
+  return { settings: data as AttendanceReminderSettings };
 }
 
 export interface MissingAttendanceUser {
