@@ -578,6 +578,7 @@ interface RadarMapProps {
   coordsClassName?: string;
   layerSwitcherClassName?: string;
   zoomPosition?: "topleft" | "bottomleft" | "topright" | "bottomright";
+  hideOverlayControls?: boolean;
 }
 
 export function RadarMap({
@@ -593,6 +594,7 @@ export function RadarMap({
   coordsClassName,
   layerSwitcherClassName,
   zoomPosition = "topleft",
+  hideOverlayControls = false,
 }: RadarMapProps) {
   const [mapStyle, setMapStyle] = useState<MapStyle>(() => {
     if (typeof window === "undefined") return "streets";
@@ -937,51 +939,53 @@ export function RadarMap({
       )}
 
       {/* Map Style Switcher & Fit Bounds */}
-      <div
-        className={cn(
-          "absolute z-[500] flex items-center gap-1 rounded-2xl border border-white/15 bg-[#0A0F1C]/88 p-1 shadow-2xl backdrop-blur-xl",
-          layerSwitcherClassName || "bottom-4 right-3"
-        )}
-        role="group"
-        aria-label="Pilih gaya peta"
-      >
-        {MAP_STYLE_OPTIONS.map((opt) => {
-          const Icon = opt.icon;
-          const active = mapStyle === opt.id;
-          return (
-            <button
-              key={opt.id}
-              type="button"
-              title={opt.title}
-              aria-pressed={active}
-              onClick={() => handleSelectMapStyle(opt.id)}
-              className={cn(
-                "flex h-8 items-center gap-1.5 rounded-xl px-2.5 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tunet-signal",
-                active
-                  ? "bg-tunet-signal text-[#061013] shadow-sm"
-                  : "text-slate-300 hover:bg-white/10 hover:text-white"
-              )}
-            >
-              <Icon className="h-3.5 w-3.5 shrink-0" />
-              <span className="hidden sm:inline">{opt.label}</span>
-            </button>
-          );
-        })}
-        {fitPoints.length > 0 && (
-          <>
-            <span className="mx-0.5 h-5 w-px bg-white/15" />
-            <button
-              type="button"
-              title="Pusatkan ke semua personel"
-              aria-label="Pusatkan peta ke semua personel"
-              onClick={() => setFitSignal((n) => n + 1)}
-              className="flex h-8 w-8 items-center justify-center rounded-xl text-slate-300 transition-colors hover:bg-white/10 hover:text-tunet-signal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tunet-signal"
-            >
-              <LocateFixed className="h-3.5 w-3.5" />
-            </button>
-          </>
-        )}
-      </div>
+      {!hideOverlayControls && (
+        <div
+          className={cn(
+            "absolute z-[500] flex items-center gap-1 rounded-2xl border border-white/15 bg-[#0A0F1C]/88 p-1 shadow-2xl backdrop-blur-xl",
+            layerSwitcherClassName || "bottom-4 right-3"
+          )}
+          role="group"
+          aria-label="Pilih gaya peta"
+        >
+          {MAP_STYLE_OPTIONS.map((opt) => {
+            const Icon = opt.icon;
+            const active = mapStyle === opt.id;
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                title={opt.title}
+                aria-pressed={active}
+                onClick={() => handleSelectMapStyle(opt.id)}
+                className={cn(
+                  "flex h-8 items-center gap-1.5 rounded-xl px-2.5 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tunet-signal",
+                  active
+                    ? "bg-tunet-signal text-[#061013] shadow-sm"
+                    : "text-slate-300 hover:bg-white/10 hover:text-white"
+                )}
+              >
+                <Icon className="h-3.5 w-3.5 shrink-0" />
+                <span className="hidden sm:inline">{opt.label}</span>
+              </button>
+            );
+          })}
+          {fitPoints.length > 0 && (
+            <>
+              <span className="mx-0.5 h-5 w-px bg-white/15" />
+              <button
+                type="button"
+                title="Pusatkan ke semua personel"
+                aria-label="Pusatkan peta ke semua personel"
+                onClick={() => setFitSignal((n) => n + 1)}
+                className="flex h-8 w-8 items-center justify-center rounded-xl text-slate-300 transition-colors hover:bg-white/10 hover:text-tunet-signal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tunet-signal"
+              >
+                <LocateFixed className="h-3.5 w-3.5" />
+              </button>
+            </>
+          )}
+        </div>
+      )}
 
       <MapContainer
         center={center}
@@ -1000,7 +1004,7 @@ export function RadarMap({
         />
         <MapFitTrigger fitSignal={fitSignal} points={fitPoints} />
         <MapResizeController layoutKey={layoutKey} />
-        <CoordsHUD className={coordsClassName} />
+        {!hideOverlayControls && <CoordsHUD className={coordsClassName} />}
         <TileLayer
           key={`${basemap.url}-${useTileBackup ? "backup" : "primary"}`}
           attribution={basemap.attribution}
