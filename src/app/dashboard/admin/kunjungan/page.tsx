@@ -24,7 +24,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { fetchProspects, fetchTowerSites, fetchUsers, fetchVisitLogs } from "@/lib/db";
-import { formatAttendanceDate, formatTimeWIB, getWibDateString } from "@/lib/time";
+import { formatTimeWIB, getWibDateString } from "@/lib/time";
 import { useProspectStatuses } from "@/hooks/use-prospect-statuses";
 import { isClosingStatus } from "@/lib/marketing-closing";
 import { Prospect, TowerSite, User, VisitLog } from "@/types";
@@ -190,87 +190,8 @@ export default function AdminKunjunganPage() {
     });
   }, [visits, visitorFilter, typeFilter, closingOnly, prospectStatuses, search]);
 
-  // KPI metrics (from scopedVisits + closing prospects/towers)
-  const kpi = useMemo(() => {
-    let todayTotal = 0;
-    let todayProspek = 0;
-    let todayTower = 0;
-    let yesterdayTotal = 0;
-    let last7dTotal = 0;
-    let closingVisits = 0;
-    const activeDates = new Set<string>();
-
-    for (const v of scopedVisits) {
-      const d = getWibDateString(v.created_at);
-      if (!d) continue;
-      activeDates.add(d);
-      if (isClosingStatus(v.status_snapshot, prospectStatuses)) {
-        closingVisits += 1;
-      }
-      if (d === todayWib) {
-        todayTotal += 1;
-        if (v.type === "prospek") todayProspek += 1;
-        else todayTower += 1;
-      }
-      if (d === yesterdayWib) {
-        yesterdayTotal += 1;
-      }
-      if (d >= sevenDaysAgoWib && d <= todayWib) {
-        last7dTotal += 1;
-      }
-    }
-
-    const closingProspectsCount =
-      typeFilter === "tower"
-        ? 0
-        : prospects.filter(
-            (p) =>
-              isClosingStatus(p.status, prospectStatuses) &&
-              (visitorFilter === "all" ||
-                getVisitorKey(p.assigned_to, p.assignee?.name) === visitorFilter)
-          ).length;
-
-    const closingTowersCount =
-      typeFilter === "prospek"
-        ? 0
-        : towerSites.filter(
-            (t) =>
-              isClosingStatus(t.status) &&
-              (visitorFilter === "all" ||
-                getVisitorKey(t.assigned_to, t.assignee?.name) === visitorFilter)
-          ).length;
-
-    return {
-      todayTotal,
-      todayProspek,
-      todayTower,
-      yesterdayTotal,
-      deltaTodayVsYesterday: todayTotal - yesterdayTotal,
-      last7dTotal,
-      avgPerDay7d: (last7dTotal / 7).toFixed(1),
-      totalAll: scopedVisits.length,
-      activeDaysCount: activeDates.size,
-      closingTargets: closingProspectsCount + closingTowersCount,
-      closingProspects: closingProspectsCount,
-      closingTowers: closingTowersCount,
-      closingVisits,
-    };
-  }, [
-    scopedVisits,
-    prospects,
-    towerSites,
-    prospectStatuses,
-    typeFilter,
-    visitorFilter,
-    todayWib,
-    yesterdayWib,
-    sevenDaysAgoWib,
-  ]);
-
-  // Apply date preset / custom date to detail table
-  const dateFilteredVisits = useMemo(() => {
-    return scopedVisits.filter((v) => {
-      const d = getWibDateString(v.created_at);
+  const matchesDateRange = useCallback(
+    (d: string) => {
       if (!d) return false;
       switch (rangePreset) {
         case "today":
@@ -289,19 +210,142 @@ export default function AdminKunjunganPage() {
         default:
           return true;
       }
-    });
+    },
+    [
+      rangePreset,
+      customDate,
+      todayWib,
+      yesterdayWib,
+      sevenDaysAgoWib,
+      thirtyDaysAgoWib,
+      monthStartWib,
+    ]
+  );
+
+  const activeRangeLabel = useMemo(() => {
+    switch (rangePreset) {
+      case "today":
+        return "Hari Ini";
+      case "yesterday":
+        return "Kemarin";
+      case "7d":
+        return "7 Hari Terakhir";
+      case "30d":
+        return "30 Hari Terakhir";
+      case "month":
+        return "Bulan Ini";
+      case "custom":
+        return customDate ? formatShortDayLabel(customDate) : "Tanggal Tertentu";
+      case "all":
+      default:
+        return "Semua Hari";
+    }
+  }, [rangePreset, customDate]);
+
+  // Apply date preset / custom date to detail table
+  const dateFilteredVisits = useMemo(() => {
+    return scopedVisits.filter((v) =>
+      matchesDateRange(getWibDateString(v.created_at))
+    );
+  }, [scopedVisits, matchesDateRange]);
+
+  // KPI metrics (Hari Ini / Kemarin / 7 Hari from scopedVisits; Closing & Total Tercatat follow active date range)
+  const kpi = useMemo(() => {
+    let todayTotal = 0;
+    let todayProspek = 0;
+    let todayTower = 0;
+    let yesterdayTotal = 0;
+    let last7dTotal = 0;
+
+    for (const v of scopedVisits) {
+      const d = getWibDateString(v.created_at);
+      if (!d) continue;
+      if (d === todayWib) {
+        todayTotal += 1;
+        if (v.type === "prospek") todayProspek += 1;
+        else todayTower += 1;
+      }
+      if (d === yesterdayWib) {
+        yesterdayTotal += 1;
+      }
+      if (d >= sevenDaysAgoWib && d <= todayWib) {
+        last7dTotal += 1;
+      }
+    }
+
+    let closingVisits = 0;
+    const activeDates = new Set<string>();
+    for (const v of dateFilteredVisits) {
+      const d = getWibDateString(v.created_at);
+      if (d) activeDates.add(d);
+      if (isClosingStatus(v.status_snapshot, prospectStatuses)) {
+        closingVisits += 1;
+      }
+    }
+
+    const closingProspectsCount =
+      typeFilter === "tower"
+        ? 0
+        : prospects.filter((p) => {
+            if (!isClosingStatus(p.status, prospectStatuses)) return false;
+            if (
+              visitorFilter !== "all" &&
+              getVisitorKey(p.assigned_to, p.assignee?.name) !== visitorFilter
+            ) {
+              return false;
+            }
+            if (rangePreset === "all") return true;
+            const d = getWibDateString(p.updated_at || p.created_at);
+            return matchesDateRange(d);
+          }).length;
+
+    const closingTowersCount =
+      typeFilter === "prospek"
+        ? 0
+        : towerSites.filter((t) => {
+            if (!isClosingStatus(t.status)) return false;
+            if (
+              visitorFilter !== "all" &&
+              getVisitorKey(t.assigned_to, t.assignee?.name) !== visitorFilter
+            ) {
+              return false;
+            }
+            if (rangePreset === "all") return true;
+            const d = getWibDateString(t.updated_at || t.created_at);
+            return matchesDateRange(d);
+          }).length;
+
+    return {
+      todayTotal,
+      todayProspek,
+      todayTower,
+      yesterdayTotal,
+      deltaTodayVsYesterday: todayTotal - yesterdayTotal,
+      last7dTotal,
+      avgPerDay7d: (last7dTotal / 7).toFixed(1),
+      totalAll: dateFilteredVisits.length,
+      activeDaysCount: activeDates.size,
+      closingTargets: closingProspectsCount + closingTowersCount,
+      closingProspects: closingProspectsCount,
+      closingTowers: closingTowersCount,
+      closingVisits,
+    };
   }, [
     scopedVisits,
+    dateFilteredVisits,
+    prospects,
+    towerSites,
+    prospectStatuses,
+    typeFilter,
+    visitorFilter,
     rangePreset,
-    customDate,
+    matchesDateRange,
     todayWib,
     yesterdayWib,
     sevenDaysAgoWib,
-    thirtyDaysAgoWib,
-    monthStartWib,
   ]);
 
-  // Daily breakdown: always includes Today & Yesterday (even if 0) + every day with visits
+  // Daily breakdown: includes Today & Yesterday unless filtering by Hanya Closing or search
   const dailyBreakdown = useMemo<DayBreakdown[]>(() => {
     const byDate = new Map<
       string,
@@ -323,16 +367,17 @@ export default function AdminKunjunganPage() {
       return entry;
     };
 
-    // Always show Hari Ini and Kemarin at top when range allows them
-    if (rangePreset === "all" || rangePreset === "7d" || rangePreset === "30d" || rangePreset === "month") {
-      ensureDate(todayWib);
-      ensureDate(yesterdayWib);
-    } else if (rangePreset === "today") {
-      ensureDate(todayWib);
-    } else if (rangePreset === "yesterday") {
-      ensureDate(yesterdayWib);
-    } else if (rangePreset === "custom" && customDate) {
-      ensureDate(customDate);
+    if (!closingOnly && search.trim() === "") {
+      if (rangePreset === "all" || rangePreset === "7d" || rangePreset === "30d" || rangePreset === "month") {
+        ensureDate(todayWib);
+        ensureDate(yesterdayWib);
+      } else if (rangePreset === "today") {
+        ensureDate(todayWib);
+      } else if (rangePreset === "yesterday") {
+        ensureDate(yesterdayWib);
+      } else if (rangePreset === "custom" && customDate) {
+        ensureDate(customDate);
+      }
     }
 
     for (const v of dateFilteredVisits) {
@@ -368,14 +413,23 @@ export default function AdminKunjunganPage() {
           .map(([id, val]) => ({ id, name: val.name, count: val.count }))
           .sort((a, b) => b.count - a.count),
       }));
-  }, [dateFilteredVisits, rangePreset, customDate, todayWib, yesterdayWib, prospectStatuses]);
+  }, [
+    dateFilteredVisits,
+    rangePreset,
+    customDate,
+    closingOnly,
+    search,
+    todayWib,
+    yesterdayWib,
+    prospectStatuses,
+  ]);
 
   const maxDailyCount = useMemo(
     () => Math.max(1, ...dailyBreakdown.map((d) => d.total)),
     [dailyBreakdown]
   );
 
-  // Per-visitor breakdown (merged by person name so duplicate/legacy user IDs don't appear twice)
+  // Per-visitor breakdown (respects active date range, typeFilter, closingOnly, search, and merges duplicate names)
   const visitorBreakdown = useMemo<VisitorSummary[]>(() => {
     const map = new Map<string, VisitorSummary>();
 
@@ -398,8 +452,23 @@ export default function AdminKunjunganPage() {
       }
     }
 
+    const q = search.toLowerCase().trim();
     for (const v of visits) {
       if (typeFilter !== "all" && v.type !== typeFilter) continue;
+      if (closingOnly && !isClosingStatus(v.status_snapshot, prospectStatuses)) {
+        continue;
+      }
+      if (q) {
+        const targetName =
+          v.type === "prospek" ? v.prospect?.name || "" : v.tower?.name || "";
+        const matchesQuery =
+          targetName.toLowerCase().includes(q) ||
+          (v.notes || "").toLowerCase().includes(q) ||
+          (v.visitor?.name || "").toLowerCase().includes(q) ||
+          (v.status_snapshot || "").toLowerCase().includes(q);
+        if (!matchesQuery) continue;
+      }
+
       const name = (v.visitor?.name || "Tidak diketahui").trim();
       const key = getVisitorKey(v.visited_by, v.visitor?.name);
       let entry = map.get(key);
@@ -418,16 +487,24 @@ export default function AdminKunjunganPage() {
       }
 
       const d = getWibDateString(v.created_at);
-      entry.total += 1;
+      if (matchesDateRange(d)) {
+        entry.total += 1;
+      }
       if (d === todayWib) entry.today += 1;
       if (d === yesterdayWib) entry.yesterday += 1;
       if (d >= sevenDaysAgoWib && d <= todayWib) entry.last7d += 1;
     }
 
-    // Add closing target count (Prospects + Tower Sites in Closing/ACC status) per staff
+    // Add closing target count (Prospects + Tower Sites in Closing/ACC status) matching active date range
     if (typeFilter !== "tower") {
       for (const p of prospects) {
         if (!isClosingStatus(p.status, prospectStatuses)) continue;
+        if (
+          rangePreset !== "all" &&
+          !matchesDateRange(getWibDateString(p.updated_at || p.created_at))
+        ) {
+          continue;
+        }
         const name = (p.assignee?.name || "Belum Ditugaskan").trim();
         const key = getVisitorKey(p.assigned_to, p.assignee?.name);
         const entry = map.get(key) || {
@@ -447,6 +524,12 @@ export default function AdminKunjunganPage() {
     if (typeFilter !== "prospek") {
       for (const t of towerSites) {
         if (!isClosingStatus(t.status)) continue;
+        if (
+          rangePreset !== "all" &&
+          !matchesDateRange(getWibDateString(t.updated_at || t.created_at))
+        ) {
+          continue;
+        }
         const name = (t.assignee?.name || "Belum Ditugaskan").trim();
         const key = getVisitorKey(t.assigned_to, t.assignee?.name);
         const entry = map.get(key) || {
@@ -466,10 +549,10 @@ export default function AdminKunjunganPage() {
 
     return Array.from(map.values()).sort(
       (a, b) =>
-        b.today - a.today ||
+        b.total - a.total ||
         b.closing - a.closing ||
-        b.last7d - a.last7d ||
-        b.total - a.total
+        b.today - a.today ||
+        b.last7d - a.last7d
     );
   }, [
     visits,
@@ -477,6 +560,10 @@ export default function AdminKunjunganPage() {
     towerSites,
     users,
     typeFilter,
+    closingOnly,
+    search,
+    rangePreset,
+    matchesDateRange,
     prospectStatuses,
     todayWib,
     yesterdayWib,
@@ -502,6 +589,11 @@ export default function AdminKunjunganPage() {
       .map(([id, name]) => ({ id, name }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [visits, users]);
+
+  const selectedVisitorLabel = useMemo(() => {
+    if (visitorFilter === "all") return "Semua Petugas";
+    return visitorOptions.find((u) => u.id === visitorFilter)?.name || "Semua Petugas";
+  }, [visitorFilter, visitorOptions]);
 
   const handleSelectDay = (date: string) => {
     if (rangePreset === "custom" && customDate === date) {
@@ -723,13 +815,13 @@ export default function AdminKunjunganPage() {
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <p className="text-xs text-tunet-text-muted">
-                        Total Tercatat
+                        {rangePreset === "all" ? "Total Tercatat" : "Kunjungan di Rentang"}
                       </p>
                       <p className="text-2xl font-bold text-purple-400 mt-1 font-mono-data">
                         {kpi.totalAll}
                       </p>
                       <p className="text-[11px] text-tunet-text-muted mt-1">
-                        Tersebar di {kpi.activeDaysCount} hari aktif
+                        {activeRangeLabel} · {kpi.activeDaysCount} hari aktif
                       </p>
                     </div>
                     <div className="w-10 h-10 rounded-lg bg-purple-500/15 flex items-center justify-center shrink-0">
@@ -808,7 +900,9 @@ export default function AdminKunjunganPage() {
               {/* Visitor Filter */}
               <Select value={visitorFilter} onValueChange={(val) => setVisitorFilter(val ?? "all")}>
                 <SelectTrigger className="w-44 h-8 bg-tunet-bg border-tunet-border text-tunet-text text-xs">
-                  <SelectValue placeholder="Semua Petugas" />
+                  <SelectValue placeholder="Semua Petugas">
+                    {selectedVisitorLabel}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent className="bg-tunet-surface border-tunet-border">
                   <SelectItem value="all">Semua Petugas</SelectItem>
@@ -995,9 +1089,10 @@ export default function AdminKunjunganPage() {
                         Kunjungan Per Petugas
                       </CardTitle>
                       <p className="text-[11px] text-tunet-text-muted mt-0.5">
-                        Klik nama petugas untuk memfilter riwayat
+                        Periode: {activeRangeLabel}
+                        {closingOnly ? " · Hanya Closing" : ""}
                         {typeFilter !== "all"
-                          ? ` (khusus tipe ${typeFilter === "prospek" ? "Prospek" : "Tower"})`
+                          ? ` · Tipe ${typeFilter === "prospek" ? "Prospek" : "Tower"}`
                           : ""}
                       </p>
                     </div>
@@ -1026,7 +1121,9 @@ export default function AdminKunjunganPage() {
                           <th className="text-right py-2.5 px-2 font-medium">Kemarin</th>
                           <th className="text-right py-2.5 px-2 font-medium">7 Hari</th>
                           <th className="text-right py-2.5 px-2 font-medium">Closing</th>
-                          <th className="text-right py-2.5 px-4 font-medium">Total</th>
+                          <th className="text-right py-2.5 px-4 font-medium">
+                            {rangePreset === "all" ? "Total" : "Di Rentang"}
+                          </th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-tunet-border">
@@ -1086,9 +1183,8 @@ export default function AdminKunjunganPage() {
                 <div>
                   <CardTitle className="text-sm font-semibold text-tunet-text">
                     Detail Daftar Kunjungan
-                    {rangePreset === "custom" && customDate
-                      ? ` · ${formatAttendanceDate(customDate)}`
-                      : ""}
+                    {rangePreset !== "all" ? ` · ${activeRangeLabel}` : ""}
+                    {closingOnly ? " · Hanya Closing" : ""}
                   </CardTitle>
                   <p className="text-[11px] text-tunet-text-muted mt-0.5">
                     Menampilkan {dateFilteredVisits.length} kunjungan sesuai filter
