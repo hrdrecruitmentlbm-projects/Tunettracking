@@ -1,10 +1,6 @@
-import { createClient } from "@supabase/supabase-js";
+import { supabaseAdmin } from "./supabase-admin";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
-
-// Service-role client for server-side storage operations (bypasses RLS)
-export const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
+export { supabaseAdmin };
 
 const BUCKET = "task-attachments";
 const MAX_DIMENSION = 800;

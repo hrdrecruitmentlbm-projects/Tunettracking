@@ -76,6 +76,9 @@ export function AttendanceButtons({ today, onRecorded, onBerangkatClick }: Atten
 
       const record = (await res.json()) as Attendance;
       onRecorded(record);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("tutrack-attendance-updated"));
+      }
       if (lat != null && lng != null) {
         toast.success(COPY.attendance.locationSaved(lat, lng));
       }

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
+import Link from "next/link";
 import { AttendanceButtons } from "@/components/attendance/attendance-buttons";
 import { AttendanceStatsCards } from "@/components/attendance/attendance-stats";
 import { AttendanceHistory } from "@/components/attendance/attendance-history";
@@ -9,8 +10,8 @@ import { TodoFormDialog } from "@/components/attendance/todo-form-dialog";
 import { TodoList } from "@/components/attendance/todo-list";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { COPY } from "@/lib/copy";
-import { Attendance, AttendanceStats, AttendanceTodo, GroupedDay } from "@/types";
-import { Clock } from "lucide-react";
+import { Attendance, AttendanceReminderSettings, AttendanceStats, AttendanceTodo, GroupedDay } from "@/types";
+import { AlarmClock, Clock } from "lucide-react";
 import { toast } from "sonner";
 
 interface AttendancePayload {
@@ -23,14 +24,25 @@ export default function AttendancePage() {
   const [data, setData] = useState<AttendancePayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [todoDialogOpen, setTodoDialogOpen] = useState(false);
+  const [schedule, setSchedule] = useState<AttendanceReminderSettings | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const load = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/attendance", { cache: "no-store" });
+      const [res, schedRes] = await Promise.all([
+        fetch("/api/attendance", { cache: "no-store" }),
+        fetch("/api/attendance/reminder-settings", { cache: "no-store" }),
+      ]);
       if (res.ok) {
         const json = (await res.json()) as AttendancePayload;
         setData(json);
+      }
+      if (schedRes.ok) {
+        const schedJson = (await schedRes.json()) as {
+          settings: AttendanceReminderSettings;
+        };
+        setSchedule(schedJson.settings);
       }
     } catch (err) {
       console.error("Failed to load attendance:", err);
@@ -40,7 +52,15 @@ export default function AttendancePage() {
   };
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    try {
+      const raw = localStorage.getItem("tutrack-user");
+      if (raw && JSON.parse(raw).role === "admin") {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setIsAdmin(true);
+      }
+    } catch {
+      // ignore
+    }
     load();
   }, []);
 
@@ -106,6 +126,9 @@ export default function AttendancePage() {
 
       const record = (await res.json()) as Attendance;
       handleRecorded(record);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("tutrack-attendance-updated"));
+      }
       if (lat != null && lng != null) {
         toast.success(COPY.attendance.locationSaved(lat, lng));
       }
@@ -134,6 +157,35 @@ export default function AttendancePage() {
         </div>
 
         <div className="p-6 space-y-6 max-w-6xl">
+          {schedule && (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-tunet-border bg-tunet-surface px-4 py-3 text-xs">
+              <div className="flex items-center gap-2 text-tunet-text">
+                <AlarmClock className="h-4 w-4 text-tunet-ember" />
+                <span>
+                  Jadwal absen:{" "}
+                  <strong className="font-mono-data">
+                    Berangkat {schedule.berangkat_time} WIB
+                  </strong>{" "}
+                  ·{" "}
+                  <strong className="font-mono-data">
+                    Pulang {schedule.pulang_time} WIB
+                  </strong>
+                  {schedule.grace_minutes > 0 &&
+                    ` (+${schedule.grace_minutes}m toleransi)`}
+                  {!schedule.enabled && " (Alarm nonaktif)"}
+                </span>
+              </div>
+              {isAdmin && (
+                <Link
+                  href="/dashboard/settings"
+                  className="font-medium text-tunet-signal hover:underline"
+                >
+                  Ubah Jam Absen
+                </Link>
+              )}
+            </div>
+          )}
+
           <Card className="bg-tunet-surface border-tunet-border">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-tunet-text">

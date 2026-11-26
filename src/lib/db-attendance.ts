@@ -1,5 +1,14 @@
 import { supabaseAdmin } from "./supabase-admin";
-import { Attendance, AttendanceStats, AttendanceTodo, AttendanceType, AttendanceWithUser, User } from "@/types";
+import {
+  Attendance,
+  AttendanceReminderSettings,
+  AttendanceStats,
+  AttendanceTodo,
+  AttendanceType,
+  AttendanceWithUser,
+  DEFAULT_ATTENDANCE_REMINDER_SETTINGS,
+  User,
+} from "@/types";
 
 export interface RecordAttendanceInput {
   user_id: string;
@@ -326,4 +335,177 @@ export async function getAllAttendance(
   }
 
   return rows;
+}
+
+export interface JakartaClock {
+  date: string; // YYYY-MM-DD
+  time: string; // HH:mm
+  minutes: number; // minutes since 00:00 WIB
+  weekday: number; // 0 = Sun .. 6 = Sat
+}
+
+export function getJakartaClock(now: Date = new Date()): JakartaClock {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Jakarta",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    weekday: "short",
+    hour12: false,
+  }).formatToParts(now);
+
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "00";
+  const year = get("year");
+  const month = get("month");
+  const day = get("day");
+  const hourRaw = parseInt(get("hour"), 10);
+  const hour = hourRaw === 24 ? 0 : hourRaw;
+  const minute = parseInt(get("minute"), 10);
+  const weekdayMap: Record<string, number> = {
+    Sun: 0,
+    Mon: 1,
+    Tue: 2,
+    Wed: 3,
+    Thu: 4,
+    Fri: 5,
+    Sat: 6,
+  };
+  const weekday = weekdayMap[get("weekday")] ?? now.getUTCDay();
+
+  return {
+    date: `${year}-${month}-${day}`,
+    time: `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`,
+    minutes: hour * 60 + minute,
+    weekday,
+  };
+}
+
+export function parseTimeToMinutes(hhmm: string): number {
+  const [h, m] = hhmm.split(":").map((n) => parseInt(n, 10));
+  if (Number.isNaN(h) || Number.isNaN(m)) return 0;
+  return h * 60 + m;
+}
+
+export async function getAttendanceReminderSettings(): Promise<AttendanceReminderSettings> {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("attendance_reminder_settings")
+      .select("*")
+      .eq("id", "default")
+      .maybeSingle();
+
+    if (error || !data) {
+      return DEFAULT_ATTENDANCE_REMINDER_SETTINGS;
+    }
+
+    return {
+      ...DEFAULT_ATTENDANCE_REMINDER_SETTINGS,
+      ...(data as Partial<AttendanceReminderSettings>),
+      active_days: Array.isArray((data as AttendanceReminderSettings).active_days)
+        ? (data as AttendanceReminderSettings).active_days
+        : DEFAULT_ATTENDANCE_REMINDER_SETTINGS.active_days,
+    };
+  } catch {
+    return DEFAULT_ATTENDANCE_REMINDER_SETTINGS;
+  }
+}
+
+export async function updateAttendanceReminderSettings(
+  input: Omit<AttendanceReminderSettings, "id" | "updated_at">
+): Promise<AttendanceReminderSettings | null> {
+  const payload = {
+    id: "default",
+    enabled: input.enabled,
+    berangkat_time: input.berangkat_time,
+    pulang_time: input.pulang_time,
+    grace_minutes: input.grace_minutes,
+    active_days: input.active_days,
+    sound_enabled: input.sound_enabled,
+    telegram_enabled: input.telegram_enabled,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { data, error } = await supabaseAdmin
+    .from("attendance_reminder_settings")
+    .upsert(payload)
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Error updating attendance reminder settings:", error);
+    return null;
+  }
+
+  return data as AttendanceReminderSettings;
+}
+
+export interface MissingAttendanceUser {
+  id: string;
+  name: string;
+  role: User["role"];
+  telegram_id?: string | null;
+  telegram_chat_id?: number | null;
+}
+
+export async function getMissingAttendanceForDate(
+  date: string,
+  type: AttendanceType
+): Promise<MissingAttendanceUser[]> {
+  const [{ data: activeUsers, error: usersError }, { data: records, error: attError }] =
+    await Promise.all([
+      supabaseAdmin
+        .from("users")
+        .select("id, name, role, telegram_id, telegram_chat_id")
+        .eq("is_active", true)
+        .order("name"),
+      supabaseAdmin
+        .from("attendance")
+        .select("user_id")
+        .eq("attendance_date", date)
+        .eq("type", type),
+    ]);
+
+  if (usersError || attError) {
+    console.error("Error computing missing attendance:", usersError || attError);
+    return [];
+  }
+
+  const presentIds = new Set(
+    ((records || []) as Array<{ user_id: string }>).map((r) => r.user_id)
+  );
+
+  return ((activeUsers || []) as MissingAttendanceUser[]).filter(
+    (u) => !presentIds.has(u.id)
+  );
+}
+
+export async function getSentReminderUserIds(
+  date: string,
+  type: AttendanceType
+): Promise<Set<string>> {
+  const { data, error } = await supabaseAdmin
+    .from("attendance_reminder_logs")
+    .select("user_id")
+    .eq("reminder_date", date)
+    .eq("type", type)
+    .eq("channel", "telegram");
+
+  if (error || !data) return new Set();
+  return new Set((data as Array<{ user_id: string }>).map((r) => r.user_id));
+}
+
+export async function recordReminderSent(
+  date: string,
+  type: AttendanceType,
+  userId: string
+): Promise<void> {
+  await supabaseAdmin.from("attendance_reminder_logs").insert({
+    reminder_date: date,
+    type,
+    user_id: userId,
+    channel: "telegram",
+    sent_at: new Date().toISOString(),
+  });
 }

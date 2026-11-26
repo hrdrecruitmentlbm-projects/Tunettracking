@@ -7,6 +7,7 @@ import { BottomNav } from "./bottom-nav";
 import { VersionChecker } from "./version-checker";
 import { SessionWarningDialog } from "./session-warning-dialog";
 import { CommandPalette } from "./command-palette";
+import { AttendanceAlarmMonitor } from "@/components/attendance/attendance-alarm-monitor";
 import { User } from "@/types";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -110,6 +111,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         <div aria-live="polite" aria-atomic="true" className="sr-only" id="tutrack-live-region" />
         {children}
         <VersionChecker />
+        <AttendanceAlarmMonitor />
       </main>
       <BottomNav role={user.role} />
     </div>

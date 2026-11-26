@@ -6,6 +6,7 @@ const version =
   (process.env.NODE_ENV === "development" ? "dev" : "0.0.0");
 
 const nextConfig: NextConfig = {
+  output: "standalone",
   env: {
     NEXT_PUBLIC_APP_VERSION: version,
   },

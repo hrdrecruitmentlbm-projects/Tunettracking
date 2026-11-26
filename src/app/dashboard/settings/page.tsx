@@ -14,6 +14,7 @@ import { User as UserIcon, Bell, Moon, Sun, Tag as TagIcon, Target, Plus, Pencil
 import { COPY } from "@/lib/copy";
 import { useLocalStorageState } from "@/hooks/use-local-storage-state";
 import { fetchTags, createTag, updateTag, deleteTag, fetchProspectStatuses, createProspectStatus, updateProspectStatus, deleteProspectStatus } from "@/lib/db";
+import { AttendanceAlarmSettingsCard } from "@/components/settings/attendance-alarm-settings";
 
 function getStoredUser() {
   if (typeof window === "undefined") return null;
@@ -329,6 +330,8 @@ export default function SettingsPage() {
               </div>
             </CardContent>
           </Card>
+
+          <AttendanceAlarmSettingsCard role={user?.role} />
 
           {user?.role === "admin" && (
             <Card className="bg-tunet-surface border-tunet-border">

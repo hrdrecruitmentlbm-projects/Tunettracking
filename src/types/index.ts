@@ -169,6 +169,30 @@ export interface AttendanceTodo {
   created_at: string;
 }
 
+export interface AttendanceReminderSettings {
+  id: string;
+  enabled: boolean;
+  berangkat_time: string; // "HH:mm" WIB
+  pulang_time: string; // "HH:mm" WIB
+  grace_minutes: number;
+  active_days: number[]; // 0 = Minggu .. 6 = Sabtu
+  sound_enabled: boolean;
+  telegram_enabled: boolean;
+  updated_at: string;
+}
+
+export const DEFAULT_ATTENDANCE_REMINDER_SETTINGS: AttendanceReminderSettings = {
+  id: "default",
+  enabled: true,
+  berangkat_time: "08:00",
+  pulang_time: "17:00",
+  grace_minutes: 0,
+  active_days: [1, 2, 3, 4, 5, 6],
+  sound_enabled: true,
+  telegram_enabled: true,
+  updated_at: new Date(0).toISOString(),
+};
+
 // ===== MARKETING TYPES =====
 
 export type ProspectStatus = "belum_diproses" | "sudah_followup" | "acc" | "tidak";
