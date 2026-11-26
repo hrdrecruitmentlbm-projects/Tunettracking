@@ -23,13 +23,15 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { fetchUsers, fetchVisitLogs } from "@/lib/db";
+import { fetchProspects, fetchTowerSites, fetchUsers, fetchVisitLogs } from "@/lib/db";
 import { formatAttendanceDate, formatTimeWIB, getWibDateString } from "@/lib/time";
 import { useProspectStatuses } from "@/hooks/use-prospect-statuses";
-import { User, VisitLog } from "@/types";
+import { isClosingStatus } from "@/lib/marketing-closing";
+import { Prospect, TowerSite, User, VisitLog } from "@/types";
 import {
   Calendar,
   CalendarDays,
+  CheckCircle2,
   ClipboardCheck,
   Download,
   ExternalLink,
@@ -50,6 +52,7 @@ interface DayBreakdown {
   total: number;
   prospek: number;
   tower: number;
+  closing: number;
   visitors: Array<{ id: string; name: string; count: number }>;
 }
 
@@ -60,6 +63,7 @@ interface VisitorSummary {
   today: number;
   yesterday: number;
   last7d: number;
+  closing: number;
   total: number;
 }
 
@@ -88,6 +92,8 @@ function formatShortDayLabel(dateStr: string): string {
 
 export default function AdminKunjunganPage() {
   const [visits, setVisits] = useState<VisitLog[]>([]);
+  const [prospects, setProspects] = useState<Prospect[]>([]);
+  const [towerSites, setTowerSites] = useState<TowerSite[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -96,21 +102,26 @@ export default function AdminKunjunganPage() {
   const [customDate, setCustomDate] = useState<string>("");
   const [visitorFilter, setVisitorFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
+  const [closingOnly, setClosingOnly] = useState(false);
   const [search, setSearch] = useState("");
   const [selectedVisit, setSelectedVisit] = useState<VisitLog | null>(null);
 
-  const { getConfig: getProspectStatusConfig } = useProspectStatuses();
+  const { statuses: prospectStatuses, getConfig: getProspectStatusConfig } = useProspectStatuses();
 
   useEffect(() => {
     let active = true;
     async function loadInitial() {
       try {
-        const [v, u] = await Promise.all([
+        const [v, p, t, u] = await Promise.all([
           fetchVisitLogs({ limit: 2000 }),
+          fetchProspects(),
+          fetchTowerSites(),
           fetchUsers(),
         ]);
         if (!active) return;
         setVisits(v);
+        setProspects(p);
+        setTowerSites(t);
         setUsers(u);
       } catch (err) {
         console.error("Failed to load visit recap:", err);
@@ -128,11 +139,15 @@ export default function AdminKunjunganPage() {
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      const [v, u] = await Promise.all([
+      const [v, p, t, u] = await Promise.all([
         fetchVisitLogs({ limit: 2000 }),
+        fetchProspects(),
+        fetchTowerSites(),
         fetchUsers(),
       ]);
       setVisits(v);
+      setProspects(p);
+      setTowerSites(t);
       setUsers(u);
       toast.success("Data kunjungan diperbarui");
     } catch (err) {
@@ -149,7 +164,7 @@ export default function AdminKunjunganPage() {
   const thirtyDaysAgoWib = useMemo(() => addDaysToWibDate(todayWib, -29), [todayWib]);
   const monthStartWib = useMemo(() => `${todayWib.slice(0, 7)}-01`, [todayWib]);
 
-  // Base scope filtered by visitor, type, and search (used to build daily breakdown & KPIs)
+  // Base scope filtered by visitor, type, closingOnly, and search (used to build daily breakdown & KPIs)
   const scopedVisits = useMemo(() => {
     const q = search.toLowerCase().trim();
     return visits.filter((v) => {
@@ -160,6 +175,9 @@ export default function AdminKunjunganPage() {
         return false;
       }
       if (typeFilter !== "all" && v.type !== typeFilter) return false;
+      if (closingOnly && !isClosingStatus(v.status_snapshot, prospectStatuses)) {
+        return false;
+      }
       if (!q) return true;
       const targetName =
         v.type === "prospek" ? v.prospect?.name || "" : v.tower?.name || "";
@@ -170,21 +188,25 @@ export default function AdminKunjunganPage() {
         (v.status_snapshot || "").toLowerCase().includes(q)
       );
     });
-  }, [visits, visitorFilter, typeFilter, search]);
+  }, [visits, visitorFilter, typeFilter, closingOnly, prospectStatuses, search]);
 
-  // KPI metrics (from scopedVisits, ignoring date preset so Hari Ini & Kemarin always stay visible)
+  // KPI metrics (from scopedVisits + closing prospects/towers)
   const kpi = useMemo(() => {
     let todayTotal = 0;
     let todayProspek = 0;
     let todayTower = 0;
     let yesterdayTotal = 0;
     let last7dTotal = 0;
+    let closingVisits = 0;
     const activeDates = new Set<string>();
 
     for (const v of scopedVisits) {
       const d = getWibDateString(v.created_at);
       if (!d) continue;
       activeDates.add(d);
+      if (isClosingStatus(v.status_snapshot, prospectStatuses)) {
+        closingVisits += 1;
+      }
       if (d === todayWib) {
         todayTotal += 1;
         if (v.type === "prospek") todayProspek += 1;
@@ -198,6 +220,26 @@ export default function AdminKunjunganPage() {
       }
     }
 
+    const closingProspectsCount =
+      typeFilter === "tower"
+        ? 0
+        : prospects.filter(
+            (p) =>
+              isClosingStatus(p.status, prospectStatuses) &&
+              (visitorFilter === "all" ||
+                getVisitorKey(p.assigned_to, p.assignee?.name) === visitorFilter)
+          ).length;
+
+    const closingTowersCount =
+      typeFilter === "prospek"
+        ? 0
+        : towerSites.filter(
+            (t) =>
+              isClosingStatus(t.status) &&
+              (visitorFilter === "all" ||
+                getVisitorKey(t.assigned_to, t.assignee?.name) === visitorFilter)
+          ).length;
+
     return {
       todayTotal,
       todayProspek,
@@ -208,8 +250,22 @@ export default function AdminKunjunganPage() {
       avgPerDay7d: (last7dTotal / 7).toFixed(1),
       totalAll: scopedVisits.length,
       activeDaysCount: activeDates.size,
+      closingTargets: closingProspectsCount + closingTowersCount,
+      closingProspects: closingProspectsCount,
+      closingTowers: closingTowersCount,
+      closingVisits,
     };
-  }, [scopedVisits, todayWib, yesterdayWib, sevenDaysAgoWib]);
+  }, [
+    scopedVisits,
+    prospects,
+    towerSites,
+    prospectStatuses,
+    typeFilter,
+    visitorFilter,
+    todayWib,
+    yesterdayWib,
+    sevenDaysAgoWib,
+  ]);
 
   // Apply date preset / custom date to detail table
   const dateFilteredVisits = useMemo(() => {
@@ -253,6 +309,7 @@ export default function AdminKunjunganPage() {
         total: number;
         prospek: number;
         tower: number;
+        closing: number;
         visitors: Map<string, { name: string; count: number }>;
       }
     >();
@@ -260,7 +317,7 @@ export default function AdminKunjunganPage() {
     const ensureDate = (date: string) => {
       let entry = byDate.get(date);
       if (!entry) {
-        entry = { total: 0, prospek: 0, tower: 0, visitors: new Map() };
+        entry = { total: 0, prospek: 0, tower: 0, closing: 0, visitors: new Map() };
         byDate.set(date, entry);
       }
       return entry;
@@ -285,6 +342,9 @@ export default function AdminKunjunganPage() {
       entry.total += 1;
       if (v.type === "prospek") entry.prospek += 1;
       else entry.tower += 1;
+      if (isClosingStatus(v.status_snapshot, prospectStatuses)) {
+        entry.closing += 1;
+      }
 
       const vName = (v.visitor?.name || "Tidak diketahui").trim();
       const vKey = getVisitorKey(v.visited_by, v.visitor?.name);
@@ -303,11 +363,12 @@ export default function AdminKunjunganPage() {
         total: info.total,
         prospek: info.prospek,
         tower: info.tower,
+        closing: info.closing,
         visitors: Array.from(info.visitors.entries())
           .map(([id, val]) => ({ id, name: val.name, count: val.count }))
           .sort((a, b) => b.count - a.count),
       }));
-  }, [dateFilteredVisits, rangePreset, customDate, todayWib, yesterdayWib]);
+  }, [dateFilteredVisits, rangePreset, customDate, todayWib, yesterdayWib, prospectStatuses]);
 
   const maxDailyCount = useMemo(
     () => Math.max(1, ...dailyBreakdown.map((d) => d.total)),
@@ -330,6 +391,7 @@ export default function AdminKunjunganPage() {
             today: 0,
             yesterday: 0,
             last7d: 0,
+            closing: 0,
             total: 0,
           });
         }
@@ -349,6 +411,7 @@ export default function AdminKunjunganPage() {
           today: 0,
           yesterday: 0,
           last7d: 0,
+          closing: 0,
           total: 0,
         };
         map.set(key, entry);
@@ -361,10 +424,64 @@ export default function AdminKunjunganPage() {
       if (d >= sevenDaysAgoWib && d <= todayWib) entry.last7d += 1;
     }
 
+    // Add closing target count (Prospects + Tower Sites in Closing/ACC status) per staff
+    if (typeFilter !== "tower") {
+      for (const p of prospects) {
+        if (!isClosingStatus(p.status, prospectStatuses)) continue;
+        const name = (p.assignee?.name || "Belum Ditugaskan").trim();
+        const key = getVisitorKey(p.assigned_to, p.assignee?.name);
+        const entry = map.get(key) || {
+          id: key,
+          name,
+          role: p.assignee?.role,
+          today: 0,
+          yesterday: 0,
+          last7d: 0,
+          closing: 0,
+          total: 0,
+        };
+        entry.closing += 1;
+        map.set(key, entry);
+      }
+    }
+    if (typeFilter !== "prospek") {
+      for (const t of towerSites) {
+        if (!isClosingStatus(t.status)) continue;
+        const name = (t.assignee?.name || "Belum Ditugaskan").trim();
+        const key = getVisitorKey(t.assigned_to, t.assignee?.name);
+        const entry = map.get(key) || {
+          id: key,
+          name,
+          role: t.assignee?.role,
+          today: 0,
+          yesterday: 0,
+          last7d: 0,
+          closing: 0,
+          total: 0,
+        };
+        entry.closing += 1;
+        map.set(key, entry);
+      }
+    }
+
     return Array.from(map.values()).sort(
-      (a, b) => b.today - a.today || b.last7d - a.last7d || b.total - a.total
+      (a, b) =>
+        b.today - a.today ||
+        b.closing - a.closing ||
+        b.last7d - a.last7d ||
+        b.total - a.total
     );
-  }, [visits, users, typeFilter, todayWib, yesterdayWib, sevenDaysAgoWib]);
+  }, [
+    visits,
+    prospects,
+    towerSites,
+    users,
+    typeFilter,
+    prospectStatuses,
+    todayWib,
+    yesterdayWib,
+    sevenDaysAgoWib,
+  ]);
 
   // Unique visitors for dropdown filter (deduplicated by normalized name)
   const visitorOptions = useMemo(() => {
@@ -501,13 +618,13 @@ export default function AdminKunjunganPage() {
         <div className="p-4 sm:p-6 space-y-5 max-w-7xl">
           {/* KPI Summary Cards */}
           {loading ? (
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              {Array.from({ length: 4 }).map((_, i) => (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+              {Array.from({ length: 5 }).map((_, i) => (
                 <Skeleton key={i} className="h-24 w-full rounded-xl" />
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
               <Card className="bg-tunet-surface border-tunet-border">
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between gap-2">
@@ -570,6 +687,32 @@ export default function AdminKunjunganPage() {
                     </div>
                     <div className="w-10 h-10 rounded-lg bg-blue-500/15 flex items-center justify-center shrink-0">
                       <TrendingUp className="w-5 h-5 text-blue-400" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card
+                onClick={() => setClosingOnly((prev) => !prev)}
+                className={`bg-tunet-surface border-tunet-border cursor-pointer transition-colors hover:bg-tunet-surface-hover ${
+                  closingOnly ? "ring-1 ring-emerald-500/60 border-emerald-500/40" : ""
+                }`}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-xs text-tunet-text-muted">
+                        Total Closing
+                      </p>
+                      <p className="text-2xl font-bold text-emerald-400 mt-1 font-mono-data">
+                        {kpi.closingTargets}
+                      </p>
+                      <p className="text-[11px] text-tunet-text-muted mt-1">
+                        {kpi.closingProspects} Prospek · {kpi.closingTowers} Tower ({kpi.closingVisits} kunj.)
+                      </p>
+                    </div>
+                    <div className="w-10 h-10 rounded-lg bg-emerald-500/15 flex items-center justify-center shrink-0">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-400" />
                     </div>
                   </div>
                 </CardContent>
@@ -677,8 +820,20 @@ export default function AdminKunjunganPage() {
                 </SelectContent>
               </Select>
 
-              {/* Type Filter */}
-              <div className="flex items-center gap-1 ml-auto">
+              {/* Type + Closing Filter */}
+              <div className="flex items-center gap-1.5 ml-auto flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setClosingOnly((prev) => !prev)}
+                  className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors border ${
+                    closingOnly
+                      ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40"
+                      : "bg-tunet-bg text-tunet-text-muted border-tunet-border hover:text-tunet-text"
+                  }`}
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  Hanya Closing
+                </button>
                 {(
                   [
                     { key: "all", label: "Semua Tipe" },
@@ -772,6 +927,11 @@ export default function AdminKunjunganPage() {
                             </div>
 
                             <div className="flex items-center gap-2 text-xs">
+                              {day.closing > 0 && (
+                                <span className="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 text-[11px] font-medium">
+                                  Closing {day.closing}
+                                </span>
+                              )}
                               {day.prospek > 0 && (
                                 <span className="px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-400 text-[11px]">
                                   Prospek {day.prospek}
@@ -865,6 +1025,7 @@ export default function AdminKunjunganPage() {
                           <th className="text-right py-2.5 px-2 font-medium">Hari Ini</th>
                           <th className="text-right py-2.5 px-2 font-medium">Kemarin</th>
                           <th className="text-right py-2.5 px-2 font-medium">7 Hari</th>
+                          <th className="text-right py-2.5 px-2 font-medium">Closing</th>
                           <th className="text-right py-2.5 px-4 font-medium">Total</th>
                         </tr>
                       </thead>
@@ -896,6 +1057,13 @@ export default function AdminKunjunganPage() {
                               </td>
                               <td className="py-2.5 px-2 text-right font-mono-data text-blue-400">
                                 {v.last7d}
+                              </td>
+                              <td
+                                className={`py-2.5 px-2 text-right font-mono-data font-semibold ${
+                                  v.closing > 0 ? "text-emerald-400" : "text-tunet-text-muted"
+                                }`}
+                              >
+                                {v.closing}
                               </td>
                               <td className="py-2.5 px-4 text-right font-mono-data text-tunet-text">
                                 {v.total}
@@ -929,6 +1097,7 @@ export default function AdminKunjunganPage() {
                 {(rangePreset !== "all" ||
                   visitorFilter !== "all" ||
                   typeFilter !== "all" ||
+                  closingOnly ||
                   search.trim() !== "") && (
                   <Button
                     variant="outline"
@@ -938,6 +1107,7 @@ export default function AdminKunjunganPage() {
                       setCustomDate("");
                       setVisitorFilter("all");
                       setTypeFilter("all");
+                      setClosingOnly(false);
                       setSearch("");
                     }}
                     className="h-7 text-xs border-tunet-border text-tunet-text-muted hover:text-tunet-text"

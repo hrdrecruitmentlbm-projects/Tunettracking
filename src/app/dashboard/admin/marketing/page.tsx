@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import {
   fetchProspects,
+  fetchTowerSites,
   fetchVisitLogs,
   fetchUsers,
   createProspect,
@@ -11,7 +12,7 @@ import {
   softDeleteProspect,
   fetchProspectHistory,
 } from "@/lib/db";
-import { Prospect, VisitLog, User, ProspectStatusConfig, ProspectHistory } from "@/types";
+import { Prospect, TowerSite, VisitLog, User, ProspectStatusConfig, ProspectHistory } from "@/types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -42,13 +43,14 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Target, Search, Edit, Trash2, ClipboardCheck, MapPin, Download, ExternalLink, Phone } from "lucide-react";
+import { Target, Search, Edit, Trash2, ClipboardCheck, MapPin, Download, ExternalLink, Phone, CheckCircle2 } from "lucide-react";
 import { COPY } from "@/lib/copy";
 import { toast } from "sonner";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { useProspectStatuses } from "@/hooks/use-prospect-statuses";
 import { ProspectStatusFilter } from "@/components/marketing/prospect-status-filter";
 import { getWibDateString } from "@/lib/time";
+import { isClosingStatus } from "@/lib/marketing-closing";
 
 type DetailTarget =
   | { kind: "prospek"; prospectId: string }
@@ -56,6 +58,7 @@ type DetailTarget =
 
 export default function AdminMarketingPage() {
   const [prospects, setProspects] = useState<Prospect[]>([]);
+  const [towerSites, setTowerSites] = useState<TowerSite[]>([]);
   const [visits, setVisits] = useState<VisitLog[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -86,12 +89,14 @@ export default function AdminMarketingPage() {
   useEffect(() => {
     async function load() {
       try {
-        const [p, v, u] = await Promise.all([
+        const [p, t, v, u] = await Promise.all([
           fetchProspects(),
+          fetchTowerSites(),
           fetchVisitLogs(),
           fetchUsers(),
         ]);
         setProspects(p);
+        setTowerSites(t);
         setVisits(v);
         setUsers(u);
       } catch (err) {
@@ -118,10 +123,14 @@ export default function AdminMarketingPage() {
 
   const filteredProspects = useMemo(
     () =>
-      searchedProspects.filter(
-        (p) => statusFilter === "all" || p.status === statusFilter
+      searchedProspects.filter((p) =>
+        statusFilter === "all"
+          ? true
+          : statusFilter === "__closing__"
+            ? isClosingStatus(p.status, prospectStatuses)
+            : p.status === statusFilter
       ),
-    [searchedProspects, statusFilter]
+    [searchedProspects, statusFilter, prospectStatuses]
   );
 
   /** Chip counts follow the search box, not the active status chip */
@@ -151,10 +160,14 @@ export default function AdminMarketingPage() {
 
   const filteredVisits = useMemo(
     () =>
-      searchedVisits.filter(
-        (v) => statusFilter === "all" || v.status_snapshot === statusFilter
+      searchedVisits.filter((v) =>
+        statusFilter === "all"
+          ? true
+          : statusFilter === "__closing__"
+            ? isClosingStatus(v.status_snapshot, prospectStatuses)
+            : v.status_snapshot === statusFilter
       ),
-    [searchedVisits, statusFilter]
+    [searchedVisits, statusFilter, prospectStatuses]
   );
 
   const visitStatusCounts = useMemo(() => {
@@ -166,10 +179,69 @@ export default function AdminMarketingPage() {
   }, [searchedVisits]);
 
   const today = getWibDateString();
-  const activeProspects = prospects.filter(
-    (p) => p.status !== "acc" && p.status !== "tidak"
+  const activeProspects = useMemo(
+    () =>
+      prospects.filter(
+        (p) => !isClosingStatus(p.status, prospectStatuses) && p.status !== "tidak"
+      ),
+    [prospects, prospectStatuses]
   );
-  const accProspects = prospects.filter((p) => p.status === "acc");
+  const closingProspects = useMemo(
+    () => prospects.filter((p) => isClosingStatus(p.status, prospectStatuses)),
+    [prospects, prospectStatuses]
+  );
+  const closingTowers = useMemo(
+    () => towerSites.filter((t) => isClosingStatus(t.status)),
+    [towerSites]
+  );
+  const closingVisits = useMemo(
+    () => visits.filter((v) => isClosingStatus(v.status_snapshot, prospectStatuses)),
+    [visits, prospectStatuses]
+  );
+  const totalClosingAll = closingProspects.length + closingTowers.length;
+  const closingRatePct =
+    prospects.length > 0
+      ? ((closingProspects.length / prospects.length) * 100).toFixed(1)
+      : "0.0";
+
+  const closingByStaff = useMemo(() => {
+    const map = new Map<
+      string,
+      { name: string; prospects: number; towers: number; visits: number }
+    >();
+    const add = (
+      rawName: string | undefined,
+      field: "prospects" | "towers" | "visits"
+    ) => {
+      const name = (rawName || "Belum Ditugaskan").trim();
+      const key = name.toLowerCase();
+      const existing = map.get(key) || {
+        name,
+        prospects: 0,
+        towers: 0,
+        visits: 0,
+      };
+      existing[field] += 1;
+      map.set(key, existing);
+    };
+
+    for (const p of closingProspects) {
+      add(p.assignee?.name, "prospects");
+    }
+    for (const t of closingTowers) {
+      add(t.assignee?.name, "towers");
+    }
+    for (const v of closingVisits) {
+      add(v.visitor?.name, "visits");
+    }
+
+    return Array.from(map.values()).sort(
+      (a, b) =>
+        b.prospects + b.towers - (a.prospects + a.towers) ||
+        b.visits - a.visits
+    );
+  }, [closingProspects, closingTowers, closingVisits]);
+
   const todayVisits = visits.filter(
     (v) => getWibDateString(v.created_at) === today
   );
@@ -334,32 +406,83 @@ export default function AdminMarketingPage() {
 
         <div className="p-6 space-y-4">
           {/* Stats Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
             <StatCard
               label="Total Prospek"
               value={prospects.length}
+              subtext={`${towerSites.length} Tower terdaftar`}
               icon={<Target className="w-5 h-5 text-blue-400" />}
               color="blue"
             />
             <StatCard
               label="Aktif"
               value={activeProspects.length}
+              subtext="Sedang dalam proses"
               icon={<Target className="w-5 h-5 text-tunet-green" />}
               color="green"
             />
             <StatCard
-              label="Selesai (ACC)"
-              value={accProspects.length}
-              icon={<Target className="w-5 h-5 text-purple-400" />}
+              label="Total Closing"
+              value={totalClosingAll}
+              subtext={`${closingProspects.length} Prospek (${closingRatePct}%) · ${closingTowers.length} Tower`}
+              icon={<CheckCircle2 className="w-5 h-5 text-emerald-400" />}
+              color="emerald"
+              onClick={() => {
+                setActiveTab("prospek");
+                setStatusFilter(
+                  statusFilter === "__closing__" ? "all" : "__closing__"
+                );
+              }}
+              active={activeTab === "prospek" && statusFilter === "__closing__"}
+            />
+            <StatCard
+              label="Kunjungan Closing"
+              value={closingVisits.length}
+              subtext={`Dari ${visits.length} total kunjungan`}
+              icon={<ClipboardCheck className="w-5 h-5 text-purple-400" />}
               color="purple"
+              onClick={() => {
+                setActiveTab("kunjungan");
+                setStatusFilter(
+                  statusFilter === "__closing__" ? "all" : "__closing__"
+                );
+              }}
+              active={activeTab === "kunjungan" && statusFilter === "__closing__"}
             />
             <StatCard
               label="Kunjungan Hari Ini"
               value={todayVisits.length}
+              subtext="Hari ini (WIB)"
               icon={<ClipboardCheck className="w-5 h-5 text-amber-400" />}
               color="amber"
             />
           </div>
+
+          {/* Closing Per Marketing Strip */}
+          {closingByStaff.length > 0 && (
+            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-2.5 flex flex-wrap items-center gap-2 text-xs">
+              <span className="font-medium text-emerald-400 flex items-center gap-1.5 mr-1">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                Ringkasan Closing:
+              </span>
+              {closingByStaff.map((s) => (
+                <span
+                  key={s.name}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-tunet-border bg-tunet-surface px-2.5 py-1 text-tunet-text"
+                >
+                  <span className="font-medium">{s.name}</span>
+                  <span className="text-emerald-400 font-semibold font-mono-data">
+                    {s.prospects + s.towers}
+                  </span>
+                  <span className="text-tunet-text-muted text-[11px]">
+                    ({s.prospects} prospek
+                    {s.towers > 0 ? `, ${s.towers} tower` : ""}
+                    {s.visits > 0 ? `, ${s.visits} kunj.` : ""})
+                  </span>
+                </span>
+              ))}
+            </div>
+          )}
 
           {/* Tabs + status filter */}
           <div className="space-y-2">
@@ -383,6 +506,26 @@ export default function AdminMarketingPage() {
                 }`}
               >
                 Kunjungan ({visits.length})
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setStatusFilter(
+                    statusFilter === "__closing__" ? "all" : "__closing__"
+                  )
+                }
+                className={`ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                  statusFilter === "__closing__"
+                    ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40"
+                    : "bg-tunet-surface text-tunet-text-muted border-tunet-border hover:text-tunet-text"
+                }`}
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                Hanya Closing (
+                {activeTab === "prospek"
+                  ? closingProspects.length
+                  : closingVisits.length}
+                )
               </button>
             </div>
 
@@ -906,16 +1049,58 @@ export default function AdminMarketingPage() {
   );
 }
 
-function StatCard({ label, value, icon, color }: { label: string; value: number; icon: React.ReactNode; color: string }) {
+const STAT_COLOR_CLASSES: Record<
+  "blue" | "green" | "emerald" | "purple" | "amber",
+  { text: string; bg: string }
+> = {
+  blue: { text: "text-blue-400", bg: "bg-blue-500/20" },
+  green: { text: "text-tunet-green", bg: "bg-tunet-green/20" },
+  emerald: { text: "text-emerald-400", bg: "bg-emerald-500/20" },
+  purple: { text: "text-purple-400", bg: "bg-purple-500/20" },
+  amber: { text: "text-amber-400", bg: "bg-amber-500/20" },
+};
+
+function StatCard({
+  label,
+  value,
+  subtext,
+  icon,
+  color,
+  onClick,
+  active,
+}: {
+  label: string;
+  value: number;
+  subtext?: string;
+  icon: React.ReactNode;
+  color: "blue" | "green" | "emerald" | "purple" | "amber";
+  onClick?: () => void;
+  active?: boolean;
+}) {
+  const palette = STAT_COLOR_CLASSES[color];
   return (
-    <Card className="bg-tunet-surface border-tunet-border">
+    <Card
+      onClick={onClick}
+      className={`bg-tunet-surface border-tunet-border transition-colors ${
+        onClick ? "cursor-pointer hover:bg-tunet-surface-hover" : ""
+      } ${active ? "ring-1 ring-emerald-500/60 border-emerald-500/40" : ""}`}
+    >
       <CardContent className="p-4">
-        <div className="flex items-center justify-between">
-          <div>
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
             <p className="text-xs text-tunet-text-muted">{label}</p>
-            <p className={`text-2xl font-bold text-${color}-400 mt-1`}>{value}</p>
+            <p className={`text-2xl font-bold ${palette.text} mt-1 font-mono-data`}>
+              {value}
+            </p>
+            {subtext && (
+              <p className="text-[11px] text-tunet-text-muted mt-1 truncate">
+                {subtext}
+              </p>
+            )}
           </div>
-          <div className={`w-10 h-10 rounded-lg bg-${color}-500/20 flex items-center justify-center`}>
+          <div
+            className={`w-10 h-10 rounded-lg ${palette.bg} flex items-center justify-center shrink-0`}
+          >
             {icon}
           </div>
         </div>
