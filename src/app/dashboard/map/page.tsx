@@ -9,9 +9,11 @@ import {
   ChevronDown,
   ChevronUp,
   Clock,
+  ExternalLink,
   LocateFixed,
   MapPin,
   Radio,
+  RefreshCw,
   Search,
   UserRound,
   Wifi,
@@ -23,7 +25,8 @@ import { User, Location, Task, UserRole } from "@/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
-import { getRelativeTime } from "@/lib/time";
+import { formatTimeWIB, getRelativeTime } from "@/lib/time";
+import { googleMapsUrl, useReverseGeocode } from "@/lib/geocode";
 import { COPY } from "@/lib/copy";
 import { cn } from "@/lib/utils";
 import { useHeartbeat } from "@/hooks/use-heartbeat";
@@ -66,6 +69,8 @@ export default function MapPage() {
   const [selectedDate, setSelectedDate] = useState<string>(() => getSessionDate());
   const [currentUserId, setCurrentUserId] = useState<string | undefined>(undefined);
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
 
   useHeartbeat({ userId: currentUserId });
 
@@ -134,11 +139,29 @@ export default function MapPage() {
 
   const filteredUsers = useMemo(() => {
     const query = search.toLowerCase().trim();
-    return users.filter((user) => {
-      const roleVisible = showRoles.includes(user.role as VisibleRole);
-      return roleVisible && (!query || user.name.toLowerCase().includes(query));
-    });
-  }, [search, showRoles, users]);
+    const locationByUserId = new Map(
+      locations.map((location) => [location.user_id, location])
+    );
+
+    return users
+      .filter((user) => {
+        const roleVisible = showRoles.includes(user.role as VisibleRole);
+        return roleVisible && (!query || user.name.toLowerCase().includes(query));
+      })
+      .sort((a, b) => {
+        const locA = locationByUserId.get(a.id);
+        const locB = locationByUserId.get(b.id);
+        if (locA && !locB) return -1;
+        if (!locA && locB) return 1;
+        if (locA && locB) {
+          return (
+            new Date(locB.updated_at).getTime() -
+            new Date(locA.updated_at).getTime()
+          );
+        }
+        return a.name.localeCompare(b.name, "id");
+      });
+  }, [locations, search, showRoles, users]);
 
   const focusedUser = users.find((user) => user.id === focusUserId) ?? null;
   const focusedLocation =
@@ -167,6 +190,22 @@ export default function MapPage() {
     setMobilePanelOpen(false);
   };
 
+  const handleRefresh = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    setRefreshKey((prev) => prev + 1);
+    try {
+      const [nextLocations, nextTasks] = await Promise.all([
+        fetchLocations(),
+        fetchTasks(),
+      ]);
+      setLocations(nextLocations);
+      setTasks(nextTasks);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   if (loading) {
     return <MapPageSkeleton />;
   }
@@ -186,21 +225,22 @@ export default function MapPage() {
         focusUserId={focusUserId}
         sessionDate={selectedDate}
         layoutKey={`${showRoles.join("-")}-${selectedDate}-${mobilePanelOpen}`}
-        coordsClassName="bottom-20 md:bottom-4"
+        refreshKey={refreshKey}
+        coordsClassName="bottom-20 md:bottom-16"
       />
 
       <div className="pointer-events-none absolute inset-x-0 top-0 z-[450] h-40 bg-gradient-to-b from-map-scrim/75 via-map-scrim/30 to-transparent" />
 
-      <div className="absolute left-3 top-3 z-[500] flex items-center gap-2">
+      <div className="absolute left-14 top-3 z-[500] flex items-center gap-2">
         <button
           type="button"
           onClick={() => router.push(dashboardPath)}
-          className="flex h-11 w-11 items-center justify-center rounded-2xl border-map-panel-border bg-map-panel/88 text-map-panel-text shadow-2xl backdrop-blur-xl transition-colors hover:bg-map-panel-text hover:text-tunet-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tunet-signal"
+          className="flex h-11 w-11 items-center justify-center rounded-2xl border border-map-panel-border bg-map-panel/88 text-map-panel-text shadow-2xl backdrop-blur-xl transition-colors hover:bg-map-panel-text hover:text-tunet-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tunet-signal"
           aria-label={COPY.pages.map.back}
         >
           <ArrowLeft className="h-5 w-5" />
         </button>
-        <div className="rounded-2xl border-map-panel-border bg-map-panel/88 px-4 py-2.5 shadow-2xl backdrop-blur-xl">
+        <div className="rounded-2xl border border-map-panel-border bg-map-panel/88 px-4 py-2 shadow-2xl backdrop-blur-xl">
           <div className="flex items-center gap-2">
             <span className="relative flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-tunet-signal opacity-60" />
@@ -214,9 +254,20 @@ export default function MapPage() {
             {activeLocationCount} posisi terhubung
           </p>
         </div>
+        <button
+          type="button"
+          onClick={handleRefresh}
+          disabled={refreshing}
+          className="flex h-11 items-center gap-1.5 rounded-2xl border border-map-panel-border bg-map-panel/88 px-3 text-xs font-medium text-map-panel-text shadow-2xl backdrop-blur-xl transition-colors hover:bg-map-panel-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tunet-signal disabled:opacity-60"
+          aria-label="Segarkan posisi terbaru"
+          title="Segarkan posisi terbaru"
+        >
+          <RefreshCw className={cn("h-4 w-4 text-tunet-signal", refreshing && "animate-spin")} />
+          <span className="hidden sm:inline">Segarkan</span>
+        </button>
       </div>
 
-      <div className="absolute left-3 right-3 top-20 z-[500] md:right-[380px]">
+      <div className="absolute left-3 right-3 top-[84px] z-[500] md:right-[380px]">
         <div className="flex w-fit max-w-full items-center gap-1 overflow-x-auto rounded-2xl border-map-panel-border bg-map-panel/88 p-1.5 shadow-2xl backdrop-blur-xl">
           <span className="flex h-9 shrink-0 items-center gap-1.5 px-2 text-[10px] uppercase tracking-wider text-map-panel-text-muted">
             <Radio className="h-3.5 w-3.5 text-tunet-signal" />
@@ -382,6 +433,12 @@ function RosterPanel({
   onClearFocus: () => void;
   compact?: boolean;
 }) {
+  const { address: focusedAddress, loading: loadingFocusedAddress } = useReverseGeocode(
+    focusedLocation?.lat,
+    focusedLocation?.lng,
+    Boolean(focusedLocation)
+  );
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className={cn("border-b border-tunet-border", compact ? "p-3" : "p-4")}>
@@ -391,7 +448,7 @@ function RosterPanel({
               Konteks lapangan
             </p>
             <p className="mt-0.5 text-xs text-tunet-text-muted">
-              Pilih personel untuk memusatkan peta
+              Pilih personel untuk memusatkan peta &amp; lihat alamat
             </p>
           </div>
           {focusUserId && (
@@ -445,12 +502,48 @@ function RosterPanel({
                     </strong>
                   </span>
                 </div>
-                <p className="mt-2 flex items-center gap-1.5 text-[10px] text-tunet-text-muted">
-                  <Clock className="h-3 w-3" />
-                  {focusedLocation
-                    ? `Posisi ${getRelativeTime(focusedLocation.updated_at)}`
-                    : COPY.pages.map.neverReported}
-                </p>
+
+                {focusedLocation ? (
+                  <div className="mt-2.5 space-y-1.5 rounded-xl bg-tunet-bg/75 p-2.5 text-[11px]">
+                    <div className="flex items-start gap-1.5 text-tunet-text">
+                      <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-tunet-signal" />
+                      <span className="leading-snug">
+                        {focusedAddress
+                          ? focusedAddress
+                          : loadingFocusedAddress
+                          ? "Mencari nama jalan / area..."
+                          : "Alamat tidak tersedia"}
+                      </span>
+                    </div>
+                    <p className="font-mono text-[10px] text-tunet-text-muted">
+                      {focusedLocation.lat.toFixed(5)}, {focusedLocation.lng.toFixed(5)}
+                      {focusedLocation.accuracy
+                        ? ` · ±${Math.round(focusedLocation.accuracy)}m`
+                        : ""}
+                    </p>
+                    <p className="flex items-center gap-1.5 text-[10px] text-tunet-text-muted">
+                      <Clock className="h-3 w-3 shrink-0" />
+                      <span>
+                        {formatTimeWIB(focusedLocation.updated_at)} WIB ·{" "}
+                        {getRelativeTime(focusedLocation.updated_at)}
+                      </span>
+                    </p>
+                    <a
+                      href={googleMapsUrl(focusedLocation.lat, focusedLocation.lng)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-1 inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-tunet-signal/15 px-2.5 py-1.5 text-[11px] font-medium text-tunet-signal transition-colors hover:bg-tunet-signal/25"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                      Buka di Google Maps
+                    </a>
+                  </div>
+                ) : (
+                  <p className="mt-2 flex items-center gap-1.5 text-[10px] text-tunet-text-muted">
+                    <Clock className="h-3 w-3" />
+                    {COPY.pages.map.neverReported}
+                  </p>
+                )}
               </div>
             </div>
           </div>

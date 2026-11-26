@@ -8,8 +8,9 @@ import { Location, Task } from "@/types";
 import { fetchLocations, fetchTasks, fetchVisits, fetchPings, getFocColor, getSessionDate, LocationVisit, LocationPing } from "@/lib/db";
 import { supabase } from "@/lib/supabase";
 import { getRelativeTime } from "@/lib/time";
+import { googleMapsUrl, useReverseGeocode } from "@/lib/geocode";
 import { useIncrementalLocations } from "@/hooks/use-incremental-locations";
-import { MapPinOff } from "lucide-react";
+import { ExternalLink, MapPin, MapPinOff } from "lucide-react";
 import { COPY } from "@/lib/copy";
 import { CoordsHUD } from "./coords-hud";
 import { cn } from "@/lib/utils";
@@ -60,20 +61,46 @@ async function fetchOSRMRoute(points: [number, number][]): Promise<[number, numb
   }
 }
 
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function formatCompactRelative(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const mins = Math.max(0, Math.floor(diffMs / 60000));
+  if (mins < 1) return "baru";
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}j`;
+  const days = Math.floor(hours / 24);
+  return `${days}h`;
+}
+
 function createCustomIcon(
   color: string,
   initials: string,
   pulsing: boolean = false,
-  highlighted: boolean = false
+  highlighted: boolean = false,
+  label?: string
 ) {
+  const safeInitials = escapeHtml(initials);
+  const safeLabel = label ? escapeHtml(label) : "";
+  const size = highlighted ? 48 : 40;
+  const height = highlighted ? 56 : 48;
+
   return L.divIcon({
     className: "custom-marker",
     html: `
       <div style="position: relative; display: flex; flex-direction: column; align-items: center;">
         ${pulsing ? '<span class="radar-pulse"></span><span class="radar-pulse radar-pulse-delayed"></span>' : ""}
         <div style="
-          width: ${highlighted ? 48 : 40}px;
-          height: ${highlighted ? 48 : 40}px;
+          width: ${size}px;
+          height: ${size}px;
           border-radius: 50%;
           background: ${color};
           display: flex;
@@ -82,9 +109,9 @@ function createCustomIcon(
           color: white;
           font-weight: bold;
           font-size: 14px;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.3)${highlighted ? `, 0 0 0 4px rgba(16, 185, 129, 0.4)` : ""};
+          box-shadow: 0 2px 8px rgba(0,0,0,0.35)${highlighted ? `, 0 0 0 4px rgba(16, 185, 129, 0.45)` : ""};
           transition: all 0.2s ease;
-        ">${initials}</div>
+        ">${safeInitials}</div>
         <div style="
           width: 0;
           height: 0;
@@ -93,11 +120,32 @@ function createCustomIcon(
           border-top: 8px solid ${color};
           margin-top: -2px;
         "></div>
+        ${
+          safeLabel
+            ? `<div style="
+                position: absolute;
+                top: ${height + 2}px;
+                left: 50%;
+                transform: translateX(-50%);
+                white-space: nowrap;
+                background: rgba(15, 23, 42, 0.9);
+                color: #f8fafc;
+                border: 1px solid ${highlighted ? "rgba(16, 185, 129, 0.7)" : "rgba(255, 255, 255, 0.16)"};
+                border-radius: 9999px;
+                padding: 2px 8px;
+                font-size: 11px;
+                font-weight: 600;
+                line-height: 1.25;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+                pointer-events: none;
+              ">${safeLabel}</div>`
+            : ""
+        }
       </div>
     `,
-    iconSize: [highlighted ? 48 : 40, highlighted ? 56 : 48],
-    iconAnchor: [highlighted ? 24 : 20, highlighted ? 56 : 48],
-    popupAnchor: [0, highlighted ? -56 : -48],
+    iconSize: [size, height],
+    iconAnchor: [size / 2, height],
+    popupAnchor: [0, -height],
   });
 }
 
@@ -214,6 +262,159 @@ function formatDuration(minutes: number | null): string {
   return m === 0 ? `${h} jam` : `${h} jam ${m} menit`;
 }
 
+function PopupLocationDetails({
+  lat,
+  lng,
+  updatedAt,
+  accuracy,
+  extraLine,
+  geocodeEnabled,
+}: {
+  lat: number;
+  lng: number;
+  updatedAt: string;
+  accuracy?: number | null;
+  extraLine?: string;
+  geocodeEnabled: boolean;
+}) {
+  const { address, loading } = useReverseGeocode(lat, lng, geocodeEnabled);
+
+  return (
+    <div className="mt-2 space-y-1.5 border-t border-gray-200 pt-2 text-xs text-gray-600">
+      <div className="flex items-start gap-1.5 text-gray-800">
+        <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" />
+        <span className="leading-snug">
+          {address
+            ? address
+            : loading
+            ? "Mencari nama jalan / area..."
+            : "Alamat tidak tersedia"}
+        </span>
+      </div>
+      <p className="font-mono text-[11px] text-gray-500">
+        {lat.toFixed(5)}, {lng.toFixed(5)}
+        {accuracy ? ` · ±${Math.round(accuracy)}m` : ""}
+      </p>
+      <p className="text-[11px] text-gray-500">
+        Update: {formatTimeWIB(updatedAt)} WIB ({getRelativeTime(updatedAt)})
+      </p>
+      {extraLine && <p className="text-[11px] text-gray-500">{extraLine}</p>}
+      <a
+        href={googleMapsUrl(lat, lng)}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-1 inline-flex items-center gap-1 rounded-md bg-emerald-600 px-2.5 py-1 text-[11px] font-medium text-white hover:bg-emerald-700"
+      >
+        <ExternalLink className="h-3 w-3" />
+        Buka di Google Maps
+      </a>
+    </div>
+  );
+}
+
+function LiveLocationMarker({
+  location,
+  color,
+  initials,
+  hasOverdue,
+  isHighlighted,
+}: {
+  location: Location;
+  color: string;
+  initials: string;
+  hasOverdue: boolean;
+  isHighlighted: boolean;
+}) {
+  const [opened, setOpened] = useState(false);
+  const user = location.user;
+  if (!user) return null;
+
+  const firstName = user.name.trim().split(/\s+/)[0] || user.name;
+  const label = `${firstName} · ${formatCompactRelative(location.updated_at)}`;
+
+  return (
+    <Marker
+      position={[location.lat, location.lng]}
+      icon={createCustomIcon(color, initials, hasOverdue, isHighlighted, label)}
+      zIndexOffset={isHighlighted ? 1000 : 0}
+      eventHandlers={{
+        popupopen: () => setOpened(true),
+      }}
+    >
+      <Popup minWidth={230}>
+        <div className="p-0.5">
+          <p className="text-sm font-bold text-gray-900">{user.name}</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+            {user.role}
+          </p>
+          <PopupLocationDetails
+            lat={location.lat}
+            lng={location.lng}
+            updatedAt={location.updated_at}
+            accuracy={location.accuracy}
+            geocodeEnabled={opened || isHighlighted}
+          />
+        </div>
+      </Popup>
+    </Marker>
+  );
+}
+
+function HistoricalEndpointMarker({
+  endpoint,
+  color,
+  initials,
+  isHighlighted,
+  sessionDate,
+}: {
+  endpoint: {
+    key: string;
+    userId: string;
+    userName: string;
+    userRole: string;
+    lat: number;
+    lng: number;
+    when: string;
+    via: "visit" | "ping";
+  };
+  color: string;
+  initials: string;
+  isHighlighted: boolean;
+  sessionDate: string;
+}) {
+  const [opened, setOpened] = useState(false);
+  const firstName = endpoint.userName.trim().split(/\s+/)[0] || endpoint.userName;
+
+  return (
+    <Marker
+      position={[endpoint.lat, endpoint.lng]}
+      icon={createCustomIcon(color, initials, false, isHighlighted, firstName)}
+      zIndexOffset={isHighlighted ? 1000 : 0}
+      eventHandlers={{
+        popupopen: () => setOpened(true),
+      }}
+    >
+      <Popup minWidth={230}>
+        <div className="p-0.5">
+          <p className="text-sm font-bold text-gray-900">{endpoint.userName}</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+            {endpoint.userRole}
+          </p>
+          <PopupLocationDetails
+            lat={endpoint.lat}
+            lng={endpoint.lng}
+            updatedAt={endpoint.when}
+            extraLine={`Sesi ${sessionDate} · ${
+              endpoint.via === "visit" ? "Stop terakhir" : "Ping terakhir"
+            }`}
+            geocodeEnabled={opened || isHighlighted}
+          />
+        </div>
+      </Popup>
+    </Marker>
+  );
+}
+
 /**
  * Basemap configuration.
  *
@@ -270,6 +471,7 @@ interface RadarMapProps {
   sessionDate?: string; // YYYY-MM-DD; defaults to today's session date
   incidentFilter?: "all" | "active" | "overdue";
   layoutKey?: string | number;
+  refreshKey?: number;
   variant?: "card" | "flush";
   coordsClassName?: string;
 }
@@ -281,6 +483,7 @@ export function RadarMap({
   sessionDate,
   incidentFilter = "all",
   layoutKey,
+  refreshKey = 0,
   variant = "card",
   coordsClassName,
 }: RadarMapProps) {
@@ -355,7 +558,7 @@ export function RadarMap({
       supabase.removeChannel(pingChannel);
       supabase.removeChannel(taskChannel);
     };
-  }, [sessionDate, reloadVisits, reloadPings]);
+  }, [sessionDate, refreshKey, reloadVisits, reloadPings]);
 
   // Fetch OSRM road-following routes for each user's ping/visit polyline.
   // Runs whenever pings or visits change. Falls back to straight lines on error.
@@ -548,28 +751,14 @@ export function RadarMap({
         const isHighlighted = focusUserId === e.userId;
 
         return (
-          <Marker
+          <HistoricalEndpointMarker
             key={e.key}
-            position={[e.lat, e.lng]}
-            icon={createCustomIcon(color, initials, false, isHighlighted)}
-            zIndexOffset={isHighlighted ? 1000 : 0}
-          >
-            <Popup>
-              <div className="p-1">
-                <p className="font-bold">{e.userName}</p>
-                <p className="text-sm text-gray-600 uppercase">{e.userRole}</p>
-                <p className="text-xs text-gray-500 mt-1">
-                  Posisi terakhir: {formatTimeWIB(e.when)} WIB
-                </p>
-                <p className="text-xs text-gray-500">
-                  Sesi: {effectiveSessionDate}
-                </p>
-                <p className="text-xs text-gray-500">
-                  Sumber: {e.via === "visit" ? "Stop terakhir" : "Ping terakhir"}
-                </p>
-              </div>
-            </Popup>
-          </Marker>
+            endpoint={e}
+            color={color}
+            initials={initials}
+            isHighlighted={isHighlighted}
+            sessionDate={effectiveSessionDate}
+          />
         );
       });
   }
@@ -646,15 +835,26 @@ export function RadarMap({
                   icon={createPingIcon(color, p.ping_number)}
                 >
                   <Popup>
-                    <div className="p-1">
-                      <p className="font-bold">Ping #{p.ping_number}</p>
-                      <p className="text-xs text-gray-600">📍 {p.lat.toFixed(5)}, {p.lng.toFixed(5)}</p>
-                      <p className="text-xs text-gray-500 mt-1">
+                    <div className="p-1 space-y-1">
+                      <p className="font-bold text-gray-900">Ping #{p.ping_number}</p>
+                      <p className="font-mono text-xs text-gray-600">
+                        {p.lat.toFixed(5)}, {p.lng.toFixed(5)}
+                      </p>
+                      <p className="text-xs text-gray-500">
                         {formatTimeWIB(p.created_at)} WIB
                       </p>
                       {p.source && (
                         <p className="text-xs text-gray-500">via {p.source}</p>
                       )}
+                      <a
+                        href={googleMapsUrl(p.lat, p.lng)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 hover:underline"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                        Google Maps
+                      </a>
                     </div>
                   </Popup>
                 </Marker>
@@ -702,10 +902,12 @@ export function RadarMap({
                   icon={createVisitIcon(color, v.visit_number)}
                 >
                   <Popup>
-                    <div className="p-1">
-                      <p className="font-bold">Stop #{v.visit_number}</p>
-                      <p className="text-xs text-gray-600">📍 {v.lat.toFixed(5)}, {v.lng.toFixed(5)}</p>
-                      <p className="text-xs text-gray-500 mt-1">
+                    <div className="p-1 space-y-1">
+                      <p className="font-bold text-gray-900">Stop #{v.visit_number}</p>
+                      <p className="font-mono text-xs text-gray-600">
+                        {v.lat.toFixed(5)}, {v.lng.toFixed(5)}
+                      </p>
+                      <p className="text-xs text-gray-500">
                         Tiba: {formatTimeWIB(v.arrived_at)} WIB
                       </p>
                       {v.departed_at && (
@@ -713,9 +915,18 @@ export function RadarMap({
                           Berangkat: {formatTimeWIB(v.departed_at)} WIB
                         </p>
                       )}
-                      <p className="text-xs text-gray-700 mt-1 font-medium">
+                      <p className="text-xs text-gray-700 font-medium">
                         Durasi: {formatDuration(v.duration_minutes)}
                       </p>
+                      <a
+                        href={googleMapsUrl(v.lat, v.lng)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 hover:underline"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                        Google Maps
+                      </a>
                     </div>
                   </Popup>
                 </Marker>
@@ -752,27 +963,14 @@ export function RadarMap({
               const isHighlighted = focusUserId === location.user_id;
 
               return (
-                <Marker
+                <LiveLocationMarker
                   key={location.id}
-                  position={[location.lat, location.lng]}
-                  icon={createCustomIcon(color, initials, hasOverdue, isHighlighted)}
-                  zIndexOffset={isHighlighted ? 1000 : 0}
-                >
-                  <Popup>
-                    <div className="p-1">
-                      <p className="font-bold">{user.name}</p>
-                      <p className="text-sm text-gray-600 uppercase">{user.role}</p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Update: {getRelativeTime(location.updated_at)}
-                      </p>
-                      {location.accuracy && (
-                        <p className="text-xs text-gray-500">
-                          Akurasi: ±{Math.round(location.accuracy)}m
-                        </p>
-                      )}
-                    </div>
-                  </Popup>
-                </Marker>
+                  location={location}
+                  color={color}
+                  initials={initials}
+                  hasOverdue={hasOverdue}
+                  isHighlighted={isHighlighted}
+                />
               );
             })}
       </MapContainer>
