@@ -9,9 +9,11 @@ import { AttendanceHistory } from "@/components/attendance/attendance-history";
 import { TodoFormDialog } from "@/components/attendance/todo-form-dialog";
 import { TodoList } from "@/components/attendance/todo-list";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { COPY } from "@/lib/copy";
+import { upsertLocation } from "@/lib/db";
 import { Attendance, AttendanceReminderSettings, AttendanceStats, AttendanceTodo, GroupedDay } from "@/types";
-import { AlarmClock, Clock } from "lucide-react";
+import { AlarmClock, Clock, MapPin, Navigation, X } from "lucide-react";
 import { toast } from "sonner";
 
 interface AttendancePayload {
@@ -26,9 +28,14 @@ export default function AttendancePage() {
   const [todoDialogOpen, setTodoDialogOpen] = useState(false);
   const [schedule, setSchedule] = useState<AttendanceReminderSettings | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [fieldUserId, setFieldUserId] = useState<string | null>(null);
+  const [showGpsBanner, setShowGpsBanner] = useState(false);
+  const [activatingGps, setActivatingGps] = useState(false);
 
-  const load = async () => {
-    setLoading(true);
+  const load = async (showSpinner: boolean = true) => {
+    if (showSpinner) {
+      setLoading(true);
+    }
     try {
       const [res, schedRes] = await Promise.all([
         fetch("/api/attendance", { cache: "no-store" }),
@@ -52,16 +59,79 @@ export default function AttendancePage() {
   };
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem("tutrack-user");
-      if (raw && JSON.parse(raw).role === "admin") {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setIsAdmin(true);
+    let cancelled = false;
+
+    async function checkInitial() {
+      try {
+        const raw = localStorage.getItem("tutrack-user");
+        if (raw) {
+          const parsed = JSON.parse(raw) as { id?: string; role?: string };
+          if (parsed.role === "admin" && !cancelled) {
+            setIsAdmin(true);
+          }
+          if (
+            (parsed.role === "foc" || parsed.role === "marketing") &&
+            parsed.id
+          ) {
+            if (!cancelled) setFieldUserId(parsed.id);
+            const promptSeen =
+              localStorage.getItem("tutrack-gps-prompt-seen") === "true";
+            const alreadyEnabled =
+              localStorage.getItem("tutrack-location-enabled") === "true";
+
+            if (!promptSeen && !alreadyEnabled && "geolocation" in navigator) {
+              let permState: PermissionState | null = null;
+              if ("permissions" in navigator && navigator.permissions?.query) {
+                try {
+                  const perm = await navigator.permissions.query({
+                    name: "geolocation",
+                  });
+                  permState = perm.state;
+                } catch {
+                  // Permissions API unavailable
+                }
+              }
+              if (!cancelled && permState !== "granted") {
+                setShowGpsBanner(true);
+              } else if (permState === "granted") {
+                localStorage.setItem("tutrack-gps-prompt-seen", "true");
+              }
+            }
+          }
+        }
+      } catch {
+        // ignore
       }
-    } catch {
-      // ignore
     }
-    load();
+
+    async function loadInitial() {
+      try {
+        const [res, schedRes] = await Promise.all([
+          fetch("/api/attendance", { cache: "no-store" }),
+          fetch("/api/attendance/reminder-settings", { cache: "no-store" }),
+        ]);
+        if (!cancelled && res.ok) {
+          const json = (await res.json()) as AttendancePayload;
+          setData(json);
+        }
+        if (!cancelled && schedRes.ok) {
+          const schedJson = (await schedRes.json()) as {
+            settings: AttendanceReminderSettings;
+          };
+          setSchedule(schedJson.settings);
+        }
+      } catch (err) {
+        console.error("Failed to load attendance:", err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    void checkInitial();
+    void loadInitial();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const hasBerangkat = (data?.today ?? []).some((t) => t.type === "berangkat");
@@ -126,6 +196,18 @@ export default function AttendancePage() {
 
       const record = (await res.json()) as Attendance;
       handleRecorded(record);
+      if (lat != null && lng != null && record.user_id) {
+        void upsertLocation(record.user_id, lat, lng, undefined, "web_app");
+        localStorage.setItem("tutrack-location-enabled", "true");
+        localStorage.setItem("tutrack-gps-prompt-seen", "true");
+        sessionStorage.removeItem("tutrack-location-paused");
+        setShowGpsBanner(false);
+        window.dispatchEvent(
+          new CustomEvent("tutrack-location-control", {
+            detail: { action: "start" },
+          })
+        );
+      }
       if (typeof window !== "undefined") {
         window.dispatchEvent(new Event("tutrack-attendance-updated"));
       }
@@ -137,6 +219,49 @@ export default function AttendancePage() {
       console.error("Attendance record error:", err);
       toast.error(COPY.attendance.failedRecord);
     }
+  };
+
+  const handleEnableGpsOnce = () => {
+    if (!("geolocation" in navigator)) {
+      toast.error(COPY.toasts.geolocationUnsupported);
+      return;
+    }
+    setActivatingGps(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude, longitude, accuracy } = pos.coords;
+        if (fieldUserId) {
+          await upsertLocation(
+            fieldUserId,
+            latitude,
+            longitude,
+            accuracy,
+            "web_app"
+          );
+        }
+        localStorage.setItem("tutrack-location-enabled", "true");
+        localStorage.setItem("tutrack-gps-prompt-seen", "true");
+        sessionStorage.removeItem("tutrack-location-paused");
+        window.dispatchEvent(
+          new CustomEvent("tutrack-location-control", {
+            detail: { action: "start" },
+          })
+        );
+        setShowGpsBanner(false);
+        setActivatingGps(false);
+        toast.success("GPS aktif. Posisi akan terlacak otomatis saat aplikasi dibuka.");
+      },
+      () => {
+        setActivatingGps(false);
+        toast.error(COPY.toasts.geolocationDenied);
+      },
+      { enableHighAccuracy: true, timeout: 10_000, maximumAge: 0 }
+    );
+  };
+
+  const handleDismissGpsBanner = () => {
+    localStorage.setItem("tutrack-gps-prompt-seen", "true");
+    setShowGpsBanner(false);
   };
 
   const todayTodos: AttendanceTodo[] =
@@ -157,6 +282,46 @@ export default function AttendancePage() {
         </div>
 
         <div className="p-6 space-y-6 max-w-6xl">
+          {showGpsBanner && (
+            <div
+              role="region"
+              aria-label="Aktivasi GPS saat absen"
+              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-tunet-signal/35 bg-tunet-signal/10 px-4 py-3"
+            >
+              <div className="flex min-w-0 items-start gap-2.5">
+                <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-tunet-signal" />
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-tunet-text">
+                    Izinkan GPS sekali saat absen
+                  </p>
+                  <p className="text-[11px] text-tunet-text-muted">
+                    Setelah diizinkan, peta &amp; rute berjalan otomatis setiap kali aplikasi dibuka tanpa memunculkan pengingat ini lagi.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={activatingGps}
+                  onClick={handleEnableGpsOnce}
+                  className="h-8 bg-tunet-green text-xs text-white hover:bg-tunet-green-dark"
+                >
+                  <Navigation className="mr-1.5 h-3.5 w-3.5" />
+                  {activatingGps ? "Mengaktifkan..." : "Izinkan GPS"}
+                </Button>
+                <button
+                  type="button"
+                  onClick={handleDismissGpsBanner}
+                  aria-label="Tutup pemberitahuan GPS"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-tunet-text-muted hover:bg-tunet-surface-hover hover:text-tunet-text"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
           {schedule && (
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-tunet-border bg-tunet-surface px-4 py-3 text-xs">
               <div className="flex items-center gap-2 text-tunet-text">

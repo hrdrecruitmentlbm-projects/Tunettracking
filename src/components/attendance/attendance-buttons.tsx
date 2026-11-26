@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Attendance, AttendanceType } from "@/types";
 import { cn } from "@/lib/utils";
 import { formatTimeWIB } from "@/lib/time";
+import { upsertLocation } from "@/lib/db";
 import { COPY } from "@/lib/copy";
 import { ArrowRightToLine, ArrowLeftFromLine, Check, MapPin, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -76,6 +77,17 @@ export function AttendanceButtons({ today, onRecorded, onBerangkatClick }: Atten
 
       const record = (await res.json()) as Attendance;
       onRecorded(record);
+      if (lat != null && lng != null && record.user_id) {
+        void upsertLocation(record.user_id, lat, lng, undefined, "web_app");
+        localStorage.setItem("tutrack-location-enabled", "true");
+        localStorage.setItem("tutrack-gps-prompt-seen", "true");
+        sessionStorage.removeItem("tutrack-location-paused");
+        window.dispatchEvent(
+          new CustomEvent("tutrack-location-control", {
+            detail: { action: "start" },
+          })
+        );
+      }
       if (typeof window !== "undefined") {
         window.dispatchEvent(new Event("tutrack-attendance-updated"));
       }

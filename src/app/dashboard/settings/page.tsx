@@ -15,6 +15,7 @@ import { COPY } from "@/lib/copy";
 import { useLocalStorageState } from "@/hooks/use-local-storage-state";
 import { fetchTags, createTag, updateTag, deleteTag, fetchProspectStatuses, createProspectStatus, updateProspectStatus, deleteProspectStatus } from "@/lib/db";
 import { AttendanceAlarmSettingsCard } from "@/components/settings/attendance-alarm-settings";
+import { LocationTrackingSettingsCard } from "@/components/settings/location-tracking-settings";
 
 function getStoredUser() {
   if (typeof window === "undefined") return null;
@@ -332,6 +333,8 @@ export default function SettingsPage() {
           </Card>
 
           <AttendanceAlarmSettingsCard role={user?.role} />
+
+          <LocationTrackingSettingsCard role={user?.role} />
 
           {user?.role === "admin" && (
             <Card className="bg-tunet-surface border-tunet-border">

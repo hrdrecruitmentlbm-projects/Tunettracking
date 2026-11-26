@@ -8,6 +8,7 @@ import { VersionChecker } from "./version-checker";
 import { SessionWarningDialog } from "./session-warning-dialog";
 import { CommandPalette } from "./command-palette";
 import { AttendanceAlarmMonitor } from "@/components/attendance/attendance-alarm-monitor";
+import { FieldLocationTracker } from "@/components/map/field-location-tracker";
 import { User } from "@/types";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -109,6 +110,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         className="relative min-w-0 flex-1 overflow-auto w-full pb-[calc(5rem+env(safe-area-inset-bottom))] md:w-auto md:pb-0"
       >
         <div aria-live="polite" aria-atomic="true" className="sr-only" id="tutrack-live-region" />
+        <FieldLocationTracker user={user} />
         {children}
         <VersionChecker />
         <AttendanceAlarmMonitor />

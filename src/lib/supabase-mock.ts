@@ -13,6 +13,7 @@ interface MockStore {
   locations: Row[];
   location_pings: Row[];
   location_visits: Row[];
+  location_tracking_settings: Row[];
   notifications: Row[];
   prospect_statuses: Row[];
   prospects: Row[];
@@ -296,6 +297,13 @@ function createInitialStore(): MockStore {
       },
     ],
     attendance_reminder_logs: [],
+    location_tracking_settings: [
+      {
+        id: "default",
+        interval_minutes: 2,
+        updated_at: now,
+      },
+    ],
     user_sessions: [],
     pending_photo_uploads: [],
     error_log: [],

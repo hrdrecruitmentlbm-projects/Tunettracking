@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, useMemo, Suspense } from "react";
+import { useState, useEffect, useCallback, useMemo, Suspense } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { SignalTower } from "@/components/icons/brand-icons";
@@ -119,8 +119,16 @@ function FOCDashboard() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [evidencePromptTask, setEvidencePromptTask] = useState<Task | null>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [countdownMs, setCountdownMs] = useState(LOCATION_INTERVAL);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [intervalMs, setIntervalMs] = useState<number>(() => {
+    if (typeof window === "undefined") return LOCATION_INTERVAL;
+    const cached = Number(
+      localStorage.getItem("tutrack-location-interval-minutes")
+    );
+    return Number.isInteger(cached) && cached >= 1 && cached <= 60
+      ? cached * 60 * 1000
+      : LOCATION_INTERVAL;
+  });
+  const [countdownMs, setCountdownMs] = useState(intervalMs);
 
   useTelegramDispatch(currentUser?.id);
 
@@ -167,10 +175,61 @@ function FOCDashboard() {
   }, [tasks, searchParams]);
 
   useEffect(() => {
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
+    const onLocationUpdated = (event: Event) => {
+      const custom = event as CustomEvent<{
+        lat?: number;
+        lng?: number;
+        updatedAt?: string;
+        enabled?: boolean;
+      }>;
+      const detail = custom.detail;
+      if (!detail) return;
+      if (typeof detail.enabled === "boolean") {
+        setLocationEnabled(detail.enabled);
+        if (!detail.enabled) {
+          setCurrentLocation(null);
+          setLastUpdated(null);
+        }
       }
+      if (typeof detail.lat === "number" && typeof detail.lng === "number") {
+        setCurrentLocation({ lat: detail.lat, lng: detail.lng });
+      }
+      if (detail.updatedAt) {
+        setLastUpdated(new Date(detail.updatedAt));
+      }
+    };
+
+    const onSettingsUpdated = (event: Event) => {
+      const custom = event as CustomEvent<{ interval_minutes?: number }>;
+      const mins = custom.detail?.interval_minutes;
+      if (typeof mins === "number" && mins >= 1 && mins <= 60) {
+        setIntervalMs(mins * 60 * 1000);
+      }
+    };
+
+    fetch("/api/location/settings", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json: { settings?: { interval_minutes?: number } } | null) => {
+        const mins = json?.settings?.interval_minutes;
+        if (typeof mins === "number" && mins >= 1 && mins <= 60) {
+          setIntervalMs(mins * 60 * 1000);
+        }
+      })
+      .catch(() => {
+        // keep cached or default
+      });
+
+    window.addEventListener("tutrack-location-updated", onLocationUpdated);
+    window.addEventListener(
+      "tutrack-location-settings-updated",
+      onSettingsUpdated
+    );
+    return () => {
+      window.removeEventListener("tutrack-location-updated", onLocationUpdated);
+      window.removeEventListener(
+        "tutrack-location-settings-updated",
+        onSettingsUpdated
+      );
     };
   }, []);
 
@@ -193,10 +252,14 @@ function FOCDashboard() {
             lat: position.coords.latitude,
             lng: position.coords.longitude,
           };
+          const now = new Date();
           setCurrentLocation(loc);
-          setLastUpdated(new Date());
+          setLastUpdated(now);
 
           await upsertLocation(userId, loc.lat, loc.lng, position.coords.accuracy);
+          localStorage.setItem("tutrack-location-enabled", "true");
+          localStorage.setItem("tutrack-gps-prompt-seen", "true");
+          sessionStorage.removeItem("tutrack-location-paused");
           resolve(true);
         },
         (error) => {
@@ -208,42 +271,26 @@ function FOCDashboard() {
     });
   }, [userId]);
 
-  // Restore location sharing interval on mount if previously enabled
-  useEffect(() => {
-    if (locationEnabled && userId) {
-      intervalRef.current = setInterval(async () => {
-        await sendLocationToServer();
-      }, LOCATION_INTERVAL);
-    }
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]);
-
   // Countdown timer for next auto-update
   useEffect(() => {
     if (!locationEnabled) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setCountdownMs(LOCATION_INTERVAL);
+      setCountdownMs(intervalMs);
       return;
     }
     const tick = () => {
       if (!lastUpdated) {
-        setCountdownMs(LOCATION_INTERVAL);
+        setCountdownMs(intervalMs);
         return;
       }
       const elapsed = Date.now() - lastUpdated.getTime();
-      const remaining = Math.max(0, LOCATION_INTERVAL - elapsed);
+      const remaining = Math.max(0, intervalMs - elapsed);
       setCountdownMs(remaining);
     };
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, [locationEnabled, lastUpdated]);
+  }, [locationEnabled, lastUpdated, intervalMs]);
 
   const myTasks = useMemo(
     () => tasks.filter((task) => task.assigned_to === userId),
@@ -332,12 +379,12 @@ function FOCDashboard() {
     if (locationEnabled) {
       setLocationEnabled(false);
       localStorage.setItem("tutrack-location-enabled", "false");
+      sessionStorage.setItem("tutrack-location-paused", "true");
       setCurrentLocation(null);
       setLastUpdated(null);
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
+      window.dispatchEvent(
+        new CustomEvent("tutrack-location-control", { detail: { action: "stop" } })
+      );
       toast.info(COPY.toasts.locationSharingDisabled);
     } else {
       if (!("geolocation" in navigator)) {
@@ -353,11 +400,11 @@ function FOCDashboard() {
       }
       setLocationEnabled(true);
       localStorage.setItem("tutrack-location-enabled", "true");
+      sessionStorage.removeItem("tutrack-location-paused");
+      window.dispatchEvent(
+        new CustomEvent("tutrack-location-control", { detail: { action: "start" } })
+      );
       toast.success(COPY.toasts.locationSharingEnabled);
-
-      intervalRef.current = setInterval(async () => {
-        await sendLocationToServer();
-      }, LOCATION_INTERVAL);
     }
   };
 
