@@ -11,6 +11,7 @@ interface PinInputProps {
   onComplete?: (value: string) => void;
   hasError?: boolean;
   disabled?: boolean;
+  disableVirtualKeyboard?: boolean;
 }
 
 const PIN_LENGTH = 4;
@@ -29,6 +30,7 @@ export function PinInput({
   onComplete,
   hasError,
   disabled,
+  disableVirtualKeyboard = false,
 }: PinInputProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [focused, setFocused] = useState(false);
@@ -63,7 +65,11 @@ export function PinInput({
   return (
     <div
       className="relative flex justify-center"
-      onClick={() => inputRef.current?.focus()}
+      onClick={() => {
+        if (!disableVirtualKeyboard) {
+          inputRef.current?.focus();
+        }
+      }}
     >
       <div
         aria-hidden="true"
@@ -74,7 +80,7 @@ export function PinInput({
       >
         {Array.from({ length: PIN_LENGTH }).map((_, index) => {
           const char = value[index];
-          const isActive = focused && index === value.length;
+          const isActive = !disableVirtualKeyboard && focused && index === value.length;
           return (
             <div
               key={index}
@@ -97,7 +103,9 @@ export function PinInput({
         ref={inputRef}
         id="pin-input"
         type="text"
-        inputMode="numeric"
+        inputMode={disableVirtualKeyboard ? "none" : "numeric"}
+        readOnly={disableVirtualKeyboard}
+        tabIndex={disableVirtualKeyboard ? -1 : 0}
         autoComplete="one-time-code"
         aria-label={COPY.auth.pinAriaLabel}
         value={value}
@@ -106,7 +114,7 @@ export function PinInput({
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
         disabled={disabled}
-        autoFocus
+        autoFocus={!disableVirtualKeyboard}
         className="sr-only"
       />
 

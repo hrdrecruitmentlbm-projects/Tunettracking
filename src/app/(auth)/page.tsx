@@ -1,40 +1,67 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
 import { TuTrackMark } from "@/components/icons/brand-icons";
 import { PinInput } from "@/components/auth/pin-input";
 import { PinKeypad } from "@/components/auth/pin-keypad";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { COPY } from "@/lib/copy";
 
+const LOGIN_TIMEOUT_MS = 15_000;
+
 export default function LoginPage() {
   const router = useRouter();
   const [pin, setPin] = useState("");
   const [errorCount, setErrorCount] = useState(0);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
+  const redirectFallbackRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Touch devices get the on-screen keypad; desktop uses the keyboard.
   const isTouch = useMediaQuery("(hover: none)");
 
+  useEffect(() => {
+    return () => {
+      if (redirectFallbackRef.current) {
+        clearTimeout(redirectFallbackRef.current);
+      }
+    };
+  }, []);
+
   const handleLogin = async (pinToSubmit?: string) => {
     const value = pinToSubmit ?? pin;
-    if (value.length < 4 || loading) return;
+    if (value.length < 4 || loading || redirecting) return;
+
     setLoading(true);
+    setErrorMessage(null);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), LOGIN_TIMEOUT_MS);
 
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pin: value }),
+        signal: controller.signal,
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        toast.error(data.error || COPY.auth.invalidPin);
+        const msg =
+          res.status === 429
+            ? "Terlalu banyak percobaan login. Tunggu 1 menit lalu coba lagi."
+            : res.status === 401
+              ? COPY.auth.invalidPin
+              : data.error || COPY.auth.loginError;
+        setErrorMessage(msg);
+        toast.error(msg);
         setPin("");
         setErrorCount((count) => count + 1);
         return;
@@ -87,18 +114,48 @@ export default function LoginPage() {
         destination = returnUrl;
       }
 
-      router.push(destination);
+      setRedirecting(true);
+      router.replace(destination);
+      // Fallback for slow mobile connections where Next client transition stalls
+      redirectFallbackRef.current = setTimeout(() => {
+        if (typeof window !== "undefined") {
+          window.location.assign(destination);
+        }
+      }, 3000);
     } catch (error) {
+      const isTimeout =
+        error instanceof DOMException && error.name === "AbortError";
+      const msg = isTimeout
+        ? "Koneksi lambat atau server belum merespons. Silakan coba masuk lagi."
+        : "Gagal terhubung ke server. Periksa internet lalu coba lagi.";
       console.error("Login error:", error);
-      toast.error(COPY.auth.loginError);
-      setPin("");
+      setErrorMessage(msg);
+      toast.error(msg);
       setErrorCount((count) => count + 1);
     } finally {
+      clearTimeout(timeoutId);
       setLoading(false);
     }
   };
 
-  const showInlineError = errorCount > 0 && pin.length === 0;
+  const handleTouchDigit = (digit: string) => {
+    if (loading || redirecting || pin.length >= 4) return;
+    setErrorMessage(null);
+    const nextPin = (pin + digit).slice(0, 4);
+    setPin(nextPin);
+    if (nextPin.length === 4) {
+      void handleLogin(nextPin);
+    }
+  };
+
+  const handleTouchDelete = () => {
+    if (loading || redirecting) return;
+    setErrorMessage(null);
+    setPin((prev) => prev.slice(0, -1));
+  };
+
+  const showInlineError = Boolean(errorMessage) || (errorCount > 0 && pin.length === 0);
+  const isBusy = loading || redirecting;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-tunet-bg p-4">
@@ -128,36 +185,50 @@ export default function LoginPage() {
               </label>
               <PinInput
                 value={pin}
-                onChange={setPin}
+                onChange={(val) => {
+                  setErrorMessage(null);
+                  setPin(val);
+                }}
                 onComplete={(value) => handleLogin(value)}
                 hasError={showInlineError}
-                disabled={loading}
+                disabled={isBusy}
+                disableVirtualKeyboard={isTouch}
               />
-              {showInlineError && (
+              {isBusy && (
+                <div
+                  role="status"
+                  className="flex items-center justify-center gap-2 pt-1 text-xs font-medium text-tunet-green"
+                >
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <span>{redirecting ? "Membuka dasbor..." : COPY.auth.signingIn}</span>
+                </div>
+              )}
+              {!isBusy && showInlineError && (
                 <p
                   role="alert"
                   className="text-center text-xs font-medium text-status-overdue"
                 >
-                  {COPY.auth.invalidPin}
+                  {errorMessage || COPY.auth.invalidPin}
                 </p>
               )}
             </div>
 
             {isTouch ? (
               <PinKeypad
-                onDigit={(digit) => setPin((prev) => (prev + digit).slice(0, 4))}
-                onDelete={() => setPin((prev) => prev.slice(0, -1))}
+                onDigit={handleTouchDigit}
+                onDelete={handleTouchDelete}
                 onSubmit={() => handleLogin()}
                 canSubmit={pin.length === 4}
-                disabled={loading}
+                disabled={isBusy}
+                loading={isBusy}
               />
             ) : (
               <Button
                 type="submit"
                 className="w-full bg-tunet-green hover:bg-tunet-green-dark text-white"
-                disabled={pin.length < 4 || loading}
+                disabled={pin.length < 4 || isBusy}
               >
-                {loading ? COPY.auth.signingIn : COPY.auth.signIn}
+                {isBusy ? (redirecting ? "Membuka dasbor..." : COPY.auth.signingIn) : COPY.auth.signIn}
               </Button>
             )}
           </form>

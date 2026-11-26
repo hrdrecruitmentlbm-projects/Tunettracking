@@ -1,6 +1,6 @@
 "use client";
 
-import { Delete, CornerDownLeft } from "lucide-react";
+import { Delete, CornerDownLeft, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { COPY } from "@/lib/copy";
 
@@ -10,12 +10,13 @@ interface PinKeypadProps {
   onSubmit: () => void;
   canSubmit: boolean;
   disabled?: boolean;
+  loading?: boolean;
 }
 
 const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
 
 const KEY_CLASS =
-  "touch-target flex min-h-14 items-center justify-center rounded-xl border border-tunet-border bg-tunet-surface text-lg font-semibold text-tunet-text transition-colors hover:bg-tunet-surface-hover active:bg-tunet-green/20 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tunet-green/70 motion-reduce:transition-none";
+  "touch-target touch-manipulation select-none flex min-h-14 items-center justify-center rounded-xl border border-tunet-border bg-tunet-surface text-lg font-semibold text-tunet-text transition-colors hover:bg-tunet-surface-hover active:bg-tunet-green/20 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tunet-green/70 motion-reduce:transition-none";
 
 /**
  * Large on-screen numeric keypad for PIN entry — for field tablets and
@@ -28,10 +29,11 @@ export function PinKeypad({
   onSubmit,
   canSubmit,
   disabled,
+  loading = false,
 }: PinKeypadProps) {
   return (
     <div
-      className="mx-auto grid w-full max-w-64 grid-cols-3 gap-2.5"
+      className="mx-auto grid w-full max-w-64 grid-cols-3 gap-2.5 touch-manipulation"
       role="group"
       aria-label={COPY.auth.keypadLabel}
     >
@@ -54,7 +56,11 @@ export function PinKeypad({
         onClick={onSubmit}
         aria-label={COPY.auth.signIn}
       >
-        <CornerDownLeft className="size-5" aria-hidden="true" />
+        {loading ? (
+          <Loader2 className="size-5 animate-spin" aria-hidden="true" />
+        ) : (
+          <CornerDownLeft className="size-5" aria-hidden="true" />
+        )}
       </button>
 
       <button
