@@ -1776,7 +1776,7 @@ export async function fetchMarketingStats(): Promise<MarketingStats> {
     fetchVisitLogs({ limit: 1000 }),
   ]);
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Jakarta" });
 
   return {
     totalProspects: prospects.length,
@@ -1785,7 +1785,10 @@ export async function fetchMarketingStats(): Promise<MarketingStats> {
     totalTowerSites: towerSites.length,
     accTowerSites: towerSites.filter((t) => t.status === "acc").length,
     pendingTowerSites: towerSites.filter((t) => t.status === "pending").length,
-    visitsToday: visits.filter((v) => v.created_at.startsWith(today)).length,
+    visitsToday: visits.filter(
+      (v) =>
+        new Date(v.created_at).toLocaleDateString("sv-SE", { timeZone: "Asia/Jakarta" }) === today
+    ).length,
     totalVisits: visits.length,
   };
 }

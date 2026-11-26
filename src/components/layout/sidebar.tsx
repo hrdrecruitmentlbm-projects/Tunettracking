@@ -35,6 +35,7 @@ const NAV_ITEMS = {
     { href: "/dashboard/admin/users", labelKey: "team" as const, icon: Users },
     { href: "/dashboard/admin/attendance", labelKey: "attendanceOverview" as const, icon: Users },
     { href: "/dashboard/admin/marketing", labelKey: "marketing" as const, icon: Target },
+    { href: "/dashboard/admin/kunjungan", labelKey: "visitOverview" as const, icon: ClipboardCheck },
     { href: "/dashboard/settings", labelKey: "settings" as const, icon: Settings },
   ],
   noc: [

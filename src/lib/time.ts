@@ -170,3 +170,14 @@ export function formatDuration(minutes: number | null | undefined): string {
   if (m === 0) return `${h}j`;
   return `${h}j ${m}m`;
 }
+
+/**
+ * Convert a Date or ISO timestamp into YYYY-MM-DD in Asia/Jakarta (WIB) timezone.
+ * Avoids off-by-one day bugs between 00:00 and 06:59 WIB when using UTC toISOString().
+ */
+export function getWibDateString(date: Date | string = new Date()): string {
+  const d = typeof date === "string" ? new Date(date) : date;
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("sv-SE", { timeZone: "Asia/Jakarta" });
+}
+

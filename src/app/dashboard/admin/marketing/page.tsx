@@ -48,6 +48,7 @@ import { toast } from "sonner";
 import { Breadcrumbs } from "@/components/layout/breadcrumbs";
 import { useProspectStatuses } from "@/hooks/use-prospect-statuses";
 import { ProspectStatusFilter } from "@/components/marketing/prospect-status-filter";
+import { getWibDateString } from "@/lib/time";
 
 type DetailTarget =
   | { kind: "prospek"; prospectId: string }
@@ -164,12 +165,14 @@ export default function AdminMarketingPage() {
     return counts;
   }, [searchedVisits]);
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getWibDateString();
   const activeProspects = prospects.filter(
     (p) => p.status !== "acc" && p.status !== "tidak"
   );
   const accProspects = prospects.filter((p) => p.status === "acc");
-  const todayVisits = visits.filter((v) => v.created_at?.slice(0, 10) === today);
+  const todayVisits = visits.filter(
+    (v) => getWibDateString(v.created_at) === today
+  );
 
   const handleCreate = () => {
     setEditProspect(null);

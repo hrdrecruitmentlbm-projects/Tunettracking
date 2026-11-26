@@ -106,6 +106,7 @@ export const COPY = {
     attendanceOverview: "Rekap Absensi",
     prospects: "Prospek",
     visits: "Kunjungan",
+    visitOverview: "Rekap Kunjungan",
     marketing: "Marketing",
     trash: "Sampah",
   },

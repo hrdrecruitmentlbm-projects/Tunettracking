@@ -42,6 +42,7 @@ const ROLE_NAV: Partial<Record<UserRole, NavEntry[]>> = {
     { href: "/dashboard/admin/users", labelKey: "team", icon: Users },
     { href: "/dashboard/admin/attendance", labelKey: "attendanceOverview", icon: Users },
     { href: "/dashboard/admin/marketing", labelKey: "marketing", icon: Target },
+    { href: "/dashboard/admin/kunjungan", labelKey: "visitOverview", icon: ClipboardCheck },
     { href: "/dashboard/settings", labelKey: "settings", icon: Settings },
   ],
   noc: [
