@@ -23,7 +23,7 @@ import {
 } from "@/lib/db";
 import { User, Tag, Task, PRIORITY_CONFIG } from "@/types";
 import { toast } from "sonner";
-import { MapPin, Calendar, Tag as TagIcon, Clock, X } from "lucide-react";
+import { MapPin, Calendar, Tag as TagIcon, Clock } from "lucide-react";
 import { COPY } from "@/lib/copy";
 import { fromWibDateTimeLocal, toWibDateTimeLocal, getWibDateString } from "@/lib/time";
 
@@ -122,8 +122,15 @@ export function TaskForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    const parsedDeadline = fromWibDateTimeLocal(deadline);
+
     if (!title.trim() || !description.trim() || !locationName.trim()) {
       toast.error(COPY.taskForm.requiredFieldsMissing);
+      return;
+    }
+
+    if (!parsedDeadline) {
+      toast.error("Target penyelesaian (tenggat WIB) wajib diisi");
       return;
     }
 
@@ -150,7 +157,7 @@ export function TaskForm({
       location_name: locationName.trim(),
       location_lat: parseFloat(locationLat) || -6.9175,
       location_lng: parseFloat(locationLng) || 107.6191,
-      deadline: fromWibDateTimeLocal(deadline),
+      deadline: parsedDeadline,
       tagIds: selectedTags.length > 0 ? selectedTags : undefined,
     };
 
@@ -160,7 +167,7 @@ export function TaskForm({
         {
           ...input,
           assigned_to: assignedTo || null,
-          deadline: fromWibDateTimeLocal(deadline) ?? null,
+          deadline: parsedDeadline,
         },
         currentUser
       );
@@ -313,28 +320,17 @@ export function TaskForm({
           </div>
 
           <div className="space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <label htmlFor="task-deadline" className="text-sm font-medium text-tunet-text">
-                <Calendar className="w-3.5 h-3.5 inline mr-1" />
-                {COPY.taskForm.deadline} <span className="text-xs font-normal text-tunet-text-muted">(WIB)</span>
-              </label>
-              {deadline && (
-                <button
-                  type="button"
-                  onClick={() => setDeadline("")}
-                  className="inline-flex items-center gap-1 text-xs text-tunet-text-muted hover:text-red-400 transition-colors"
-                >
-                  <X className="w-3 h-3" />
-                  Hapus tenggat
-                </button>
-              )}
-            </div>
+            <label htmlFor="task-deadline" className="text-sm font-medium text-tunet-text">
+              <Calendar className="w-3.5 h-3.5 inline mr-1" />
+              Target Penyelesaian <span className="text-xs font-normal text-tunet-text-muted">(WIB)</span> <span className="text-red-400">*</span>
+            </label>
             <Input
               id="task-deadline"
               type="datetime-local"
               value={deadline}
               onChange={(e) => setDeadline(e.target.value)}
               className="bg-tunet-bg border-tunet-border text-tunet-text"
+              required
             />
             <div className="flex flex-wrap gap-1.5">
               {[
@@ -421,7 +417,13 @@ export function TaskForm({
           </SheetClose>
           <Button
             onClick={handleSubmit}
-            disabled={submitting || !title.trim() || !description.trim() || !locationName.trim()}
+            disabled={
+              submitting ||
+              !title.trim() ||
+              !description.trim() ||
+              !locationName.trim() ||
+              !fromWibDateTimeLocal(deadline)
+            }
             className="bg-tunet-green hover:bg-tunet-green-dark text-white"
           >
             {submitting
