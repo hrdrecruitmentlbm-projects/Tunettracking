@@ -820,6 +820,61 @@ export async function createNotification(
   return true;
 }
 
+/**
+ * Fetches all 'overdue' notifications across the system for leader Rapot evaluation.
+ */
+export async function fetchOverdueNotifications(): Promise<Notification[]> {
+  const { data, error } = await supabase
+    .from("notifications")
+    .select("*")
+    .eq("type", "overdue")
+    .order("created_at", { ascending: false })
+    .limit(500);
+
+  if (error) {
+    console.error("Error fetching overdue notifications:", error);
+    return [];
+  }
+  return (data || []).map((row) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const r = row as any;
+    return {
+      ...r,
+      task_id: r.task_id ?? r.metadata?.task_id,
+    } as Notification;
+  });
+}
+
+/**
+ * Fallback lookup for actual completion timestamp from task_history when
+ * tasks.completed_at column has not been migrated yet.
+ */
+export async function fetchTaskDoneTimestamps(
+  taskIds: string[]
+): Promise<Record<string, string>> {
+  if (taskIds.length === 0) return {};
+  const { data, error } = await supabase
+    .from("task_history")
+    .select("task_id, created_at")
+    .in("task_id", taskIds)
+    .eq("action", "status_changed")
+    .contains("new_value", { status: "done" })
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("Error fetching task done timestamps:", error);
+    return {};
+  }
+
+  const map: Record<string, string> = {};
+  for (const row of data || []) {
+    if (row.task_id && !map[row.task_id]) {
+      map[row.task_id] = row.created_at;
+    }
+  }
+  return map;
+}
+
 export interface NotificationRow {
   id: string;
   user_id: string;

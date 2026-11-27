@@ -181,3 +181,78 @@ export function getWibDateString(date: Date | string = new Date()): string {
   return d.toLocaleDateString("sv-SE", { timeZone: "Asia/Jakarta" });
 }
 
+/**
+ * Convert an ISO timestamp (or Date) into YYYY-MM-DDTHH:mm in Asia/Jakarta (WIB)
+ * for `<input type="datetime-local">` values.
+ */
+export function toWibDateTimeLocal(value: Date | string | null | undefined): string {
+  if (!value) return "";
+  const d = typeof value === "string" ? new Date(value) : value;
+  if (Number.isNaN(d.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Asia/Jakarta",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(d);
+  const map: Record<string, string> = {};
+  for (const p of parts) map[p.type] = p.value;
+  const hour = map.hour === "24" ? "00" : map.hour;
+  return `${map.year}-${map.month}-${map.day}T${hour}:${map.minute}`;
+}
+
+/**
+ * Parse a `<input type="datetime-local">` string (YYYY-MM-DDTHH:mm) as WIB (+07:00)
+ * and return an ISO UTC string.
+ */
+export function fromWibDateTimeLocal(localValue: string | null | undefined): string | undefined {
+  if (!localValue || !localValue.trim()) return undefined;
+  const trimmed = localValue.trim();
+  const normalized = trimmed.length === 16 ? `${trimmed}:00+07:00` : `${trimmed}+07:00`;
+  const d = new Date(normalized);
+  if (Number.isNaN(d.getTime())) return undefined;
+  return d.toISOString();
+}
+
+/**
+ * Format a timestamp as readable date+time in WIB, e.g. "26 Nov 2026, 17:00 WIB".
+ */
+export function formatDateTimeWIB(value: string | null | undefined): string {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "—";
+  const formatted = d.toLocaleString("id-ID", {
+    timeZone: "Asia/Jakarta",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  return `${formatted} WIB`;
+}
+
+/**
+ * Human-readable lateness duration between deadline and completion/current time.
+ */
+export function formatLateDuration(
+  deadline: string,
+  reference: Date | string = new Date()
+): string {
+  const end = typeof reference === "string" ? new Date(reference) : reference;
+  const due = new Date(deadline);
+  const diffMs = Math.max(0, end.getTime() - due.getTime());
+  const totalMins = Math.floor(diffMs / (1000 * 60));
+  if (totalMins < 1) return "< 1 menit";
+  const days = Math.floor(totalMins / (60 * 24));
+  const hours = Math.floor((totalMins % (60 * 24)) / 60);
+  const mins = totalMins % 60;
+  if (days > 0) return hours > 0 ? `${days} hari ${hours} jam` : `${days} hari`;
+  if (hours > 0) return mins > 0 ? `${hours} jam ${mins} mnt` : `${hours} jam`;
+  return `${mins} menit`;
+}
+

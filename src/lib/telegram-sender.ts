@@ -103,6 +103,7 @@ export async function sendTelegramNotification(
 
   const isReassignment = notif.type === "status_update";
   const isCompleted = notif.type === "completed";
+  const isOverdue = notif.type === "overdue";
 
   // Guard: skip reassignment notification if assignee didn't actually change
   if (isReassignment && metadata?.previous_assignee && metadata?.new_assignee) {
@@ -112,7 +113,29 @@ export async function sendTelegramNotification(
   }
 
   let text: string;
-  if (isCompleted) {
+  if (isOverdue) {
+    const isLeaderRecipient = metadata?.recipient_role === "leader";
+    const assigneeName = metadata?.assignee_name || "Karyawan";
+    if (isLeaderRecipient) {
+      text =
+        `⏰ <b>Karyawan Melewati Tenggat!</b>\n\n` +
+        `<b>Karyawan:</b> ${escapeHtml(assigneeName)}\n` +
+        `<b>Tugas:</b> ${escapeHtml(title)}\n` +
+        `<b>Lokasi:</b> ${escapeHtml(location)}\n` +
+        `<b>Tenggat:</b> ${deadlineText}\n` +
+        `<b>Status saat ini:</b> ${escapeHtml(statusLabel)}\n\n` +
+        `Catatan ini otomatis masuk ke Rapot Karyawan.`;
+    } else {
+      text =
+        `⏰ <b>Tenggat Tugas Terlewat!</b>\n\n` +
+        `<b>Judul:</b> ${escapeHtml(title)}\n` +
+        `<b>Lokasi:</b> ${escapeHtml(location)}\n` +
+        `<b>Prioritas:</b> ${priorityInfo.emoji} ${priorityInfo.label}\n` +
+        `<b>Tenggat:</b> ${deadlineText}\n` +
+        `<b>Status saat ini:</b> ${escapeHtml(statusLabel)}\n\n` +
+        `Segera selesaikan atau laporkan kendala ke leader. Keterlambatan ini tercatat di Rapot Karyawan.`;
+    }
+  } else if (isCompleted) {
     text =
       `<b>Tugas telah selesai</b>\n\n` +
       `Tugas "${escapeHtml(title)}" di ${escapeHtml(location)} telah diselesaikan.`;
@@ -166,7 +189,7 @@ export async function sendTelegramNotification(
   }
 
   // For new task assignments, send a second message with a location-sharing keyboard
-  if (!isReassignment && !isCompleted && taskId) {
+  if (!isReassignment && !isCompleted && !isOverdue && taskId) {
     await fetch(
       `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
       {

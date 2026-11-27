@@ -9,6 +9,7 @@ import { SessionWarningDialog } from "./session-warning-dialog";
 import { CommandPalette } from "./command-palette";
 import { AttendanceAlarmMonitor } from "@/components/attendance/attendance-alarm-monitor";
 import { FieldLocationTracker } from "@/components/map/field-location-tracker";
+import { OverdueDeadlineMonitor } from "@/components/tasks/overdue-deadline-monitor";
 import { User } from "@/types";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -114,6 +115,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         {children}
         <VersionChecker />
         <AttendanceAlarmMonitor />
+        <OverdueDeadlineMonitor role={user.role} />
       </main>
       <BottomNav role={user.role} />
     </div>

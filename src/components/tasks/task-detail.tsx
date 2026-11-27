@@ -44,7 +44,7 @@ import {
   X,
 } from "lucide-react";
 import { COPY } from "@/lib/copy";
-import { formatLongDate } from "@/lib/time";
+import { formatLongDate, formatLateDuration } from "@/lib/time";
 import { buildRouteUrl } from "@/lib/maps";
 import { TaskForm } from "./task-form";
 
@@ -273,6 +273,19 @@ export function TaskDetail({
   const isOverdue =
     task.deadline && new Date(task.deadline) < new Date() && task.status !== "done";
 
+  const completedAtRef =
+    task.status === "done" ? task.completed_at || task.updated_at : null;
+  const completedLate = Boolean(
+    task.deadline &&
+      completedAtRef &&
+      new Date(completedAtRef) > new Date(task.deadline)
+  );
+  const completedOnTime = Boolean(
+    task.deadline &&
+      completedAtRef &&
+      new Date(completedAtRef) <= new Date(task.deadline)
+  );
+
   const formatDate = (dateStr: string) => formatLongDate(dateStr);
 
   return (
@@ -367,9 +380,25 @@ export function TaskDetail({
             >
               {COPY.taskDetail.priorityLabel(priorityConfig.label)}
             </Badge>
-            {isOverdue && (
+            {isOverdue && task.deadline && (
               <Badge variant="destructive" className="text-xs">
-                {COPY.taskCard.overdue}
+                {COPY.taskCard.overdue} {formatLateDuration(task.deadline)} · Masuk Rapot
+              </Badge>
+            )}
+            {completedLate && task.deadline && completedAtRef && (
+              <Badge
+                variant="outline"
+                className="text-xs border-amber-500/40 bg-amber-500/15 text-amber-400"
+              >
+                Selesai Terlambat ({formatLateDuration(task.deadline, completedAtRef)}) · Masuk Rapot
+              </Badge>
+            )}
+            {completedOnTime && (
+              <Badge
+                variant="outline"
+                className="text-xs border-emerald-500/40 bg-emerald-500/15 text-emerald-400"
+              >
+                Selesai Tepat Waktu
               </Badge>
             )}
           </div>

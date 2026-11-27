@@ -108,6 +108,7 @@ export const COPY = {
     visits: "Kunjungan",
     visitOverview: "Rekap Kunjungan",
     marketing: "Marketing",
+    rapot: "Rapot Karyawan",
     trash: "Sampah",
   },
   auth: {

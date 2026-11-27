@@ -145,7 +145,13 @@ export function NotificationsPanel({ userId, onCountChange }: NotificationsPanel
       )
       .subscribe();
 
+    const handleRefreshEvent = () => {
+      loadNotifications();
+    };
+    window.addEventListener("tutrack:refresh-notifications", handleRefreshEvent);
+
     return () => {
+      window.removeEventListener("tutrack:refresh-notifications", handleRefreshEvent);
       supabase.removeChannel(channel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

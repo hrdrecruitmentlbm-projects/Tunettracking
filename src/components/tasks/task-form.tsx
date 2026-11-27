@@ -23,8 +23,9 @@ import {
 } from "@/lib/db";
 import { User, Tag, Task, PRIORITY_CONFIG } from "@/types";
 import { toast } from "sonner";
-import { MapPin, Calendar, Tag as TagIcon } from "lucide-react";
+import { MapPin, Calendar, Tag as TagIcon, Clock, X } from "lucide-react";
 import { COPY } from "@/lib/copy";
+import { fromWibDateTimeLocal, toWibDateTimeLocal, getWibDateString } from "@/lib/time";
 
 interface TaskFormProps {
   open: boolean;
@@ -99,11 +100,7 @@ export function TaskForm({
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setLocationLng(String(editingTask.location_lng));
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setDeadline(
-        editingTask.deadline
-          ? new Date(editingTask.deadline).toISOString().slice(0, 16)
-          : ""
-      );
+      setDeadline(toWibDateTimeLocal(editingTask.deadline));
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedTags((editingTask.tags || []).map((t) => t.id));
     } else if (open && !editingTask) {
@@ -153,7 +150,7 @@ export function TaskForm({
       location_name: locationName.trim(),
       location_lat: parseFloat(locationLat) || -6.9175,
       location_lng: parseFloat(locationLng) || 107.6191,
-      deadline: deadline ? new Date(deadline).toISOString() : undefined,
+      deadline: fromWibDateTimeLocal(deadline),
       tagIds: selectedTags.length > 0 ? selectedTags : undefined,
     };
 
@@ -163,7 +160,7 @@ export function TaskForm({
         {
           ...input,
           assigned_to: assignedTo || null,
-          deadline: deadline ? new Date(deadline).toISOString() : null,
+          deadline: fromWibDateTimeLocal(deadline) ?? null,
         },
         currentUser
       );
@@ -316,10 +313,22 @@ export function TaskForm({
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="task-deadline" className="text-sm font-medium text-tunet-text">
-              <Calendar className="w-3.5 h-3.5 inline mr-1" />
-              {COPY.taskForm.deadline}
-            </label>
+            <div className="flex items-center justify-between gap-2">
+              <label htmlFor="task-deadline" className="text-sm font-medium text-tunet-text">
+                <Calendar className="w-3.5 h-3.5 inline mr-1" />
+                {COPY.taskForm.deadline} <span className="text-xs font-normal text-tunet-text-muted">(WIB)</span>
+              </label>
+              {deadline && (
+                <button
+                  type="button"
+                  onClick={() => setDeadline("")}
+                  className="inline-flex items-center gap-1 text-xs text-tunet-text-muted hover:text-red-400 transition-colors"
+                >
+                  <X className="w-3 h-3" />
+                  Hapus tenggat
+                </button>
+              )}
+            </div>
             <Input
               id="task-deadline"
               type="datetime-local"
@@ -327,6 +336,41 @@ export function TaskForm({
               onChange={(e) => setDeadline(e.target.value)}
               className="bg-tunet-bg border-tunet-border text-tunet-text"
             />
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                {
+                  label: "+2 Jam",
+                  getValue: () => toWibDateTimeLocal(new Date(Date.now() + 2 * 3600 * 1000)),
+                },
+                {
+                  label: "Hari ini 17:00",
+                  getValue: () => `${getWibDateString(new Date())}T17:00`,
+                },
+                {
+                  label: "Besok 12:00",
+                  getValue: () =>
+                    `${getWibDateString(new Date(Date.now() + 24 * 3600 * 1000))}T12:00`,
+                },
+                {
+                  label: "Besok 17:00",
+                  getValue: () =>
+                    `${getWibDateString(new Date(Date.now() + 24 * 3600 * 1000))}T17:00`,
+                },
+              ].map((preset) => (
+                <button
+                  key={preset.label}
+                  type="button"
+                  onClick={() => setDeadline(preset.getValue())}
+                  className="inline-flex items-center gap-1 rounded-md border border-tunet-border bg-tunet-bg px-2 py-1 text-[11px] font-medium text-tunet-text-muted hover:border-tunet-green/60 hover:text-tunet-text transition-colors"
+                >
+                  <Clock className="w-3 h-3 text-tunet-green" />
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-[11px] leading-relaxed text-tunet-text-muted">
+              Jika tugas belum selesai melewati tenggat, sistem mengirim notifikasi otomatis dan mencatatnya ke Rapot Karyawan.
+            </p>
           </div>
 
           {tags.length > 0 && (

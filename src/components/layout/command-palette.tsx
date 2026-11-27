@@ -17,6 +17,7 @@ import {
   Sun,
   Target,
   Users,
+  Award,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Task, UserRole } from "@/types";
@@ -40,6 +41,7 @@ const ROLE_NAV: Partial<Record<UserRole, NavEntry[]>> = {
     { href: "/dashboard/tasks", labelKey: "taskBoard", icon: CheckSquare },
     { href: "/dashboard/attendance", labelKey: "attendance", icon: Clock },
     { href: "/dashboard/admin/users", labelKey: "team", icon: Users },
+    { href: "/dashboard/admin/rapot", labelKey: "rapot", icon: Award },
     { href: "/dashboard/admin/attendance", labelKey: "attendanceOverview", icon: Users },
     { href: "/dashboard/admin/marketing", labelKey: "marketing", icon: Target },
     { href: "/dashboard/admin/kunjungan", labelKey: "visitOverview", icon: ClipboardCheck },
@@ -49,6 +51,7 @@ const ROLE_NAV: Partial<Record<UserRole, NavEntry[]>> = {
     { href: "/dashboard/noc", labelKey: "dashboard", icon: LayoutDashboard },
     { href: "/dashboard/map", labelKey: "radarMap", icon: Map },
     { href: "/dashboard/tasks", labelKey: "taskBoard", icon: CheckSquare },
+    { href: "/dashboard/admin/rapot", labelKey: "rapot", icon: Award },
     { href: "/dashboard/attendance", labelKey: "attendance", icon: Clock },
     { href: "/dashboard/settings", labelKey: "settings", icon: Settings },
   ],

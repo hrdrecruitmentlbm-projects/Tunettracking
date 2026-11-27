@@ -214,9 +214,27 @@ function createInitialStore(): MockStore {
         location_name: "Jl. Dago No. 55, Bandung",
         location_lat: -6.8821,
         location_lng: 107.6172,
-        deadline: null,
-        created_at: now,
+        deadline: new Date(Date.now() - 3600 * 1000 * 1).toISOString(),
+        created_at: new Date(Date.now() - 3600 * 1000 * 6).toISOString(),
         updated_at: now,
+        completed_at: now,
+        deleted_at: null,
+      },
+      {
+        id: "aaaaaaa6-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+        title: "Splicing ODP Rusak - Jl. Buah Batu",
+        description: "Penanganan kabel putus di ODP 04 Buah Batu sesuai target SLA.",
+        status: "in_progress",
+        priority_id: "p-high",
+        created_by: "22222222-2222-2222-2222-222222222222",
+        assigned_to: "44444444-4444-4444-4444-444444444444",
+        location_name: "Jl. Buah Batu No. 110, Bandung",
+        location_lat: -6.9432,
+        location_lng: 107.6288,
+        deadline: new Date(Date.now() - 3600 * 1000 * 2).toISOString(),
+        created_at: new Date(Date.now() - 3600 * 1000 * 8).toISOString(),
+        updated_at: now,
+        completed_at: null,
         deleted_at: null,
       },
     ],
@@ -674,6 +692,7 @@ export function createMockSupabaseClient(): SupabaseClient {
           const oldStatus = task.status;
           task.status = params.p_new_status;
           task.updated_at = now;
+          task.completed_at = params.p_new_status === "done" ? now : null;
           store.task_history.push({
             id: crypto.randomUUID(),
             task_id: task.id,
@@ -726,6 +745,14 @@ export function createMockSupabaseClient(): SupabaseClient {
           });
         }
         return { data: { ok: true }, error: null };
+      }
+      if (fnName === "claim_notification") {
+        const notif = store.notifications.find((n) => n.id === params.p_notification_id);
+        if (notif && !notif.telegram_sent_at) {
+          notif.telegram_sent_at = now;
+          return { data: true, error: null };
+        }
+        return { data: false, error: null };
       }
       if (fnName === "claim_pending_notifications") {
         return { data: [], error: null };

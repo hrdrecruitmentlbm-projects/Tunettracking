@@ -19,6 +19,7 @@ import {
   Clock,
   ClipboardCheck,
   Target,
+  Award,
 } from "lucide-react";
 import { COPY } from "@/lib/copy";
 
@@ -33,6 +34,7 @@ const NAV_ITEMS = {
     { href: "/dashboard/tasks", labelKey: "taskBoard" as const, icon: CheckSquare },
     { href: "/dashboard/attendance", labelKey: "attendance" as const, icon: Clock },
     { href: "/dashboard/admin/users", labelKey: "team" as const, icon: Users },
+    { href: "/dashboard/admin/rapot", labelKey: "rapot" as const, icon: Award },
     { href: "/dashboard/admin/attendance", labelKey: "attendanceOverview" as const, icon: Users },
     { href: "/dashboard/admin/marketing", labelKey: "marketing" as const, icon: Target },
     { href: "/dashboard/admin/kunjungan", labelKey: "visitOverview" as const, icon: ClipboardCheck },
@@ -42,6 +44,7 @@ const NAV_ITEMS = {
     { href: "/dashboard/noc", labelKey: "dashboard" as const, icon: LayoutDashboard },
     { href: "/dashboard/map", labelKey: "radarMap" as const, icon: Map },
     { href: "/dashboard/tasks", labelKey: "taskBoard" as const, icon: CheckSquare },
+    { href: "/dashboard/admin/rapot", labelKey: "rapot" as const, icon: Award },
     { href: "/dashboard/attendance", labelKey: "attendance" as const, icon: Clock },
     { href: "/dashboard/settings", labelKey: "settings" as const, icon: Settings },
   ],
